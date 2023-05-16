@@ -26,6 +26,7 @@ struct Song {
 
 fn main() {
 
+    MainWindow::new().unwrap().run().unwrap();
     let matches = clap::Command::new("eDrums Wav Player")
         .version("0.1")
         .arg(Arg::new("music_folder").long("music_folder").required(true).help("Where your music files are stored"))
@@ -287,4 +288,15 @@ fn play_separate(track_source: Amplify<Decoder<BufReader<File>>>, click_source: 
     click_thread.join().expect("click thread panicked");
 
     Ok(())
+}
+
+slint::slint! {
+    export component MainWindow inherits Window {
+        width: 800px;
+        height: 600px;
+        Text {
+            text: "Hi there";
+            color: green;
+        }
+    }
 }
