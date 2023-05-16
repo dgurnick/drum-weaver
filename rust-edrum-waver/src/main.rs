@@ -35,7 +35,6 @@ fn main() {
         .arg(Arg::new("click_volume").required(false).default_value("100").index(4))
         .arg(Arg::new("track_device").required(false).default_value("1").index(5))
         .arg(Arg::new("click_device").required(false).default_value("1").index(6))
-        .arg(Arg::new("click_delay").required(false).default_value("0").index(7))
         .get_matches();
 
     if let Err(err) = run(&matches) {
@@ -137,10 +136,6 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         .unwrap_or(&"1".to_string())
         .parse::<usize>()
         .unwrap_or(1) - 1;
-    let click_delay = matches.get_one::<String>("click_delay")
-        .unwrap_or(&"0".to_string())
-        .parse::<usize>()
-        .unwrap_or(0);
 
     let host = cpal::default_host();
     let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
