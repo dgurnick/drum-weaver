@@ -34,7 +34,6 @@ fn main() {
         .arg(Arg::new("track_volume").required(false).default_value("100").index(3))
         .arg(Arg::new("click_volume").required(false).default_value("100").index(4))
         .arg(Arg::new("track_device").required(false).default_value("1").index(5))
-        .arg(Arg::new("click_device").required(false).default_value("1").index(6))
         .get_matches();
 
     if let Err(err) = run(&matches) {
@@ -44,6 +43,35 @@ fn main() {
 
 }
 
+/// Retrieves file paths for music files in a specified folder.
+/// If the file does not exist, but a matching "7z" file does,
+/// it will automatically decompress the 7z file for you.
+///
+/// # Arguments
+///
+/// * `music_folder` - A string slice representing the path to the music folder.
+/// * `song_position` - An `usize` indicating the position of the desired song.
+///
+/// # Returns
+///
+/// A `Result` containing a tuple with the file paths of two music files, or an error message as a `String`.
+/// If successful, the tuple contains two `String`s representing the file paths.
+/// If unsuccessful, an error message is returned as a `String`.
+///
+/// # Example
+///
+/// ```rust
+/// let result = get_file_paths("/path/to/music/folder", 0);
+/// match result {
+///     Ok((file1, file2)) => {
+///         println!("File 1: {}", file1);
+///         println!("File 2: {}", file2);
+///     },
+///     Err(error) => {
+///         eprintln!("Error: {}", error);
+///     }
+/// }
+/// ```
 fn get_file_paths(music_folder: &str, song_position: usize) -> Result<(String, String), String> {
 
     let mut reader = csv::Reader::from_path("assets/song_list.csv").unwrap();
@@ -92,6 +120,32 @@ fn get_file_paths(music_folder: &str, song_position: usize) -> Result<(String, S
 
 }
 
+/// Checks the existence of a file in a specified folder.
+///
+/// # Arguments
+///
+/// * `folder_path` - A string slice representing the path to the folder.
+/// * `file_name` - A string slice representing the name of the file to check.
+///
+/// # Returns
+///
+/// A `Result` indicating the result of the existence check.
+/// If the file exists, `Ok(())` is returned.
+/// If the file does not exist or encounters an error, an error message is returned as a `String`.
+///
+/// # Example
+///
+/// ```rust
+/// let result = check_file_existence("/path/to/folder", "example.txt");
+/// match result {
+///     Ok(()) => {
+///         println!("File exists.");
+///     },
+///     Err(error) => {
+///         eprintln!("Error: {}", error);
+///     }
+/// }
+/// ```
 fn check_file_existence(folder_path: &str, file_name: &str) -> Result<(), String> {
     let mut path = PathBuf::new();
     path.push(folder_path);
@@ -103,9 +157,11 @@ fn check_file_existence(folder_path: &str, file_name: &str) -> Result<(), String
     Ok(())
 }
 
+/// Runs the program as determined by the main function
 fn run(matches: &ArgMatches) -> Result<i32, String> {
 
-     let music_folder = matches.get_one::<String>("music_folder").expect("No folder provided");
+    // Parse the arguments
+    let music_folder = matches.get_one::<String>("music_folder").expect("No folder provided");
     
     let track_position = matches.get_one::<String>("track")
         .unwrap_or(&"1.0".to_string())
@@ -132,10 +188,6 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         .unwrap_or(&"1".to_string())
         .parse::<usize>()
         .unwrap_or(1) - 1;
-    let click_device_position = matches.get_one::<String>("click_device")
-        .unwrap_or(&"1".to_string())
-        .parse::<usize>()
-        .unwrap_or(1) - 1;
 
     let host = cpal::default_host();
     let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
@@ -145,7 +197,7 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
 
     // Check if the device positions are valid
     let num_devices = available_devices.len();
-    if track_device_position > num_devices || click_device_position > num_devices {
+    if track_device_position > num_devices {
         return Err("Invalid device position".to_string());
     }
 
@@ -157,28 +209,12 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     let track_source_amplify = track_source.amplify(track_volume);
     let click_source_amplify = click_source.amplify(click_volume);
 
-    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let (_stream, stream_handle) = OutputStream::try_from_device(&available_devices[track_device_position]).map_err(|e| format!("Failed to create track output stream: {}", e))?;
     let combined_source = track_source_amplify.mix(click_source_amplify);
 
     let sink = Sink::try_new(&stream_handle).unwrap();
     sink.append(combined_source);
     sink.sleep_until_end();
-
-/*     track_sink.append(track_source);
-    click_sink.append(click_source);
-
-    let track_thread = thread::spawn(move || {
-        track_sink.sleep_until_end();
-    });
-
-    let click_thread = thread::spawn(move || {
-        thread::sleep(Duration::from_millis(click_delay as u64));
-        click_sink.sleep_until_end();
-
-    }); 
-    
-    track_thread.join().expect("track thread panicked");
-    click_thread.join().expect("click thread panicked"); */
 
     Ok(0)
 
