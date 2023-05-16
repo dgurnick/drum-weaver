@@ -13,7 +13,6 @@ log = "0.4.17"
 rodio = "0.17.1"
 serde = { version = "1.0.163", features = ["derive"] }
 sevenz-rust = "0.2.10"
-slint = "1.0.2"
 
 [build-dependencies]
 slint-build = "1.0.2"
