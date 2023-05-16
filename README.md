@@ -18,3 +18,7 @@ where
 
 Tasks
 [x] Basic player
+[ ] Basic UI or can be as a local webserver (leptos?)
+[ ] search and filter option
+[ ] playlists
+[ ] midi controller. something basic with a synth will do. For restart, skip song, skip forward and backward, etc
