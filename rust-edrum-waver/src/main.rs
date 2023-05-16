@@ -157,18 +157,19 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     let track = File::open(track_path_str).map_err(|e| format!("Failed to open track file: {}", e))?;
     let click = File::open(click_path_str).map_err(|e| format!("Failed to open click file: {}", e))?;
 
-    let (_track_stream, track_stream_handle) = OutputStream::try_from_device(&available_devices[track_device_position]).map_err(|e| format!("Failed to create track output stream: {}", e))?;
-    let (_click_stream, click_stream_handle) = OutputStream::try_from_device(&available_devices[click_device_position]).map_err(|e| format!("Failed to create track output stream: {}", e))?;
-
-    let track_sink = rodio::Sink::try_new(&track_stream_handle).map_err(|e| format!("Failed to create audio sink: {}", e))?;
-    let click_sink = rodio::Sink::try_new(&click_stream_handle).map_err(|e| format!("Failed to create audio sink: {}", e))?;
-    track_sink.set_volume(track_volume);
-    click_sink.set_volume(click_volume);
-
     let track_source = Decoder::new(BufReader::new(track)).map_err(|e| format!("Failed to decode track file: {}", e))?;
     let click_source = Decoder::new(BufReader::new(click)).map_err(|e| format!("Failed to decode click file: {}", e))?;
+    let track_source_amplify = track_source.amplify(track_volume);
+    let click_source_amplify = click_source.amplify(click_volume);
 
-    track_sink.append(track_source);
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let combined_source = track_source_amplify.mix(click_source_amplify);
+
+    let sink = Sink::try_new(&stream_handle).unwrap();
+    sink.append(combined_source);
+    sink.sleep_until_end();
+
+/*     track_sink.append(track_source);
     click_sink.append(click_source);
 
     let track_thread = thread::spawn(move || {
@@ -181,9 +182,8 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
 
     }); 
     
-
     track_thread.join().expect("track thread panicked");
-    click_thread.join().expect("click thread panicked");
+    click_thread.join().expect("click thread panicked"); */
 
     Ok(0)
 
