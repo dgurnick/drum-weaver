@@ -1,12 +1,16 @@
 use std::fs::{metadata, File};
 use std::io::BufReader;
 use std::path::PathBuf;
+use std::time::Duration;
 use rodio::*;
 use rodio::cpal::traits::{HostTrait};
 use std::{thread, println};
 use clap::{Arg, ArgMatches};
 use csv;
+use std::sync::{Arc, atomic::AtomicBool, atomic::Ordering};
 use serde::Deserialize;
+use sevenz_rust;
+
 
 #[derive(Debug, serde::Deserialize)]
 struct Song {
@@ -31,6 +35,7 @@ fn main() {
         .arg(Arg::new("click_volume").required(false).default_value("100").index(4))
         .arg(Arg::new("track_device").required(false).default_value("1").index(5))
         .arg(Arg::new("click_device").required(false).default_value("1").index(6))
+        .arg(Arg::new("click_delay").required(false).default_value("0").index(7))
         .get_matches();
 
     if let Err(err) = run(&matches) {
@@ -53,8 +58,29 @@ fn get_file_paths(music_folder: &str, song_position: usize) -> Result<(String, S
         if position == song_position {
             let track_path_str = format!("{}/{}/{}.wav", music_folder, song.folder, song.file_name);
             let click_path_str = format!("{}/{}/{}_click.wav", music_folder, song.folder, song.file_name);
-            check_file_existence(music_folder, &track_path_str);
-            check_file_existence(music_folder, &click_path_str);
+
+            let mut path = PathBuf::new();
+            path.push(music_folder);
+            path.push(&track_path_str);
+
+            if !path.exists() {
+                // if there's a 7z file with the same name, decompress it 
+                 let archive_path = PathBuf::from(format!("{}/{}/{}.7z", music_folder, song.folder, song.file_name));
+                 if ! archive_path.exists() {
+                    return Err("Failed to find file or 7z archive".to_string());
+                 } 
+                 println!("Decompressing file: {}", archive_path.display());
+
+                 let mut output_folder = PathBuf::new();
+                 output_folder.push(music_folder);
+                 output_folder.push(song.folder);
+
+                 sevenz_rust::decompress_file(&archive_path, output_folder).expect("Failed to decompress file");
+
+            }
+
+            check_file_existence(music_folder, &track_path_str)?;
+            check_file_existence(music_folder, &click_path_str)?;
 
             return Ok((track_path_str, click_path_str));
         } else {
@@ -111,6 +137,10 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         .unwrap_or(&"1".to_string())
         .parse::<usize>()
         .unwrap_or(1) - 1;
+    let click_delay = matches.get_one::<String>("click_delay")
+        .unwrap_or(&"0".to_string())
+        .parse::<usize>()
+        .unwrap_or(0);
 
     let host = cpal::default_host();
     let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
@@ -123,9 +153,6 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     if track_device_position > num_devices || click_device_position > num_devices {
         return Err("Invalid device position".to_string());
     }
-
-
-
 
     let track = File::open(track_path_str).map_err(|e| format!("Failed to open track file: {}", e))?;
     let click = File::open(click_path_str).map_err(|e| format!("Failed to open click file: {}", e))?;
@@ -145,15 +172,15 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     click_sink.append(click_source);
 
     let track_thread = thread::spawn(move || {
-        //track_stream_handle.play_raw(track_source.convert_samples()).unwrap();
         track_sink.sleep_until_end();
-        
     });
 
     let click_thread = thread::spawn(move || {
-        //click_stream_handle.play_raw(click_source.convert_samples()).unwrap();
+        thread::sleep(Duration::from_millis(click_delay as u64));
         click_sink.sleep_until_end();
+
     }); 
+    
 
     track_thread.join().expect("track thread panicked");
     click_thread.join().expect("click thread panicked");
