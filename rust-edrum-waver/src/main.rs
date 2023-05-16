@@ -1,28 +1,26 @@
 use std::fs::{metadata, File};
-use std::io::{BufReader, BufRead};
+use std::io::{BufReader};
 use std::path::PathBuf;
-use std::time::Duration;
 use rodio::*;
 use rodio::source::Amplify;
 use rodio::cpal::traits::{HostTrait};
 use std::{thread, println};
 use clap::{Arg, ArgMatches};
 use csv;
-use std::sync::{Arc, atomic::AtomicBool, atomic::Ordering};
-use serde::Deserialize;
 use sevenz_rust;
 
 
 #[derive(Debug, serde::Deserialize)]
+#[allow(unused_variables)]
 struct Song {
     file_name: String,
-    genre: String,
-    year: String,
-    artist: String,
-    song: String,
-    album: String,
-    length: String, // is actually a duration
-    bpm: usize,
+    #[allow(dead_code)] genre: String,
+    #[allow(dead_code)] year: String, 
+    #[allow(dead_code)] artist: String,
+    #[allow(dead_code)] song: String,
+    #[allow(dead_code)] album: String,
+    #[allow(dead_code)] length: String,
+    #[allow(dead_code)] bpm: usize,
     folder: String,
 }
 
