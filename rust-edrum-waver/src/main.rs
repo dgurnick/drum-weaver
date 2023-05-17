@@ -85,9 +85,15 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     };
 
     if ui {
-        run_ui(arguments); 
+        match run_ui(arguments) {
+            Ok(_) => {},
+            Err(err) => return Err(format!("Could not start the ui. {}", err)),
+        }
     } else {
-        run_cli(arguments);
+        match run_cli(arguments) {
+            Ok(_) => {},
+            Err(err) => return Err(format!("Could not run the cli: {}", err)),
+        }
    }
 
     Ok(0)
