@@ -34,23 +34,17 @@ use tui::{
 };
 use lazy_static::lazy_static;
 
+mod common;
+use common::Song;
+
 mod player;
 use player::play_combined;
 use player::play_separate;
 
-#[derive(Debug, serde::Deserialize, Clone)]
-#[allow(unused_variables)]
-struct Song {
-    file_name: String,
-    #[allow(dead_code)] genre: String,
-    #[allow(dead_code)] year: String, 
-    #[allow(dead_code)] artist: String,
-    #[allow(dead_code)] song: String,
-    #[allow(dead_code)] album: String,
-    #[allow(dead_code)] length: String,
-    #[allow(dead_code)] bpm: usize,
-    folder: String,
-}
+mod util;
+use util::get_file_paths;
+
+
 
 fn main() {
 
@@ -74,82 +68,7 @@ fn main() {
 
 }
 
-/// Retrieves file paths for music files in a specified folder.
-/// If the file does not exist, but a matching "7z" file does,
-/// it will automatically decompress the 7z file for you.
-///
-/// # Arguments
-///
-/// * `music_folder` - A string slice representing the path to the music folder.
-/// * `song_position` - An `usize` indicating the position of the desired song.
-///
-/// # Returns
-///
-/// A `Result` containing a tuple with the file paths of two music files, or an error message as a `String`.
-/// If successful, the tuple contains two `String`s representing the file paths.
-/// If unsuccessful, an error message is returned as a `String`.
-///
-/// # Example
-///
-/// ```rust
-/// let result = get_file_paths("/path/to/music/folder", 0);
-/// match result {
-///     Ok((file1, file2)) => {
-///         println!("File 1: {}", file1);
-///         println!("File 2: {}", file2);
-///     },
-///     Err(error) => {
-///         eprintln!("Error: {}", error);
-///     }
-/// }
-/// ```
-fn get_file_paths(music_folder: &str, song_position: usize) -> Result<(String, String), String> {
 
-    let mut reader = csv::Reader::from_path("assets/song_list.csv").unwrap();
-    let headers = reader.headers();
-    println!("{:?}", headers);
-
-    let mut position = 1;
-    for record in reader.deserialize() {
-        let song: Song = record.unwrap();
-
-        if position == song_position {
-            let track_path_str = format!("{}/{}/{}.wav", music_folder, song.folder, song.file_name);
-            let click_path_str = format!("{}/{}/{}_click.wav", music_folder, song.folder, song.file_name);
-
-            let mut path = PathBuf::new();
-            path.push(music_folder);
-            path.push(&track_path_str);
-
-            if !path.exists() {
-                // if there's a 7z file with the same name, decompress it 
-                 let archive_path = PathBuf::from(format!("{}/{}/{}.7z", music_folder, song.folder, song.file_name));
-                 if ! archive_path.exists() {
-                    return Err(format!("Failed to find file or 7z archive for {}", archive_path.display()));
-                 } 
-                 println!("Decompressing file: {}", archive_path.display());
-
-                 let mut output_folder = PathBuf::new();
-                 output_folder.push(music_folder);
-                 output_folder.push(song.folder);
-
-                 sevenz_rust::decompress_file(&archive_path, output_folder).expect("Failed to decompress file");
-
-            }
-
-            check_file_existence(music_folder, &track_path_str)?;
-            check_file_existence(music_folder, &click_path_str)?;
-
-            return Ok((track_path_str, click_path_str));
-        } else {
-            position += 1;
-
-        }
-    }
-
-    Err("Could not find song".to_string())
-
-}
 
 /// Checks the existence of a file in a specified folder.
 ///
