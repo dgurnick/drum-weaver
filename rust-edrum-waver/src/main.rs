@@ -4,7 +4,6 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use std::{
-    fmt,
     fs,
     io,
     path::PathBuf,
@@ -18,12 +17,8 @@ use csv;
 use rodio::{
     self, 
     cpal, 
-    source::Amplify, 
     cpal::traits::HostTrait,
-    OutputStream,
-    Device,
     Decoder,
-    Sink,
     Source,
 };
 use sevenz_rust;
@@ -39,6 +34,9 @@ use tui::{
 };
 use lazy_static::lazy_static;
 
+mod player;
+use player::play_combined;
+use player::play_separate;
 
 #[derive(Debug, serde::Deserialize, Clone)]
 #[allow(unused_variables)]
@@ -282,44 +280,7 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
 
 }
 
-fn play_combined(track_source: Amplify<Decoder<io::BufReader<fs::File>>>, click_source: Amplify<Decoder<io::BufReader<fs::File>>>, device: &Device) -> Result<(), String> {
-    let (_stream, stream_handle) = OutputStream::try_from_device(&device).map_err(|e| format!("Failed to create track output stream: {}", e))?;
-    let combined_source = track_source.mix(click_source);
 
-    let sink = Sink::try_new(&stream_handle).unwrap();
-    sink.append(combined_source);
-    sink.sleep_until_end();
-    Ok(())
-}
-
-fn play_separate(track_source: Amplify<Decoder<io::BufReader<fs::File>>>, click_source: Amplify<Decoder<io::BufReader<fs::File>>>, track_device: &Device, click_device: &Device, track_volume: f32, click_volume: f32) -> Result<(), String> {
-    
-    let (_track_stream, track_stream_handle) = OutputStream::try_from_device(track_device).map_err(|e| format!("Failed to create track output stream: {}", e))?;
-    let (_click_stream, click_stream_handle) = OutputStream::try_from_device(click_device).map_err(|e| format!("Failed to create track output stream: {}", e))?;
-
-    let track_sink = rodio::Sink::try_new(&track_stream_handle).map_err(|e| format!("Failed to create audio sink: {}", e))?;
-    let click_sink = rodio::Sink::try_new(&click_stream_handle).map_err(|e| format!("Failed to create audio sink: {}", e))?;
-    track_sink.set_volume(track_volume);
-    click_sink.set_volume(click_volume);
-
-    track_sink.append(track_source);
-    click_sink.append(click_source);
-
-    let track_thread = thread::spawn(move || {
-        track_sink.sleep_until_end();
-    });
-
-    let click_thread = thread::spawn(move || {
-        click_sink.sleep_until_end();
-
-    }); 
-    
-
-    track_thread.join().expect("track thread panicked");
-    click_thread.join().expect("click thread panicked");
-
-    Ok(())
-}
 
 
 
