@@ -21,7 +21,6 @@ use rodio::{
     Decoder,
     Source,
 };
-use sevenz_rust;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tui::{
@@ -48,8 +47,6 @@ use util::get_file_paths;
 
 fn main() {
 
-    setupUi();
-
     let matches = clap::Command::new("eDrums Wav Player")
         .version("0.1")
         .arg(Arg::new("music_folder").long("music_folder").required(true).help("Where your music files are stored"))
@@ -59,6 +56,7 @@ fn main() {
         .arg(Arg::new("track_device").long("track_device").required(false).default_value("1"))
         .arg(Arg::new("click_device").long("click_device").required(false).default_value("1"))
         .arg(Arg::new("combined").long("combined").required(false).default_value("1"))
+        .arg(Arg::new("ui").long("ui").required(false).default_value("1"))
         .get_matches();
 
     if let Err(err) = run(&matches) {
@@ -70,42 +68,7 @@ fn main() {
 
 
 
-/// Checks the existence of a file in a specified folder.
-///
-/// # Arguments
-///
-/// * `folder_path` - A string slice representing the path to the folder.
-/// * `file_name` - A string slice representing the name of the file to check.
-///
-/// # Returns
-///
-/// A `Result` indicating the result of the existence check.
-/// If the file exists, `Ok(())` is returned.
-/// If the file does not exist or encounters an error, an error message is returned as a `String`.
-///
-/// # Example
-///
-/// ```rust
-/// let result = check_file_existence("/path/to/folder", "example.txt");
-/// match result {
-///     Ok(()) => {
-///         println!("File exists.");
-///     },
-///     Err(error) => {
-///         eprintln!("Error: {}", error);
-///     }
-/// }
-/// ```
-fn check_file_existence(folder_path: &str, file_name: &str) -> Result<(), String> {
-    let mut path = PathBuf::new();
-    path.push(folder_path);
-    path.push(file_name);
 
-    if let Err(_) = fs::metadata(&path) {
-        return Err(format!("File '{}' does not exist", path.display()));
-    }
-    Ok(())
-}
 
 /// Runs the program as determined by the main function
 fn run(matches: &ArgMatches) -> Result<i32, String> {
@@ -144,55 +107,64 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         .unwrap_or(1) - 1;
     let combined = matches.get_one::<String>("combined")
         .unwrap_or(&"1".to_string())
-        .parse::<usize>()
-        .unwrap_or(1);
+        .parse::<bool>()
+        .unwrap_or(true);
+    let ui = matches
+        .get_one::<String>("ui")
+        .map(|value| value == "1")
+        .unwrap_or(false);
 
-    let host = cpal::default_host();
-    let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
-    if available_devices.is_empty() {
-        return Err("No output devices found".to_string());
-    }
-
-    // Check if the device positions are valid
-    let num_devices = available_devices.len();
-    if track_device_position > num_devices {
-        return Err("Invalid track output device".to_string());
-    }
-    if click_device_position > num_devices {
-        return Err("Invalid click output device".to_string());
-    }
-
-    let track = fs::File::open(track_path_str).map_err(|e| format!("Failed to open track file: {}", e))?;
-    let click = fs::File::open(click_path_str).map_err(|e| format!("Failed to open click file: {}", e))?;
-
-    let track_source = Decoder::new(io::BufReader::new(track)).map_err(|e| format!("Failed to decode track file: {}", e))?;
-    let click_source = Decoder::new(io::BufReader::new(click)).map_err(|e| format!("Failed to decode click file: {}", e))?;
-    let track_source_amplify = track_source.amplify(track_volume);
-    let click_source_amplify = click_source.amplify(click_volume);
-
-    if combined == 1 {
-        match play_combined(
-            track_source_amplify, 
-            click_source_amplify, 
-            &available_devices[track_device_position]
-        ) {
-            Ok(_) => {},
-            Err(err) => return Err(err),
-        }
-    
+    if ui {
+        setupUi(); 
     } else {
-        match play_separate(
-            track_source_amplify, 
-            click_source_amplify, 
-            &available_devices[track_device_position],
-            &available_devices[click_device_position],
-            track_volume,
-            click_volume
-        ) {
-            Ok(_) => {},
-            Err(err) => return Err(err),
-
+        let host = cpal::default_host();
+        let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
+        if available_devices.is_empty() {
+            return Err("No output devices found".to_string());
         }
+
+        // Check if the device positions are valid
+        let num_devices = available_devices.len();
+        if track_device_position > num_devices {
+            return Err("Invalid track output device".to_string());
+        }
+        if click_device_position > num_devices {
+            return Err("Invalid click output device".to_string());
+        }
+
+        let track = fs::File::open(track_path_str).map_err(|e| format!("Failed to open track file: {}", e))?;
+        let click = fs::File::open(click_path_str).map_err(|e| format!("Failed to open click file: {}", e))?;
+
+        let track_source = Decoder::new(io::BufReader::new(track)).map_err(|e| format!("Failed to decode track file: {}", e))?;
+        let click_source = Decoder::new(io::BufReader::new(click)).map_err(|e| format!("Failed to decode click file: {}", e))?;
+        let track_source_amplify = track_source.amplify(track_volume);
+        let click_source_amplify = click_source.amplify(click_volume);
+
+        if combined {
+            match play_combined(
+                track_source_amplify, 
+                click_source_amplify, 
+                &available_devices[track_device_position]
+            ) {
+                Ok(_) => {},
+                Err(err) => return Err(err),
+            }
+        
+        } else {
+            match play_separate(
+                track_source_amplify, 
+                click_source_amplify, 
+                &available_devices[track_device_position],
+                &available_devices[click_device_position],
+                track_volume,
+                click_volume
+            ) {
+                Ok(_) => {},
+                Err(err) => return Err(err),
+
+            }
+        }
+
     }
 
     Ok(0)
