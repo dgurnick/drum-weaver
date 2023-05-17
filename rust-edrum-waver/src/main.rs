@@ -382,7 +382,7 @@ fn setupUi() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .split(size);
 
-            let copyright = Paragraph::new("Drum karaoke player")
+            let copyright = Paragraph::new("Drum karaoke player by Dennis Gurnick")
                 .style(Style::default().fg(Color::Gray))
                 .alignment(Alignment::Center)
                 .block(
@@ -418,6 +418,7 @@ fn setupUi() -> Result<(), Box<dyn std::error::Error>> {
                 .divider(Span::raw("|"));
 
             rect.render_widget(tabs, chunks[0]);
+
             match active_menu_item {
                 MenuItem::Home => rect.render_widget(render_home(), chunks[1]),
                 MenuItem::Playlists => {
@@ -434,7 +435,22 @@ fn setupUi() -> Result<(), Box<dyn std::error::Error>> {
             }
             rect.render_widget(copyright, chunks[2]);
 
-        });
+        })?;
+
+        match rx.recv()? {
+            Event::Input(event) => match event.code {
+                KeyCode::Char('q') => {
+                    disable_raw_mode().expect("Can not disable raw mode");
+                    terminal.clear()?;
+                    terminal.show_cursor()?;
+                    break;
+                },
+                _ => {}
+            },
+            Event::Tick => {}
+
+        }
+
     }
 
 
@@ -449,11 +465,11 @@ fn render_home<'a>() -> Paragraph<'a> {
         Spans::from(vec![Span::raw("to")]),
         Spans::from(vec![Span::raw("")]),
         Spans::from(vec![Span::styled(
-            "pet-CLI",
+            "Drum Karaoke",
             Style::default().fg(Color::LightBlue),
         )]),
         Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::raw("Press 'p' to access pets, 'a' to add random new pets and 'd' to delete the currently selected pet.")]),
+        Spans::from(vec![Span::raw("Press 'p' to access playlists, 'a' to add a new playlist and 'd' to delete the currently selected playlist.")]),
     ])
     .alignment(Alignment::Center)
     .block(
@@ -464,6 +480,7 @@ fn render_home<'a>() -> Paragraph<'a> {
             .border_type(BorderType::Plain),
     );
     home
+    
 }
 
 fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Paragraph<'a>) {
