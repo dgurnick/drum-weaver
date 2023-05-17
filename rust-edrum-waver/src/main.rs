@@ -1,32 +1,46 @@
-use std::fs;
-use std::io;
-use std::path::PathBuf;
-use std::sync::mpsc;
-use std::time::{Duration, Instant};
-use rodio::*;
-use rodio::source::Amplify;
-use rodio::cpal::traits::{HostTrait};
-use std::{thread, println};
-use clap::{Arg, ArgMatches};
-use csv;
-use sevenz_rust;
+use chrono::prelude::*;
 use crossterm::{
-    event::{self, Event as CEvent, KeyCode},
+    event::{self, Event as CEvent, KeyCode, KeyEvent, KeyEventKind},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
+use std::{
+    fmt,
+    fs,
+    io,
+    path::PathBuf,
+    sync::{mpsc, Mutex},
+    thread,
+    time::{Duration, Instant},
+};
+
+use clap::{Arg, ArgMatches};
+use csv;
+use rodio::{
+    self, 
+    cpal, 
+    source::Amplify, 
+    cpal::traits::HostTrait,
+    OutputStream,
+    Device,
+    Decoder,
+    Sink,
+    Source,
+};
+use sevenz_rust;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use tui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{
-        Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, Tabs,
-    },
+    widgets::{Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, Tabs},
     Terminal,
 };
+use lazy_static::lazy_static;
 
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, Clone)]
 #[allow(unused_variables)]
 struct Song {
     file_name: String,
@@ -309,15 +323,41 @@ fn play_separate(track_source: Amplify<Decoder<io::BufReader<fs::File>>>, click_
 
 
 
+
+
+
+
+
+#[derive(Serialize, Deserialize, Clone)]
+struct Playlist {
+    id: usize,
+    name: String,
+    category: String,
+    age: usize,
+    created_at: DateTime<Utc>,
+}
+
+
 enum Event<I> {
     Input(I),
     Tick,
+}
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("error reading the DB file: {0}")]
+    ReadDBError(#[from] io::Error),
+    #[error("error parsing the DB file: {0}")]
+    ParseDBError(#[from] serde_json::Error),
+    #[error("error parsing the CsV file: {0}")]
+    CsvError(#[from] csv::Error),
 }
 
 #[derive(Copy, Clone, Debug)]
 enum MenuItem {
     Home,
     Playlists,
+    Songs,
 }
 
 impl From<MenuItem> for usize {
@@ -325,9 +365,12 @@ impl From<MenuItem> for usize {
         match input {
             MenuItem::Home => 0,
             MenuItem::Playlists => 1,
+            MenuItem::Songs => 2,
         }
     }
 }
+
+// see: https://github.com/zupzup/rust-commandline-example/blob/main/src/main.rs
 
 fn setupUi() -> Result<(), Box<dyn std::error::Error>> {
     enable_raw_mode().expect("Can not run in raw mode");
@@ -361,10 +404,13 @@ fn setupUi() -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(backend)?;
     terminal.clear();
 
-    let menu_titles = vec!["Home", "Playlists", "Quit"];
+    let menu_titles = vec!["Home", "Playlists", "Songs", "Quit"];
     let mut active_menu_item = MenuItem::Home;
     let mut playlist_state = ListState::default();
     playlist_state.select(Some(0));
+
+    let mut songlist_state = ListState::default();
+    songlist_state.select(Some(0));
 
     loop {
         terminal.draw(|rect| {
@@ -425,12 +471,23 @@ fn setupUi() -> Result<(), Box<dyn std::error::Error>> {
                     let playlist_chunks = Layout::default()
                         .direction(Direction::Horizontal)
                         .constraints(
-                            [Constraint::Percentage(20), Constraint::Percentage(80)].as_ref(),
+                            [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
                         )
                         .split(chunks[1]);
                     let (left, right) = render_playlists(&playlist_state);
                     rect.render_stateful_widget(left, playlist_chunks[0], &mut playlist_state);
                     rect.render_widget(right, playlist_chunks[1]);
+                },
+                MenuItem::Songs => {
+                    let songlist_chunks = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints(
+                            [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
+                        )
+                        .split(chunks[1]);
+                    let (left, right) = render_songs(&songlist_state);
+                    rect.render_stateful_widget(left, songlist_chunks[0], &mut songlist_state);
+                    rect.render_widget(right, songlist_chunks[1]);
                 }
             }
             rect.render_widget(copyright, chunks[2]);
@@ -438,6 +495,7 @@ fn setupUi() -> Result<(), Box<dyn std::error::Error>> {
         })?;
 
         match rx.recv()? {
+
             Event::Input(event) => match event.code {
                 KeyCode::Char('q') => {
                     disable_raw_mode().expect("Can not disable raw mode");
@@ -445,6 +503,75 @@ fn setupUi() -> Result<(), Box<dyn std::error::Error>> {
                     terminal.show_cursor()?;
                     break;
                 },
+                KeyCode::Char('h') => active_menu_item = MenuItem::Home,
+                KeyCode::Char('p') => active_menu_item = MenuItem::Playlists,
+                KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
+                KeyCode::Down => {
+                    
+                    if event.kind == KeyEventKind::Release {
+
+                        match active_menu_item {
+                            MenuItem::Playlists => {
+                                if let Some(selected) = playlist_state.selected() {
+                                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
+                                    if selected >= amount_playlists - 1 {
+                                        playlist_state.select(Some(0));
+                                    } else {
+                                        playlist_state.select(Some(selected + 1));
+                                    }
+                                }
+
+                            },
+                            MenuItem::Songs => {
+                                if let Some(selected) = songlist_state.selected() {
+                                    let amount_songs = read_songs().expect("can't fetch play list").len();
+                                    if selected >= amount_songs - 1 {
+                                        songlist_state.select(Some(0));
+                                    } else {
+                                        songlist_state.select(Some(selected + 1));
+                                    }
+                                }
+
+                            },
+                            _ => {}
+
+                        }
+
+                    }
+                }
+                KeyCode::Up => {
+                    if event.kind == KeyEventKind::Release {
+
+                        match active_menu_item {
+                            MenuItem::Playlists => {
+
+                                if let Some(selected) = playlist_state.selected() {
+                                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
+                                    if selected > 0 {
+                                        playlist_state.select(Some(selected - 1));
+                                    } else {
+                                        playlist_state.select(Some(amount_playlists - 1));
+                                    }
+                                }
+                            },
+                            MenuItem::Songs => {
+
+                                if let Some(selected) = songlist_state.selected() {
+                                    let amount_songs = read_songs().expect("can't fetch songs").len();
+                                    if selected > 0 {
+                                        songlist_state.select(Some(selected - 1));
+                                    } else {
+                                        songlist_state.select(Some(amount_songs - 1));
+                                    }
+                                }
+
+                            },
+                            _ => {}
+
+                        }
+
+                    }
+                }
                 _ => {}
             },
             Event::Tick => {}
@@ -483,27 +610,186 @@ fn render_home<'a>() -> Paragraph<'a> {
     
 }
 
-fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Paragraph<'a>) {
-    let items = vec![
-        ListItem::new("Playlist 1"),
-        ListItem::new("Playlist 2"),
-        ListItem::new("Playlist 3"),
-        ListItem::new("Playlist 4"),
-        ListItem::new("Playlist 5"),
-        ListItem::new("Playlist 6"),
-        ListItem::new("Playlist 7"),
-        ListItem::new("Playlist 8"),
-        ListItem::new("Playlist 9"),
-        ListItem::new("Playlist 10"),
-    ];
-    let playlist = List::new(items)
-        .block(Block::default().title("Playlists").borders(Borders::ALL))
+fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Table<'a>) {
+    let playlist_ui = Block::default()
+        .borders(Borders::ALL)
         .style(Style::default().fg(Color::White))
-        .highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow))
-        .highlight_symbol(">>");
-    let playlist_info = Paragraph::new("Playlist info")
-        .block(Block::default().title("Playlist info").borders(Borders::ALL))
-        .style(Style::default().fg(Color::White))
-        .alignment(Alignment::Left);
-    (playlist, playlist_info)
+        .title("Playlists")
+        .border_type(BorderType::Plain);
+
+    let playlists = read_playlists().expect("can fetch play list");
+    let items: Vec<_> = playlists
+        .iter()
+        .map(|playlist| {
+            ListItem::new(Spans::from(vec![Span::styled(
+                playlist.name.clone(),
+                Style::default(),
+            )]))
+        })
+        .collect();
+
+    let selected_playlist = playlists
+        .get(
+            playlist_state
+                .selected()
+                .expect("there is always a selected playlist"),
+        )
+        .expect("exists")
+        .clone();
+
+    let list = List::new(items).block(playlist_ui).highlight_style(
+        Style::default()
+            .bg(Color::Yellow)
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD),
+    );
+
+    let playlist_detail = Table::new(vec![Row::new(vec![
+        Cell::from(Span::raw(selected_playlist.id.to_string())),
+        Cell::from(Span::raw(selected_playlist.name)),
+        Cell::from(Span::raw(selected_playlist.category)),
+        Cell::from(Span::raw(selected_playlist.age.to_string())),
+        Cell::from(Span::raw(selected_playlist.created_at.to_string())),
+    ])])
+    .header(Row::new(vec![
+        Cell::from(Span::styled(
+            "ID",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Name",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Category",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Age",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Created At",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+    ]))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .style(Style::default().fg(Color::White))
+            .title("Detail")
+            .border_type(BorderType::Plain),
+    )
+    .widths(&[
+        Constraint::Percentage(5),
+        Constraint::Percentage(20),
+        Constraint::Percentage(20),
+        Constraint::Percentage(5),
+        Constraint::Percentage(20),
+    ]);
+
+    (list, playlist_detail)
 }       
+
+fn render_songs<'a>(songlist_state: &ListState) -> (List<'a>, Table<'a>) {
+    let playlist_ui = Block::default()
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::White))
+        .title("Songs")
+        .border_type(BorderType::Plain);
+
+    let songs = read_songs().expect("can fetch song list");
+    let items: Vec<_> = songs
+        .iter()
+        .map(|song| {
+            ListItem::new(Spans::from(vec![Span::styled(
+                format!("{} - {}", song.artist.clone(), song.song.clone()),
+                Style::default(),
+            )]))
+        })
+        .collect();
+
+    let selected_song = songs
+        .get(
+            songlist_state
+                .selected()
+                .expect("there is always a selected song"),
+        )
+        .expect("exists")
+        .clone();
+
+    let list = List::new(items).block(playlist_ui).highlight_style(
+        Style::default()
+            .bg(Color::Yellow)
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD),
+    );
+
+    let song_detail = Table::new(vec![Row::new(vec![
+        Cell::from(Span::raw(selected_song.song)),
+        Cell::from(Span::raw(selected_song.genre)),
+        Cell::from(Span::raw(selected_song.artist)),
+        Cell::from(Span::raw(selected_song.album)),
+    ])])
+    .header(Row::new(vec![
+        Cell::from(Span::styled(
+            "Song",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Genre",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Artist",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Album",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+    ]))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .style(Style::default().fg(Color::White))
+            .title("Detail")
+            .border_type(BorderType::Plain),
+    )
+    .widths(&[
+        Constraint::Percentage(20),
+        Constraint::Percentage(20),
+        Constraint::Percentage(20),
+        Constraint::Percentage(20),
+    ]);
+
+    (list, song_detail)
+}       
+
+fn read_playlists() -> Result<Vec<Playlist>, Error> {
+    let db_content = fs::read_to_string("assets/playlists.json")?;
+    let parsed: Vec<Playlist> = serde_json::from_str(&db_content)?;
+    Ok(parsed)
+}
+
+lazy_static! {
+    static ref SONGS: Mutex<Vec<Song>> = Mutex::new(Vec::new());
+}
+
+fn read_songs() -> Result<Vec<Song>, Error> {
+
+    let mut songs = SONGS.lock().unwrap();
+
+    if songs.is_empty() {
+        let db_content = fs::read_to_string("assets/song_list.csv")?;
+        let mut reader = csv::Reader::from_reader(db_content.as_bytes());
+
+        for result in reader.deserialize() {
+            let song: Song = result?;
+            songs.push(song);
+        }
+    }
+
+    Ok(songs.clone())
+
+}
