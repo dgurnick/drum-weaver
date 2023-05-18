@@ -1,6 +1,3 @@
-extern crate pretty_env_logger;
-#[macro_use] extern crate log;
-
 use clap::{Arg, ArgMatches};
 
 mod player;
@@ -13,9 +10,6 @@ mod ui;
 use ui::run_ui;
 
 fn main() {
-
-    pretty_env_logger::init();
-    info!("Starting the eDrums Wav Player");
 
     let matches = clap::Command::new("eDrums Wav Player")
         .version("0.1")

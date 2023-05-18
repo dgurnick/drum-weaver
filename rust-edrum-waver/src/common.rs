@@ -104,7 +104,6 @@ pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, S
                  archive_path.push(music_folder);
                  archive_path.push(song.folder.clone());
                  archive_path.push(format!("{}.7z", song.file_name));
-                 println!("Decompressing file: {}", archive_path.display());
 
                  let mut output_folder = PathBuf::new();
                  output_folder.push(music_folder);
@@ -114,21 +113,12 @@ pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, S
 
             } 
 
-            println!("Returning track and click file: {}, {}", track_path.display(), click_path.display());
-
             track_path_str = track_path.display().to_string();
             click_path_str = click_path.display().to_string();
             return (track_path_str, click_path_str);
 
         } else {
             position += 1;
-            if position > 1075 {
-                println!("Position: {}", position);
-            }
-            if position > 1100 {
-                break;
-            }
-
         }
     }
 

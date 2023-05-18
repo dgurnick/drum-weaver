@@ -79,7 +79,6 @@ pub fn run_cli(arguments: PlayerArguments) -> Result<(), String>{
     let click_source_amplify = click_source.amplify(arguments.click_volume);
 
     if arguments.combined {
-        println!{"Playing combined"};
         play_combined(
             track_source_amplify, 
             click_source_amplify, 
@@ -87,7 +86,6 @@ pub fn run_cli(arguments: PlayerArguments) -> Result<(), String>{
         )
     
     } else {
-        println!{"Playing separate"};
         play_separate(
             track_source_amplify, 
             click_source_amplify, 
