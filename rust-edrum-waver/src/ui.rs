@@ -83,7 +83,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 )
                 .split(size);
 
-            let copyright = Paragraph::new("Drum karaoke player by Dennis Gurnick")
+            let copyright = Paragraph::new("Drum karaoke player")
                 .style(Style::default().fg(Color::Gray))
                 .alignment(Alignment::Center)
                 .block(

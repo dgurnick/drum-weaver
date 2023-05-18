@@ -10,12 +10,12 @@ use std::sync::Mutex;
 
 pub struct PlayerArguments {
     pub music_folder: String,
-    pub track_position: usize,
+    pub track_song: String,
+    pub click_song: String,
     pub track_volume: f32,
     pub click_volume: f32,
     pub track_device_position: usize,
     pub click_device_position: usize,
-    pub combined: bool,
 }
 
 #[derive(Debug, Deserialize, Clone)]
