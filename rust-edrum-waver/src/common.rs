@@ -22,6 +22,7 @@ pub struct PlayerArguments {
     pub click_volume: f32,
     pub track_device_position: usize,
     pub click_device_position: usize,
+    pub playback_speed: f64,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -181,6 +182,9 @@ pub fn play_song(arguments: PlayerArguments) -> Result<(Player, Player), String>
     let track_play = Player::new(None, track_device).expect("Could not create track player");
     let click_play = Player::new(None, click_device).expect("Could not create click player");
 
+    track_play.set_playback_speed(arguments.playback_speed);
+    click_play.set_playback_speed(arguments.playback_speed);
+    
     let track_volume = Some(arguments.track_volume);
     let click_volume = Some(arguments.click_volume);
 

@@ -77,6 +77,9 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
     let track_player = Player::new(None, track_device).expect("Could not create track player");
     let click_player = Player::new(None, click_device).expect("Could not create click player");
 
+    track_player.set_playback_speed(arguments.playback_speed);
+    click_player.set_playback_speed(arguments.playback_speed);
+
     let mut started_playing = false;
 
     loop {
@@ -332,6 +335,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         click_volume: arguments.click_volume,
                                         track_device_position: arguments.track_device_position,
                                         click_device_position: arguments.click_device_position,
+                                        playback_speed: arguments.playback_speed,
                                     };
 
                                     let track_volume = Some(play_arguments.track_volume);
@@ -381,6 +385,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                     click_volume: arguments.click_volume,
                     track_device_position: arguments.track_device_position,
                     click_device_position: arguments.click_device_position,
+                    playback_speed: arguments.playback_speed,
                 };
 
                 let track_volume = Some(play_arguments.track_volume);

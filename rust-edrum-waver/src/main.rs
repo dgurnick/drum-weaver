@@ -20,6 +20,7 @@ fn main() {
         .arg(Arg::new("track_device").long("track_device").required(false).default_value("1"))
         .arg(Arg::new("click_device").long("click_device").required(false).default_value("1"))
         .arg(Arg::new("ui").long("ui").required(false).default_value("1"))
+        .arg(Arg::new("playback_speed").long("playback_speed").required(false).default_value("1"))
         .arg(Arg::new("print_devices").long("print_devices").required(false).default_value("1"))
         .get_matches();
 
@@ -65,6 +66,10 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         .get_one::<String>("print_devices")
         .map(|value| value == "1")
         .unwrap_or(false);
+    let playback_speed = matches.get_one::<String>("playback_speed")
+        .unwrap_or(&"1.0".to_string())
+        .parse::<f64>()
+        .unwrap_or(100.0);
 
     if print_devices {
         dump_devices();
@@ -82,6 +87,7 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         click_volume: click_volume,
         track_device_position: track_device_position,
         click_device_position: click_device_position,
+        playback_speed: playback_speed,
     };
 
     if ui {
