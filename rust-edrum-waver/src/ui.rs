@@ -22,6 +22,7 @@ use crate::common::{Event, PlayerArguments};
 use crate::common::MenuItem;
 use crate::common::read_playlists;
 use crate::common::read_songs;
+use crate::player::{play_combined, run_cli};
 
 pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Error>> {
     enable_raw_mode().expect("Can not run in raw mode");
@@ -222,7 +223,39 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                         }
 
                     }
-                }
+                },
+                KeyCode::Enter => {
+                    if event.kind == KeyEventKind::Release {
+
+                        match active_menu_item {
+                            MenuItem::Playlists => {
+
+                                println!("TODO Play selected play list");
+
+                            },
+                            MenuItem::Songs => {
+
+                                if let Some(selected) = songlist_state.selected() {
+                                    let play_it = PlayerArguments {
+                                        music_folder: arguments.music_folder.clone(),
+                                        track_position: selected,
+                                        track_volume: arguments.track_volume,
+                                        click_volume: arguments.click_volume,
+                                        track_device_position: arguments.track_device_position,
+                                        click_device_position: arguments.click_device_position,
+                                        combined: arguments.combined,
+                                    };
+                                    run_cli(play_it).expect("can't run cli");
+                                    
+                                }
+
+                            },
+                            _ => {}
+
+                        }
+
+                    }
+                },
                 _ => {}
             },
             Event::Tick => {}
