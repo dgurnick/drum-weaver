@@ -10,8 +10,8 @@ use std::sync::Mutex;
 
 use crate::lib::{Player, Song};
 
-use cpal::Device;
-use cpal::traits::HostTrait;
+use cpal::traits::{DeviceTrait, HostTrait};
+
 
 
 pub struct PlayerArguments {
@@ -206,4 +206,18 @@ pub fn play_song(arguments: PlayerArguments) -> Result<(Player, Player), String>
         
     // }
 
+}
+
+pub fn dump_devices() {
+    let host = cpal::default_host();
+    let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
+
+    println!("Available devices:");
+    for (position, device) in available_devices.iter().enumerate() {
+    if let Ok(name) = device.name() {
+        println!("Position: {} | Description: {}", position, name);
+    } else {
+        println!("Position: {} | Description: Unknown", position);
+    }
+}
 }

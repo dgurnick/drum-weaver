@@ -4,7 +4,7 @@ use clap::{Arg, ArgMatches};
 //use player::run_cli;
 
 mod common;
-use common::{PlayerArguments, get_file_paths, play_song};
+use common::{PlayerArguments, get_file_paths, play_song, dump_devices};
 mod ui;
 use ui::run_ui;
 mod lib;
@@ -20,6 +20,7 @@ fn main() {
         .arg(Arg::new("track_device").long("track_device").required(false).default_value("1"))
         .arg(Arg::new("click_device").long("click_device").required(false).default_value("1"))
         .arg(Arg::new("ui").long("ui").required(false).default_value("1"))
+        .arg(Arg::new("print_devices").long("print_devices").required(false).default_value("1"))
         .get_matches();
 
     if let Err(err) = run(&matches) {
@@ -60,6 +61,15 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         .get_one::<String>("ui")
         .map(|value| value == "1")
         .unwrap_or(false);
+    let print_devices = matches
+        .get_one::<String>("print_devices")
+        .map(|value| value == "1")
+        .unwrap_or(false);
+
+    if print_devices {
+        dump_devices();
+        return Ok(0);
+    }
 
     // make sure the file exists. If it doesn't try to find the compressed version and decompress it.
     let (track_file, click_file) = get_file_paths(music_folder, track_position);
