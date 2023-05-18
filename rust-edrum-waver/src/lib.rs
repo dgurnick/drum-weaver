@@ -588,6 +588,11 @@ impl Player {
 	pub fn set_playback_speed(&self, speed: f64) {
 		self.player_state.set_playback_speed(speed);
 	}
+
+	pub fn get_playback_speed(&self) -> f64 {
+		*self.player_state.playback_speed.read().unwrap()
+	}
+	
 	/// Set the song that will play after the current song is over (or immediately if no song is currently playing), optionally start playing in the middle of the song.
 	pub fn play_song_next(&self, song: &Song, start_time: Option<Duration>) -> Result<()> {
 		self.player_state.play_song(song, start_time)

@@ -243,7 +243,20 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                     }
                 },
 
+                KeyCode::Char(' ') => {
+                    if event.kind == KeyEventKind::Release {
 
+                        match active_menu_item {
+                            MenuItem::Songs => {
+                                track_player.skip();
+                                click_player.skip();
+                            },
+                            _ => {}
+
+                        }
+
+                    }
+                },
 
                 KeyCode::PageDown => {
                     
@@ -312,6 +325,54 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                     }
                 },
 
+                KeyCode::Left => {
+                    if event.kind == KeyEventKind::Release {
+
+                        match active_menu_item {
+                            MenuItem::Songs => {
+                                let current_speed = track_player.get_playback_speed();
+                                if current_speed > 0.1 {
+                                    track_player.set_playback_speed(current_speed - 0.01);
+                                    click_player.set_playback_speed(current_speed - 0.01);
+                                }
+                            },
+                            _ => {}
+
+                        }
+                    }
+                },
+
+                KeyCode::Right => {
+                    if event.kind == KeyEventKind::Release {
+
+                        match active_menu_item {
+                            MenuItem::Songs => {
+                                let current_speed = track_player.get_playback_speed();
+                                track_player.set_playback_speed(current_speed + 0.01);
+                                click_player.set_playback_speed(current_speed + 0.01);
+
+                            },
+                            _ => {}
+
+                        }
+                    }
+                },
+
+                KeyCode::Char('r') => {
+                    if event.kind == KeyEventKind::Release {
+
+                        match active_menu_item {
+                            MenuItem::Songs => {
+                                track_player.set_playback_speed(1.0);
+                                click_player.set_playback_speed(1.0);
+                            },
+                            _ => {}
+
+                        }
+
+                    }
+                },
+                        
                 KeyCode::Enter => {
                     if event.kind == KeyEventKind::Release {
 
@@ -363,7 +424,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
         }
 
-        if ! track_player.is_playing() && !click_player.is_playing() && started_playing {
+        if ! track_player.has_current_song() && !click_player.has_current_song() && started_playing {
             if let Some(selected) = songlist_state.selected() {
                 let amount_songs = read_songs().expect("can't fetch play list").len();
                 if selected > amount_songs - 1 {
