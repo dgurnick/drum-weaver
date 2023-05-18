@@ -177,14 +177,14 @@ pub fn play_song(arguments: PlayerArguments) -> Result<(Player, Player), String>
     let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
 
     let track_device = &available_devices[arguments.track_device_position];
-    let click_device = &available_devices[arguments.track_device_position];
+    let click_device = &available_devices[arguments.click_device_position];
 
     let track_play = Player::new(None, track_device).expect("Could not create track player");
     let click_play = Player::new(None, click_device).expect("Could not create click player");
 
     track_play.set_playback_speed(arguments.playback_speed);
     click_play.set_playback_speed(arguments.playback_speed);
-    
+
     let track_volume = Some(arguments.track_volume);
     let click_volume = Some(arguments.click_volume);
 
