@@ -1,3 +1,4 @@
+use std::println;
 use std::{
     fs::File,
     io::BufReader,
@@ -52,25 +53,22 @@ pub fn run_cli(arguments: PlayerArguments) -> Result<(), String>{
 
     let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
     if available_devices.is_empty() {
+        println!("No output devices found");
         return Err("No output devices found".to_string());
     }
 
     // Check if the device positions are valid
     let num_devices = available_devices.len();
     if arguments.track_device_position > num_devices {
+        println!("Invalid track output device");
         return Err("Invalid track output device".to_string());
     }
     if arguments.click_device_position > num_devices {
+        println!("Invalid click output device");
         return Err("Invalid click output device".to_string());
     }
 
-    let (track_path_str, click_path_str) = match get_file_paths(&arguments.music_folder, arguments.track_device_position) {
-        Ok((track_path_str, click_path_str)) => (track_path_str, click_path_str),
-        Err(err) => {
-            println!("WTF Error: {}", err);
-            return Err(err)
-        }
-    };
+    let (track_path_str, click_path_str) = get_file_paths(&arguments.music_folder, arguments.track_position);
     
     let track = File::open(track_path_str).map_err(|e| format!("Failed to open track file: {}", e))?;
     let click = File::open(click_path_str).map_err(|e| format!("Failed to open click file: {}", e))?;

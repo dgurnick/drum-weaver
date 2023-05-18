@@ -10,6 +10,7 @@ use std::sync::Mutex;
 
 pub struct PlayerArguments {
     pub music_folder: String,
+    pub track_position: usize,
     pub track_volume: f32,
     pub click_volume: f32,
     pub track_device_position: usize,
@@ -72,55 +73,66 @@ impl From<MenuItem> for usize {
     }
 }
 
-pub fn get_file_paths(music_folder: &String, song_position: usize) -> Result<(String, String), String> {
+pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, String) {
 
     let mut reader = csv::Reader::from_path("assets/song_list.csv").unwrap();
-    let headers = reader.headers();
-    println!("Header: {:?}", headers);
+    let _ = reader.headers();
 
     let mut position = 1;
+    let mut track_path_str: String = String::new();
+    let mut click_path_str: String = String::new();
+
     for record in reader.deserialize() {
 
         let song: Song = record.unwrap();
 
         if position == song_position {
-            let track_path_str = format!("{}/{}/{}.wav", music_folder, song.folder, song.file_name);
-            let click_path_str = format!("{}/{}/{}_click.wav", music_folder, song.folder, song.file_name);
+            let mut track_path  = PathBuf::new();
+            track_path.push(music_folder);
+            track_path.push(&song.folder);
+            track_path.push(format!("{}.wav", song.file_name));
 
-            let mut path = PathBuf::new();
-            path.push(music_folder);
-            path.push(&track_path_str);
+            let mut click_path  = PathBuf::new();
+            click_path.push(music_folder);
+            click_path.push(&song.folder);
+            click_path.push(format!("{}_click.wav", song.file_name));
 
-            println!("Checking file: {}", path.display());
-
-            if ! path.exists() {
+            if ! track_path.exists() {
                 // if there's a 7z file with the same name, decompress it 
-                 let archive_path = PathBuf::from(format!("{}/{}/{}.7z", music_folder, song.folder, song.file_name));
-                 if ! archive_path.exists() {
-                    return Err(format!("Failed to find file or 7z archive for {}", archive_path.display()));
-                 } 
+                 //let archive_path = PathBuf::from(format!("{}/{}/{}.7z", music_folder, song.folder, song.file_name));
+                 let mut archive_path = PathBuf::new();
+                 archive_path.push(music_folder);
+                 archive_path.push(song.folder.clone());
+                 archive_path.push(format!("{}.7z", song.file_name));
                  println!("Decompressing file: {}", archive_path.display());
 
                  let mut output_folder = PathBuf::new();
-                 output_folder.push(&music_folder);
-                 output_folder.push(&song.folder);
+                 output_folder.push(music_folder);
+                 output_folder.push(song.folder);
 
                  sevenz_rust::decompress_file(&archive_path, output_folder).expect("Failed to decompress file");
 
-            } else {
-                println!("Found file: {}", path.display());
-            }
+            } 
 
-            println!("Returning track and click file: {}, {}", track_path_str, click_path_str);
+            println!("Returning track and click file: {}, {}", track_path.display(), click_path.display());
 
-            return Ok((track_path_str, click_path_str));
+            track_path_str = track_path.display().to_string();
+            click_path_str = click_path.display().to_string();
+            return (track_path_str, click_path_str);
+
         } else {
             position += 1;
+            if position > 1075 {
+                println!("Position: {}", position);
+            }
+            if position > 1100 {
+                break;
+            }
 
         }
     }
 
-    Err("Could not find song".to_string())
+    Err("Could not find song".to_string()).unwrap()
 
 }
 

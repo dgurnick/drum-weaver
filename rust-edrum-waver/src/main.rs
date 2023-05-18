@@ -42,15 +42,7 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         .parse::<usize>()
         .unwrap_or(1);
 
-    let (track_path_str, click_path_str) = match get_file_paths(music_folder, track_position) {
-        Ok((track_path_str, click_path_str)) => (track_path_str, click_path_str),
-        Err(err) => return Err(err),
-    };
-    
-    println!("Playing track: {}", track_path_str);
-    println!("Playing click: {}", click_path_str);
-
-    let track_volume = matches.get_one::<String>("track_volume")
+   let track_volume = matches.get_one::<String>("track_volume")
         .unwrap_or(&"1.0".to_string())
         .parse::<f32>()
         .unwrap_or(100.0) / 100.0;
@@ -77,6 +69,7 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
 
     let arguments = PlayerArguments {  
         music_folder: music_folder.to_string(),
+        track_position: track_position,
         track_volume: track_volume,
         click_volume: click_volume,
         track_device_position: track_device_position,
