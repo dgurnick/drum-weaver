@@ -18,11 +18,14 @@ use tui::{
 
 //use lazy_static::lazy_static;
 
-use crate::common::{Event, PlayerArguments, get_file_paths};
+use crate::common::{Event, PlayerArguments, get_file_paths, play_song};
 use crate::common::MenuItem;
 use crate::common::read_playlists;
 use crate::common::read_songs;
-use playback_rs::{Player, Song};    
+use crate::common::SongRecord;
+use crate::lib::{Player, Song};
+use cpal::Device;
+use cpal::traits::HostTrait;
 
 pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Error>> {
     enable_raw_mode().expect("Can not run in raw mode");
@@ -64,8 +67,17 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
     let mut songlist_state = ListState::default();
     songlist_state.select(Some(0));
 
-    let track_player = Player::new(None)?;
-    let click_player = Player::new(None)?;
+
+    let host = cpal::default_host();
+    let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
+
+    let track_device = &available_devices[arguments.track_device_position];
+    let click_device = &available_devices[arguments.track_device_position];
+
+    let track_player = Player::new(None, track_device).expect("Could not create track player");
+    let click_player = Player::new(None, click_device).expect("Could not create click player");
+
+    let mut started_playing = false;
 
     loop {
         terminal.draw(|rect| {
@@ -227,6 +239,76 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
                     }
                 },
+
+
+
+                KeyCode::PageDown => {
+                    
+                    if event.kind == KeyEventKind::Release {
+
+                        match active_menu_item {
+                            MenuItem::Playlists => {
+                                if let Some(selected) = playlist_state.selected() {
+                                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
+                                    if selected >= amount_playlists - 1 {
+                                        playlist_state.select(Some(0));
+                                    } else {
+                                        playlist_state.select(Some(selected + 10));
+                                    }
+                                }
+
+                            },
+                            MenuItem::Songs => {
+                                if let Some(selected) = songlist_state.selected() {
+                                    let amount_songs = read_songs().expect("can't fetch play list").len();
+                                    if selected + 10 > amount_songs {
+                                        songlist_state.select(Some(0));
+                                    } else {
+                                        songlist_state.select(Some(selected + 10));
+                                    }
+                                }
+
+                            },
+                            _ => {}
+
+                        }
+
+                    }
+                }
+                KeyCode::PageUp => {
+                    if event.kind == KeyEventKind::Release {
+
+                        match active_menu_item {
+                            MenuItem::Playlists => {
+
+                                if let Some(selected) = playlist_state.selected() {
+                                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
+                                    if selected > 0 {
+                                        playlist_state.select(Some(selected - 10));
+                                    } else {
+                                        playlist_state.select(Some(amount_playlists - 1));
+                                    }
+                                }
+                            },
+                            MenuItem::Songs => {
+
+                                if let Some(selected) = songlist_state.selected() {
+                                    let amount_songs = read_songs().expect("can't fetch songs").len();
+                                    if selected > 10 {
+                                        songlist_state.select(Some(selected - 10));
+                                    } else {
+                                        songlist_state.select(Some(amount_songs - 1));
+                                    }
+                                }
+
+                            },
+                            _ => {}
+
+                        }
+
+                    }
+                },
+
                 KeyCode::Enter => {
                     if event.kind == KeyEventKind::Release {
 
@@ -238,13 +320,30 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                             },
                             MenuItem::Songs => {
 
-                                if let Some(selected) = songlist_state.selected() {
-                                    let (track_path, click_path) = get_file_paths(&arguments.music_folder, selected);
-                                    let track_song = Song::from_file(&track_path, None)?;
-                                    let click_song = Song::from_file(&click_path, None)?;
-                                    track_player.play_song_now(&track_song, None)?;
-                                    click_player.play_song_now(&click_song, None)?;
+                                if let Some(selected) = songlist_state.selected() {     
 
+                                    let (track_file, click_file) = get_file_paths(&arguments.music_folder, selected + 1);
+
+                                    let play_arguments = PlayerArguments {
+                                        music_folder: arguments.music_folder.clone(),
+                                        track_song: track_file,
+                                        click_song: click_file,
+                                        track_volume: arguments.track_volume,
+                                        click_volume: arguments.click_volume,
+                                        track_device_position: arguments.track_device_position,
+                                        click_device_position: arguments.click_device_position,
+                                    };
+
+                                    let track_volume = Some(play_arguments.track_volume);
+                                    let click_volume = Some(play_arguments.click_volume);
+
+                                    let track_song = Song::from_file(play_arguments.track_song, track_volume).expect("Could not create track song");
+                                    let click_song = Song::from_file(play_arguments.click_song, click_volume).expect("Could not create click song");
+                                
+                                    track_player.play_song_now(&track_song, None).expect("Could not play track song");
+                                    click_player.play_song_now(&click_song, None).expect("Could not play click song");
+
+                                    started_playing = true;
                                 }
 
                             },
@@ -260,6 +359,43 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
         }
 
+        if ! track_player.is_playing() && !click_player.is_playing() && started_playing {
+            if let Some(selected) = songlist_state.selected() {
+                let amount_songs = read_songs().expect("can't fetch play list").len();
+                if selected > amount_songs - 1 {
+                    songlist_state.select(Some(0));
+                } else {
+                    songlist_state.select(Some(selected + 1));
+                }
+            }
+
+            if let Some(selected) = songlist_state.selected() {     
+
+                let (track_file, click_file) = get_file_paths(&arguments.music_folder, selected + 1);
+
+                let play_arguments = PlayerArguments {
+                    music_folder: arguments.music_folder.clone(),
+                    track_song: track_file,
+                    click_song: click_file,
+                    track_volume: arguments.track_volume,
+                    click_volume: arguments.click_volume,
+                    track_device_position: arguments.track_device_position,
+                    click_device_position: arguments.click_device_position,
+                };
+
+                let track_volume = Some(play_arguments.track_volume);
+                let click_volume = Some(play_arguments.click_volume);
+
+                let track_song = Song::from_file(play_arguments.track_song, track_volume).expect("Could not create track song");
+                let click_song = Song::from_file(play_arguments.click_song, click_volume).expect("Could not create click song");
+            
+                track_player.play_song_now(&track_song, None).expect("Could not play track song");
+                click_player.play_song_now(&click_song, None).expect("Could not play click song");
+
+                started_playing = true;
+            }
+
+        }   
     }
 
 

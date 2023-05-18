@@ -4,18 +4,10 @@ use clap::{Arg, ArgMatches};
 //use player::run_cli;
 
 mod common;
-use common::{PlayerArguments, get_file_paths};
-//mod ui;
-//use ui::run_ui;
-
+use common::{PlayerArguments, get_file_paths, play_song};
+mod ui;
+use ui::run_ui;
 mod lib;
-use lib::Player;
-
-use cpal::Device;
-use cpal::traits::HostTrait;
-
-use crate::lib::Song;
-
 
 fn main() {
 
@@ -99,48 +91,19 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
 }
 
 fn run_cli(arguments: PlayerArguments) -> Result<i32, String> {
-    play_song(arguments)?;
-    Ok(0)
-}
-
-fn run_ui(arguments: PlayerArguments) -> Result<i32, String> {
-    println!("Running ui");
-    Ok(0)
-}
-
-
-fn play_song(arguments: PlayerArguments) -> Result<i32, String> {
-    let host = cpal::default_host();
-    let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
-
-    let track_device = &available_devices[arguments.track_device_position];
-    let click_device = &available_devices[arguments.track_device_position];
-
-    let track_play = Player::new(None, track_device).expect("Could not create track player");
-    let click_play = Player::new(None, click_device).expect("Could not create click player");
-
-    let track_volume = Some(arguments.track_volume);
-    let click_volume = Some(arguments.click_volume);
-
-    let track_song = Song::from_file(arguments.track_song, track_volume).expect("Could not create track song");
-    let click_song = Song::from_file(arguments.click_song, click_volume).expect("Could not create click song");
-
-    track_play.play_song_now(&track_song, None).expect("Could not play track song");
-    click_play.play_song_now(&click_song, None).expect("Could not play click song");
-
-    while track_play.has_current_song() && click_play.has_current_song() {
+    let (track_player, click_player) = play_song(arguments)?;
+    while track_player.has_current_song() && click_player.has_current_song() {
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        // let (track_samples, track_position) = track_play.get_playback_position().expect("Could not get track playback position");
-        // let (click_samples, click_position) = click_play.get_playback_position().expect("Could not get click playback position");
+        let (track_samples, track_position) = track_player.get_playback_position().expect("Could not get track playback position");
+        let (click_samples, click_position) = click_player.get_playback_position().expect("Could not get click playback position");
 
-        // println!("Track: {}/{} Click: {}/{}", 
-        //     track_position.as_secs(), 
-        //     track_samples.as_secs(), 
-        //     click_position.as_secs(), 
-        //     click_samples.as_secs());
+        println!("Track: {}/{} Click: {}/{}", 
+            track_position.as_secs(), 
+            track_samples.as_secs(), 
+            click_position.as_secs(), 
+            click_samples.as_secs());
         
     }
-
     Ok(0)
 }
