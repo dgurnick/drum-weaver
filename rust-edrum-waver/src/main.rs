@@ -14,14 +14,14 @@ fn main() {
     let matches = clap::Command::new("eDrums Wav Player")
         .version("0.1")
         .arg(Arg::new("music_folder").long("music_folder").required(true).help("Where your music files are stored"))
-        .arg(Arg::new("track").long("track").required(true).help("Position in the csv file to play"))
+        .arg(Arg::new("track").long("track").required(false).help("Position in the csv file to play"))
         .arg(Arg::new("track_volume").long("track_volume").required(false).default_value("100"))
         .arg(Arg::new("click_volume").long("click_volume").required(false).default_value("100"))
-        .arg(Arg::new("track_device").long("track_device").required(false).default_value("1"))
-        .arg(Arg::new("click_device").long("click_device").required(false).default_value("1"))
+        .arg(Arg::new("track_device").long("track_device").required(false).default_value("0"))
+        .arg(Arg::new("click_device").long("click_device").required(false).default_value("0"))
         .arg(Arg::new("ui").long("ui").required(false).default_value("1"))
         .arg(Arg::new("playback_speed").long("playback_speed").required(false).default_value("1"))
-        .arg(Arg::new("print_devices").long("print_devices").required(false).default_value("1"))
+        .arg(Arg::new("print_devices").long("print_devices").required(false).default_value("0"))
         .get_matches();
 
     if let Err(err) = run(&matches) {
@@ -46,26 +46,32 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         .unwrap_or(&"1.0".to_string())
         .parse::<f32>()
         .unwrap_or(100.0) / 100.0;
+
     let click_volume = matches.get_one::<String>("click_volume")
         .unwrap_or(&"1.0".to_string())
         .parse::<f32>()
         .unwrap_or(100.0) / 100.0;
+
     let track_device = matches.get_one::<String>("track_device")
-        .unwrap_or(&"1.0".to_string())
+        .unwrap_or(&"0".to_string())
         .parse::<usize>()
-        .unwrap_or(1);
+        .unwrap_or(0);
+
     let click_device = matches.get_one::<String>("click_device")
-        .unwrap_or(&"1.0".to_string())
+        .unwrap_or(&"0".to_string())
         .parse::<usize>()
-        .unwrap_or(1);
+        .unwrap_or(0);
+
     let ui = matches
         .get_one::<String>("ui")
         .map(|value| value == "1")
-        .unwrap_or(false);
+        .unwrap_or(true);
+
     let print_devices = matches
         .get_one::<String>("print_devices")
         .map(|value| value == "1")
         .unwrap_or(false);
+
     let playback_speed = matches.get_one::<String>("playback_speed")
         .unwrap_or(&"1.0".to_string())
         .parse::<f64>()
