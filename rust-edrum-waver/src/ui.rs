@@ -77,11 +77,11 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
     let host = cpal::default_host();
     let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
 
-    let track_device = &available_devices[arguments.track_device_position];
-    let click_device = &available_devices[arguments.click_device_position];
+    let mut track_device = &available_devices[arguments.track_device_position];
+    let mut click_device = &available_devices[arguments.click_device_position];
 
-    let track_player = Player::new(None, track_device).expect("Could not create track player");
-    let click_player = Player::new(None, click_device).expect("Could not create click player");
+    let mut track_player = Player::new(None, track_device).expect("Could not create track player");
+    let mut click_player = Player::new(None, click_device).expect("Could not create click player");
 
     track_player.set_playback_speed(arguments.playback_speed);
     click_player.set_playback_speed(arguments.playback_speed);
@@ -208,6 +208,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         device_list_state.select(Some(selected + 1));
                                     }
                                 }
+
                             },
                             MenuItem::Playlists => {
                                 if let Some(selected) = playlist_state.selected() {
@@ -304,6 +305,18 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                 if let Some(selected) = device_list_state.selected() {
                                     selected_click_device = selected;
                                 }
+
+                                track_player.stop();
+                                click_player.stop();
+
+                                track_device = &available_devices[selected_track_device];
+                                click_device = &available_devices[selected_click_device];
+
+                                track_player = Player::new(None, track_device).expect("Could not create track player");
+                                click_player = Player::new(None, click_device).expect("Could not create click player");
+
+                                track_player.set_playback_speed(arguments.playback_speed);
+                                click_player.set_playback_speed(arguments.playback_speed);
                             },
                             _ => {}
 
@@ -320,6 +333,18 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                 if let Some(selected) = device_list_state.selected() {
                                     selected_track_device = selected;
                                 }
+
+                                track_player.stop();
+                                click_player.stop();
+
+                                track_device = &available_devices[selected_track_device];
+                                click_device = &available_devices[selected_click_device];
+
+                                track_player = Player::new(None, track_device).expect("Could not create track player");
+                                click_player = Player::new(None, click_device).expect("Could not create click player");
+
+                                track_player.set_playback_speed(arguments.playback_speed);
+                                click_player.set_playback_speed(arguments.playback_speed);
                                 
                             },
                             _ => {}
