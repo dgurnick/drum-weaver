@@ -22,6 +22,7 @@ use crate::common::{Event, PlayerArguments, get_file_paths, play_song};
 use crate::common::MenuItem;
 use crate::common::read_playlists;
 use crate::common::read_songs;
+use crate::common::read_devices;
 use crate::common::SongRecord;
 use crate::lib::{Player, Song};
 use cpal::Device;
@@ -32,6 +33,9 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
     
     let (tx, rx) = mpsc::channel();
     let tick_rate = Duration::from_millis(200);
+
+    let mut selected_track_device = arguments.track_device_position;
+    let mut selected_click_device = arguments.click_device_position;
 
     thread::spawn(move || {
         let mut last_tick = Instant::now();
@@ -59,7 +63,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
     let mut terminal = Terminal::new(backend)?;
     terminal.clear();
 
-    let menu_titles = vec!["Home", "Playlists", "Songs", "Quit"];
+    let menu_titles = vec!["Home", "Playlists", "Songs", "Devices", "Quit"];
     let mut active_menu_item = MenuItem::Home;
     let mut playlist_state = ListState::default();
     playlist_state.select(Some(0));
@@ -67,6 +71,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
     let mut songlist_state = ListState::default();
     songlist_state.select(Some(0));
 
+    let mut device_list_state = ListState::default();
+    device_list_state.select(Some(0));
 
     let host = cpal::default_host();
     let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
@@ -158,7 +164,18 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                     let (left, right) = render_songs(&songlist_state);
                     rect.render_stateful_widget(left, songlist_chunks[0], &mut songlist_state);
                     rect.render_widget(right, songlist_chunks[1]);
-                }
+                },
+                MenuItem::Devices => {
+                    let device_chunks = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints(
+                            [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
+                        )
+                        .split(chunks[1]);
+                    let left = render_devices(&device_list_state, selected_track_device, selected_click_device);
+                    rect.render_stateful_widget(left, device_chunks[0], &mut device_list_state);
+                },
+
             }
             rect.render_widget(copyright, chunks[2]);
 
@@ -176,11 +193,22 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 KeyCode::Char('h') => active_menu_item = MenuItem::Home,
                 KeyCode::Char('p') => active_menu_item = MenuItem::Playlists,
                 KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
+                KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
                 KeyCode::Down => {
                     
                     if event.kind == KeyEventKind::Release {
 
                         match active_menu_item {
+                            MenuItem::Devices => {
+                                if let Some(selected) = device_list_state.selected() {
+                                    let amount_devices = read_devices().expect("can't fetch device list").len();
+                                    if selected >= amount_devices - 1 {
+                                        device_list_state.select(Some(0));
+                                    } else {
+                                        device_list_state.select(Some(selected + 1));
+                                    }
+                                }
+                            },
                             MenuItem::Playlists => {
                                 if let Some(selected) = playlist_state.selected() {
                                     let amount_playlists = read_playlists().expect("can't fetch play list").len();
@@ -213,6 +241,16 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                     if event.kind == KeyEventKind::Release {
 
                         match active_menu_item {
+                            MenuItem::Devices => {
+                                if let Some(selected) = device_list_state.selected() {
+                                    let amount_devices = read_devices().expect("can't fetch device list").len();
+                                    if selected > 0 {
+                                        device_list_state.select(Some(selected - 1));
+                                    } else {
+                                        device_list_state.select(Some(amount_devices - 1));
+                                    }
+                                }
+                            },
                             MenuItem::Playlists => {
 
                                 if let Some(selected) = playlist_state.selected() {
@@ -250,6 +288,39 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                             MenuItem::Songs => {
                                 track_player.skip();
                                 click_player.skip();
+                            },
+                            _ => {}
+
+                        }
+
+                    }
+                },
+
+                KeyCode::Char('c') => {
+                    if event.kind == KeyEventKind::Release {
+
+                        match active_menu_item {
+                            MenuItem::Devices => {
+                                if let Some(selected) = device_list_state.selected() {
+                                    selected_click_device = selected;
+                                }
+                            },
+                            _ => {}
+
+                        }
+
+                    }
+                },
+
+                KeyCode::Char('t') => {
+                    if event.kind == KeyEventKind::Release {
+
+                        match active_menu_item {
+                            MenuItem::Devices => {
+                                if let Some(selected) = device_list_state.selected() {
+                                    selected_track_device = selected;
+                                }
+                                
                             },
                             _ => {}
 
@@ -574,6 +645,47 @@ fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Table<'a>) {
 
     (list, playlist_detail)
 }       
+
+fn render_devices<'a>(playlist_state: &ListState, track_device: usize, click_device: usize) -> (List<'a>) {
+    let device_ui = Block::default()
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::White))
+        .title("Devices")
+        .border_type(BorderType::Plain);
+
+    let devices = read_devices().expect("can't fetch device list");
+    let items: Vec<_> = devices
+        .iter()
+        .map(|device| {
+            let selected_track = if device.position == track_device {
+                "T"
+            } else {
+                "-"
+            };
+            let selected_click = if device.position == click_device {
+                "C"
+            } else {
+                "-"
+            };
+            let mut selected_state = format!("{} {}", selected_track, selected_click);
+
+            ListItem::new(Spans::from(vec![Span::styled(
+                format!("[{}] {} : {}", selected_state, device.position, device.name.clone()),
+                Style::default(),
+            )]))
+        })
+        .collect();
+
+    let list = List::new(items).block(device_ui).highlight_style(
+        Style::default()
+            .bg(Color::Yellow)
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD),
+    );
+
+    list
+}       
+
 
 fn render_songs<'a>(songlist_state: &ListState) -> (List<'a>, Table<'a>) {
     let playlist_ui = Block::default()

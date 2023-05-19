@@ -39,6 +39,12 @@ pub struct SongRecord {
     pub folder: String,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+#[allow(unused_variables)]
+pub struct DeviceDetail {
+    pub name: String,
+    pub position: usize,
+}
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Playlist {
     pub id: usize,
@@ -68,6 +74,7 @@ pub enum MenuItem {
     Home,
     Playlists,
     Songs,
+    Devices,
 }
 
 impl From<MenuItem> for usize {
@@ -76,6 +83,7 @@ impl From<MenuItem> for usize {
             MenuItem::Home => 0,
             MenuItem::Playlists => 1,
             MenuItem::Songs => 2,
+            MenuItem::Devices => 3,
         }
     }
 }
@@ -212,16 +220,38 @@ pub fn play_song(arguments: PlayerArguments) -> Result<(Player, Player), String>
 
 }
 
+lazy_static! {
+    static ref DEVICES: Mutex<Vec<DeviceDetail>> = Mutex::new(Vec::new());
+}
+
+pub fn read_devices() -> Result<Vec<DeviceDetail>, Error> {
+
+    let mut devices = DEVICES.lock().unwrap();
+
+    if devices.is_empty() {
+        let host = cpal::default_host();
+        let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
+
+        for (position, device) in available_devices.iter().enumerate() {
+            let detail = DeviceDetail {
+                name: device.name().unwrap(),
+                position: position,
+            };
+            devices.push(detail);
+        
+        }
+    }
+
+    Ok(devices.clone())
+
+}
+
 pub fn dump_devices() {
-    let host = cpal::default_host();
-    let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
+    let devices = read_devices().unwrap();
 
     println!("Available devices:");
-    for (position, device) in available_devices.iter().enumerate() {
-    if let Ok(name) = device.name() {
-        println!("Position: {} | Description: {}", position, name);
-    } else {
-        println!("Position: {} | Description: Unknown", position);
+    for device in devices.iter() {
+        println!("Position: {} | Description: {}", device.position, device.name);
+
     }
-}
 }
