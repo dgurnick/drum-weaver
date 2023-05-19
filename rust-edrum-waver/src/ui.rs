@@ -1,6 +1,8 @@
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use std::{io, thread};
+use log::{debug, error, info, trace, warn};
+use log4rs;
 
 use crossterm::{
     event::{self, Event as CEvent, KeyCode, KeyEventKind},
@@ -29,6 +31,8 @@ use cpal::Device;
 use cpal::traits::HostTrait;
 
 pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Starting UI");
+
     enable_raw_mode().expect("Can not run in raw mode");
     
     let (tx, rx) = mpsc::channel();
@@ -185,6 +189,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
             Event::Input(event) => match event.code {
                 KeyCode::Char('q') => {
+                    info!("Quitting");
                     disable_raw_mode().expect("Can not disable raw mode");
                     terminal.clear()?;
                     terminal.show_cursor()?;
@@ -208,6 +213,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         device_list_state.select(Some(selected + 1));
                                     }
                                 }
+                                info!("Set device to {}", device_list_state.selected().unwrap());
 
                             },
                             MenuItem::Playlists => {
@@ -219,6 +225,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         playlist_state.select(Some(selected + 1));
                                     }
                                 }
+                                info!("Set playlist to {}", playlist_state.selected().unwrap());
 
                             },
                             MenuItem::Songs => {
@@ -230,6 +237,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         songlist_state.select(Some(selected + 1));
                                     }
                                 }
+                                info!("Set song to {}", songlist_state.selected().unwrap());
 
                             },
                             _ => {}
@@ -251,6 +259,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         device_list_state.select(Some(amount_devices - 1));
                                     }
                                 }
+                                info!("Set device to {}", device_list_state.selected().unwrap());
                             },
                             MenuItem::Playlists => {
 
@@ -262,6 +271,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         playlist_state.select(Some(amount_playlists - 1));
                                     }
                                 }
+                                info!("Set playlist to {}", playlist_state.selected().unwrap());
                             },
                             MenuItem::Songs => {
 
@@ -273,6 +283,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         songlist_state.select(Some(amount_songs - 1));
                                     }
                                 }
+                                info!("Set song to {}", songlist_state.selected().unwrap());
 
                             },
                             _ => {}
@@ -289,6 +300,9 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                             MenuItem::Songs => {
                                 track_player.skip();
                                 click_player.skip();
+
+                                info!("Stopped playback of song");
+
                             },
                             _ => {}
 
@@ -317,6 +331,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
                                 track_player.set_playback_speed(arguments.playback_speed);
                                 click_player.set_playback_speed(arguments.playback_speed);
+
+                                info!("Set click device to {}", selected_click_device);
                             },
                             _ => {}
 
@@ -345,6 +361,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
                                 track_player.set_playback_speed(arguments.playback_speed);
                                 click_player.set_playback_speed(arguments.playback_speed);
+
+                                info!("Set track device to {}", selected_track_device);
                                 
                             },
                             _ => {}
@@ -369,6 +387,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                     }
                                 }
 
+                                info!("Set playlist to {}", playlist_state.selected().unwrap());
+
                             },
                             MenuItem::Songs => {
                                 if let Some(selected) = songlist_state.selected() {
@@ -379,6 +399,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         songlist_state.select(Some(selected + 10));
                                     }
                                 }
+                                info!("Set song to {}", songlist_state.selected().unwrap());
 
                             },
                             _ => {}
@@ -401,6 +422,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         playlist_state.select(Some(amount_playlists - 1));
                                     }
                                 }
+                                info!("Set playlist to {}",  playlist_state.selected().unwrap());
                             },
                             MenuItem::Songs => {
 
@@ -412,6 +434,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         songlist_state.select(Some(amount_songs - 1));
                                     }
                                 }
+                                info!("Set song to {}", songlist_state.selected().unwrap());
 
                             },
                             _ => {}
@@ -431,6 +454,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                     track_player.set_playback_speed(current_speed - 0.01);
                                     click_player.set_playback_speed(current_speed - 0.01);
                                 }
+
+                                info!("Set playback speed to {}", track_player.get_playback_speed());
                             },
                             _ => {}
 
@@ -447,6 +472,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                 track_player.set_playback_speed(current_speed + 0.01);
                                 click_player.set_playback_speed(current_speed + 0.01);
 
+                                info!("Set playback speed to {}", track_player.get_playback_speed());
+
                             },
                             _ => {}
 
@@ -461,6 +488,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                             MenuItem::Songs => {
                                 track_player.set_playback_speed(1.0);
                                 click_player.set_playback_speed(1.0);
+                                info!("Reset playback speed to 1x ");
                             },
                             _ => {}
 
@@ -475,7 +503,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                         match active_menu_item {
                             MenuItem::Playlists => {
 
-                                println!("TODO Play selected play list");
+                                info!("TODO Play selected play list");
 
                             },
                             MenuItem::Songs => {
@@ -498,13 +526,18 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                     let track_volume = Some(play_arguments.track_volume);
                                     let click_volume = Some(play_arguments.click_volume);
 
-                                    let track_song = Song::from_file(play_arguments.track_song, track_volume).expect("Could not create track song");
-                                    let click_song = Song::from_file(play_arguments.click_song, click_volume).expect("Could not create click song");
+                                    let track_file = play_arguments.track_song.clone();
+                                    let click_file = play_arguments.click_song.clone();
+
+                                    let track_song = Song::from_file(&track_file, track_volume).expect("Could not create track song");
+                                    let click_song = Song::from_file(&click_file, click_volume).expect("Could not create click song");
                                 
                                     track_player.play_song_now(&track_song, None).expect("Could not play track song");
                                     click_player.play_song_now(&click_song, None).expect("Could not play click song");
 
                                     started_playing = true;
+                                    info!("Started playing song {}", track_file.clone());
+
                                 }
 
                             },

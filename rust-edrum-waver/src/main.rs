@@ -1,7 +1,6 @@
 use clap::{Arg, ArgMatches};
-
-//mod player;
-//use player::run_cli;
+use log::{debug, error, info, trace, warn};
+use log4rs;
 
 mod common;
 use common::{PlayerArguments, get_file_paths, play_song, dump_devices};
@@ -10,6 +9,8 @@ use ui::run_ui;
 mod lib;
 
 fn main() {
+
+    log4rs::init_file("logging_config.yml", Default::default()).unwrap();
 
     let matches = clap::Command::new("eDrums Wav Player")
         .version("0.1")
@@ -36,46 +37,55 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
 
     // Parse the arguments
     let music_folder = matches.get_one::<String>("music_folder").expect("No folder provided");
-    
+    info!("Initializing with music folder: {}", music_folder);
+
     let track_position = matches.get_one::<String>("track")
         .unwrap_or(&"1.0".to_string())
         .parse::<usize>()
         .unwrap_or(1);
+    info!("Initializing with track at position: {}", track_position);
 
    let track_volume = matches.get_one::<String>("track_volume")
         .unwrap_or(&"1.0".to_string())
         .parse::<f32>()
         .unwrap_or(100.0) / 100.0;
+    info!("Initializing with track volume: {}", track_volume);
 
     let click_volume = matches.get_one::<String>("click_volume")
         .unwrap_or(&"1.0".to_string())
         .parse::<f32>()
         .unwrap_or(100.0) / 100.0;
+    info!("Initializing with click volume: {}", click_volume);
 
     let track_device = matches.get_one::<String>("track_device")
         .unwrap_or(&"0".to_string())
         .parse::<usize>()
         .unwrap_or(0);
+    info!("Initializing with track device: {}", track_device);
 
     let click_device = matches.get_one::<String>("click_device")
         .unwrap_or(&"0".to_string())
         .parse::<usize>()
         .unwrap_or(0);
+    info!("Initializing with click device: {}", click_device);
 
     let ui = matches
         .get_one::<String>("ui")
         .map(|value| value == "1")
         .unwrap_or(true);
+    info!("Initializing with UI option: {}", ui);
 
     let print_devices = matches
         .get_one::<String>("print_devices")
         .map(|value| value == "1")
         .unwrap_or(false);
+    info!("Initializing with option to print devices: {}", print_devices);
 
     let playback_speed = matches.get_one::<String>("playback_speed")
         .unwrap_or(&"1.0".to_string())
         .parse::<f64>()
         .unwrap_or(100.0);
+    info!("Initializing with playback speed: {}", playback_speed);
 
     if print_devices {
         dump_devices();
@@ -113,6 +123,8 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
 }
 
 fn run_cli(arguments: PlayerArguments) -> Result<i32, String> {
+    info!("Playing song on console");
+
     let (track_player, click_player) = play_song(arguments)?;
     while track_player.has_current_song() && click_player.has_current_song() {
         std::thread::sleep(std::time::Duration::from_secs(1));
@@ -120,11 +132,11 @@ fn run_cli(arguments: PlayerArguments) -> Result<i32, String> {
         let (track_samples, track_position) = track_player.get_playback_position().expect("Could not get track playback position");
         let (click_samples, click_position) = click_player.get_playback_position().expect("Could not get click playback position");
 
-        println!("Track: {}/{} Click: {}/{}", 
-            track_position.as_secs(), 
-            track_samples.as_secs(), 
-            click_position.as_secs(), 
-            click_samples.as_secs());
+        // println!("Track: {}/{} Click: {}/{}", 
+        //     track_position.as_secs(), 
+        //     track_samples.as_secs(), 
+        //     click_position.as_secs(), 
+        //     click_samples.as_secs());
         
     }
     Ok(0)
