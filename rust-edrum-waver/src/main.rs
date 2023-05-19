@@ -50,14 +50,14 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         .unwrap_or(&"1.0".to_string())
         .parse::<f32>()
         .unwrap_or(100.0) / 100.0;
-    let track_device_position = matches.get_one::<String>("track_device")
-        .unwrap_or(&"1".to_string())
+    let track_device = matches.get_one::<String>("track_device")
+        .unwrap_or(&"1.0".to_string())
         .parse::<usize>()
-        .unwrap_or(1) - 1;
-    let click_device_position = matches.get_one::<String>("click_device")
-        .unwrap_or(&"1".to_string())
+        .unwrap_or(1);
+    let click_device = matches.get_one::<String>("click_device")
+        .unwrap_or(&"1.0".to_string())
         .parse::<usize>()
-        .unwrap_or(1) - 1;
+        .unwrap_or(1);
     let ui = matches
         .get_one::<String>("ui")
         .map(|value| value == "1")
@@ -85,8 +85,8 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         click_song: click_file,
         track_volume: track_volume,
         click_volume: click_volume,
-        track_device_position: track_device_position,
-        click_device_position: click_device_position,
+        track_device_position: track_device,
+        click_device_position: click_device,
         playback_speed: playback_speed,
     };
 
