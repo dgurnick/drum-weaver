@@ -298,8 +298,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
                         match active_menu_item {
                             MenuItem::Songs => {
-                                track_player.skip();
-                                click_player.skip();
+                                track_player.set_playing(! track_player.is_playing());
+                                click_player.set_playing(! click_player.is_playing());
 
                                 info!("Stopped playback of song");
 
