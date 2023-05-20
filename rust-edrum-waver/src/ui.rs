@@ -41,27 +41,6 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
     let mut selected_track_device = arguments.track_device_position;
     let mut selected_click_device = arguments.click_device_position;
 
-    thread::spawn(move || {
-        let mut last_tick = Instant::now();
-        loop {
-            let timeout = tick_rate
-                .checked_sub(last_tick.elapsed())
-                .unwrap_or_else(|| Duration::from_secs(0));
-
-            if event::poll(timeout).expect("Polling works") {
-                if let CEvent::Key(key) = event::read().expect("can read events") {
-                    tx.send(Event::Input(key)).expect("can send events");
-                }
-            }
-
-            if last_tick.elapsed() >= tick_rate {
-                if let Ok(_) = tx.send(Event::Tick) {
-                    last_tick = Instant::now();
-                }
-            }
-        }
-    });
-
     let stdout = io::stdout();
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -91,6 +70,29 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
     click_player.set_playback_speed(arguments.playback_speed);
 
     let mut started_playing = false;
+    let mut active_arguments: PlayerArguments = arguments.clone();
+
+    thread::spawn(move || {
+        let mut last_tick = Instant::now();
+        loop {
+            let timeout = tick_rate
+                .checked_sub(last_tick.elapsed())
+                .unwrap_or_else(|| Duration::from_secs(0));
+
+            if event::poll(timeout).expect("Polling works") {
+                if let CEvent::Key(key) = event::read().expect("can read events") {
+                    tx.send(Event::Input(key)).expect("can send events");
+                }
+            }
+
+            if last_tick.elapsed() >= tick_rate {
+                if let Ok(_) = tx.send(Event::Tick) {
+                    last_tick = Instant::now();
+                }
+            }
+        }
+    });
+
 
     loop {
         terminal.draw(|rect| {
@@ -176,7 +178,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                             [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
                         )
                         .split(chunks[1]);
-                    let left = render_devices(&device_list_state, selected_track_device, selected_click_device);
+                    let left = render_devices(selected_track_device, selected_click_device);
                     rect.render_stateful_widget(left, device_chunks[0], &mut device_list_state);
                 },
 
@@ -531,7 +533,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
                                     let (track_file, click_file) = get_file_paths(&arguments.music_folder, selected + 1);
 
-                                    let play_arguments = PlayerArguments {
+                                    active_arguments = PlayerArguments {
                                         music_folder: arguments.music_folder.clone(),
                                         track_song: track_file,
                                         click_song: click_file,
@@ -542,11 +544,11 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                         playback_speed: arguments.playback_speed,
                                     };
 
-                                    let track_volume = Some(play_arguments.track_volume);
-                                    let click_volume = Some(play_arguments.click_volume);
+                                    let track_volume = Some(active_arguments.track_volume);
+                                    let click_volume = Some(active_arguments.click_volume);
 
-                                    let track_file = play_arguments.track_song.clone();
-                                    let click_file = play_arguments.click_song.clone();
+                                    let track_file = active_arguments.track_song.clone();
+                                    let click_file = active_arguments.click_song.clone();
 
                                     let track_song = Song::from_file(&track_file, track_volume).expect("Could not create track song");
                                     let click_song = Song::from_file(&click_file, click_volume).expect("Could not create click song");
@@ -572,45 +574,24 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
         }
 
-        if ! track_player.has_current_song() && !click_player.has_current_song() && started_playing {
-            if let Some(selected) = songlist_state.selected() {
-                let amount_songs = read_songs().expect("can't fetch play list").len();
-                if selected > amount_songs - 1 {
-                    songlist_state.select(Some(0));
-                } else {
-                    songlist_state.select(Some(selected + 1));
+        if !track_player.has_current_song()
+           && !click_player.has_current_song()
+            && started_playing
+        {
+            active_arguments = match handle_song_end_conditions(
+                &mut track_player,
+                &mut click_player,
+                &mut songlist_state,
+                &active_arguments,
+            ) {
+                Ok(arguments) => arguments,
+                Err(err) => {
+                    error!("Could not handle song end conditions: {}", err);
+                    break;
                 }
-            }
-
-            if let Some(selected) = songlist_state.selected() {     
-
-                let (track_file, click_file) = get_file_paths(&arguments.music_folder, selected + 1);
-
-                let play_arguments = PlayerArguments {
-                    music_folder: arguments.music_folder.clone(),
-                    track_song: track_file,
-                    click_song: click_file,
-                    track_volume: arguments.track_volume,
-                    click_volume: arguments.click_volume,
-                    track_device_position: arguments.track_device_position,
-                    click_device_position: arguments.click_device_position,
-                    playback_speed: arguments.playback_speed,
-                };
-
-                let track_volume = Some(play_arguments.track_volume);
-                let click_volume = Some(play_arguments.click_volume);
-
-                let track_song = Song::from_file(play_arguments.track_song, track_volume).expect("Could not create track song");
-                let click_song = Song::from_file(play_arguments.click_song, click_volume).expect("Could not create click song");
-            
-                track_player.play_song_now(&track_song, None).expect("Could not play track song");
-                click_player.play_song_now(&click_song, None).expect("Could not play click song");
-
-                started_playing = true;
-            }
-
-        }   
-   
+            };
+        }
+  
     }
 
 
@@ -724,7 +705,7 @@ fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Table<'a>) {
     (list, playlist_detail)
 }       
 
-fn render_devices<'a>(playlist_state: &ListState, track_device: usize, click_device: usize) -> (List<'a>) {
+fn render_devices<'a>(track_device: usize, click_device: usize) -> (List<'a>) {
     let device_ui = Block::default()
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::White))
@@ -764,8 +745,8 @@ fn render_devices<'a>(playlist_state: &ListState, track_device: usize, click_dev
     list
 }       
 
-
 fn render_songs<'a>(songlist_state: &ListState) -> (List<'a>, Table<'a>) {
+
     let playlist_ui = Block::default()
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::White))
@@ -838,4 +819,56 @@ fn render_songs<'a>(songlist_state: &ListState) -> (List<'a>, Table<'a>) {
     ]);
 
     (list, song_detail)
+}
+
+fn handle_song_end_conditions(
+    track_player: &mut Player,
+    click_player: &mut Player,
+    songlist_state: &mut ListState,
+    arguments: &PlayerArguments,
+) -> Result<PlayerArguments, String> {
+    
+    if let Some(selected) = songlist_state.selected() {
+        let amount_songs = read_songs().expect("can't fetch play list").len();
+        if selected > amount_songs - 1 {
+            songlist_state.select(Some(0));
+        } else {
+            songlist_state.select(Some(selected + 1));
+        }
+    }
+
+    if let Some(selected) = songlist_state.selected() {
+        let (track_file, click_file) = get_file_paths(&arguments.music_folder, selected + 1);
+
+        let play_arguments = PlayerArguments {
+            music_folder: arguments.music_folder.clone(),
+            track_song: track_file,
+            click_song: click_file,
+            track_volume: arguments.track_volume,
+            click_volume: arguments.click_volume,
+            track_device_position: arguments.track_device_position,
+            click_device_position: arguments.click_device_position,
+            playback_speed: arguments.playback_speed,
+        };
+
+        let track_volume = Some(play_arguments.track_volume);
+        let click_volume = Some(play_arguments.click_volume);
+
+        let track_song =
+            Song::from_file(&arguments.track_song, track_volume).expect("Could not create track song");
+        let click_song =
+            Song::from_file(&arguments.click_song, click_volume).expect("Could not create click song");
+
+        track_player
+            .play_song_now(&track_song, None)
+            .expect("Could not play track song");
+        click_player
+            .play_song_now(&click_song, None)
+            .expect("Could not play click song");
+
+        Ok(play_arguments)
+
+    } else {
+        Err("Could not find next song".to_string())
+    }
 }

@@ -14,6 +14,7 @@ use cpal::traits::{DeviceTrait, HostTrait};
 
 
 
+#[derive(Debug, Deserialize, Clone)]
 pub struct PlayerArguments {
     pub music_folder: String,
     pub track_song: String,
