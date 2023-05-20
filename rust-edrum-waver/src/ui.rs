@@ -200,23 +200,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 KeyCode::Char('q') => handle_q_event(event, &mut track_player, &mut click_player, &mut terminal),
                 KeyCode::Down => handle_down_event(event, &mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
                 KeyCode::Up => handle_up_event(event, &mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
-                KeyCode::Char(' ') => {
-                    if event.kind == KeyEventKind::Release {
-
-                        match active_menu_item {
-                            MenuItem::Songs => {
-                                track_player.set_playing(! track_player.is_playing());
-                                click_player.set_playing(! click_player.is_playing());
-
-                                info!("Stopped playback of song");
-
-                            },
-                            _ => {}
-
-                        }
-
-                    }
-                },
+                KeyCode::Char(' ') => handle_space_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
 
                 KeyCode::Char('z') => {
                     if event.kind == KeyEventKind::Release {
@@ -852,61 +836,6 @@ fn handle_down_event (
 
 }
 
-fn handle_down_event (
-    event: KeyEvent,
-    active_menu_item: &mut MenuItem,
-    device_list_state: &mut ListState,
-    playlist_state: &mut ListState,
-    songlist_state: &mut ListState,
-) {
-
-    if event.kind == KeyEventKind::Release {
-
-        match active_menu_item {
-            MenuItem::Devices => {
-                if let Some(selected) = device_list_state.selected() {
-                    let amount_devices = read_devices().expect("can't fetch device list").len();
-                    if selected >= amount_devices - 1 {
-                        device_list_state.select(Some(0));
-                    } else {
-                        device_list_state.select(Some(selected + 1));
-                    }
-                }
-                info!("Set device to {}", device_list_state.selected().unwrap());
-
-            },
-            MenuItem::Playlists => {
-                if let Some(selected) = playlist_state.selected() {
-                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
-                    if selected >= amount_playlists - 1 {
-                        playlist_state.select(Some(0));
-                    } else {
-                        playlist_state.select(Some(selected + 1));
-                    }
-                }
-                info!("Set playlist to {}", playlist_state.selected().unwrap());
-
-            },
-            MenuItem::Songs => {
-                if let Some(selected) = songlist_state.selected() {
-                    let amount_songs = read_songs().expect("can't fetch play list").len();
-                    if selected >= amount_songs - 1 {
-                        songlist_state.select(Some(0));
-                    } else {
-                        songlist_state.select(Some(selected + 1));
-                    }
-                }
-                info!("Set song to {}", songlist_state.selected().unwrap());
-
-            },
-            _ => {}
-
-        }
-
-    }
-
-}
-
 fn handle_up_event (
     event: KeyEvent,
     active_menu_item: &mut MenuItem,
@@ -952,6 +881,31 @@ fn handle_up_event (
                     }
                 }
                 info!("Set song to {}", songlist_state.selected().unwrap());
+
+            },
+            _ => {}
+
+        }
+
+    }
+
+}
+
+fn handle_space_event(
+    event: KeyEvent,
+    active_menu_item: &mut MenuItem,
+    track_player: &mut Player,
+    click_player: &mut Player,
+) {
+
+    if event.kind == KeyEventKind::Release {
+
+        match active_menu_item {
+            MenuItem::Songs => {
+                track_player.set_playing(! track_player.is_playing());
+                click_player.set_playing(! click_player.is_playing());
+
+                info!("Stopped playback of song");
 
             },
             _ => {}
