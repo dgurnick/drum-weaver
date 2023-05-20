@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use std::{io, thread};
 
 use crossterm::{
-    event::{self, Event as CEvent, KeyCode, KeyEvent, KeyEventKind},
+    event::{self, Event as CEvent, KeyCode, KeyEventKind},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 
@@ -192,11 +192,11 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 KeyCode::Char('p') => active_menu_item = MenuItem::Playlists,
                 KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
                 KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
-                KeyCode::Char('q') => handle_q_event(event, &mut track_player, &mut click_player, &mut terminal),
-                KeyCode::Down => handle_down_event(event, &mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
-                KeyCode::Up => handle_up_event(event, &mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
-                KeyCode::Char(' ') => handle_space_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
-                KeyCode::Char('z') => handle_z_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
+                KeyCode::Char('q') => handle_q_event(&mut track_player, &mut click_player, &mut terminal),
+                KeyCode::Down => handle_down_event(&mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
+                KeyCode::Up => handle_up_event(&mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
+                KeyCode::Char(' ') => handle_space_event(&mut active_menu_item, &mut track_player, &mut click_player),
+                KeyCode::Char('z') => handle_z_event(&mut active_menu_item, &mut track_player, &mut click_player),
 
                 KeyCode::Char('c') => {
                     // I won't refactor this into another function because it uses everything and I'm dumb
@@ -261,59 +261,56 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                     }
                 },
 
-                KeyCode::PageDown => handle_page_down_event(event, &mut active_menu_item, &mut playlist_state, &mut songlist_state),
-                KeyCode::PageUp => handle_page_up_event(event, &mut active_menu_item, &mut playlist_state, &mut songlist_state),
-                KeyCode::Left => handle_left_arrow_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
-                KeyCode::Right => handle_right_arrow_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
-                KeyCode::Char('r') => handle_r_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
+                KeyCode::PageDown => handle_page_down_event(&mut active_menu_item, &mut playlist_state, &mut songlist_state),
+                KeyCode::PageUp => handle_page_up_event(&mut active_menu_item, &mut playlist_state, &mut songlist_state),
+                KeyCode::Left => handle_left_arrow_event(&mut active_menu_item, &mut track_player, &mut click_player),
+                KeyCode::Right => handle_right_arrow_event(&mut active_menu_item, &mut track_player, &mut click_player),
+                KeyCode::Char('r') => handle_r_event(&mut active_menu_item, &mut track_player, &mut click_player),
 
                 KeyCode::Enter => {
-                    if event.kind == KeyEventKind::Release {
 
-                        match active_menu_item {
-                            MenuItem::Playlists => {
+                    match active_menu_item {
+                        MenuItem::Playlists => {
 
-                                info!("TODO Play selected play list");
+                            info!("TODO Play selected play list");
 
-                            },
-                            MenuItem::Songs => {
+                        },
+                        MenuItem::Songs => {
 
-                                if let Some(selected) = songlist_state.selected() {     
+                            if let Some(selected) = songlist_state.selected() {     
 
-                                    let (track_file, click_file) = get_file_paths(&arguments.music_folder, selected + 1);
+                                let (track_file, click_file) = get_file_paths(&arguments.music_folder, selected + 1);
 
-                                    active_arguments = PlayerArguments {
-                                        music_folder: arguments.music_folder.clone(),
-                                        track_song: track_file,
-                                        click_song: click_file,
-                                        track_volume: arguments.track_volume,
-                                        click_volume: arguments.click_volume,
-                                        track_device_position: arguments.track_device_position,
-                                        click_device_position: arguments.click_device_position,
-                                        playback_speed: arguments.playback_speed,
-                                    };
+                                active_arguments = PlayerArguments {
+                                    music_folder: arguments.music_folder.clone(),
+                                    track_song: track_file,
+                                    click_song: click_file,
+                                    track_volume: arguments.track_volume,
+                                    click_volume: arguments.click_volume,
+                                    track_device_position: arguments.track_device_position,
+                                    click_device_position: arguments.click_device_position,
+                                    playback_speed: arguments.playback_speed,
+                                };
 
-                                    let track_volume = Some(active_arguments.track_volume);
-                                    let click_volume = Some(active_arguments.click_volume);
+                                let track_volume = Some(active_arguments.track_volume);
+                                let click_volume = Some(active_arguments.click_volume);
 
-                                    let track_file = active_arguments.track_song.clone();
-                                    let click_file = active_arguments.click_song.clone();
+                                let track_file = active_arguments.track_song.clone();
+                                let click_file = active_arguments.click_song.clone();
 
-                                    let track_song = Song::from_file(&track_file, track_volume).expect("Could not create track song");
-                                    let click_song = Song::from_file(&click_file, click_volume).expect("Could not create click song");
-                                
-                                    track_player.play_song_now(&track_song, None).expect("Could not play track song");
-                                    click_player.play_song_now(&click_song, None).expect("Could not play click song");
+                                let track_song = Song::from_file(&track_file, track_volume).expect("Could not create track song");
+                                let click_song = Song::from_file(&click_file, click_volume).expect("Could not create click song");
+                            
+                                track_player.play_song_now(&track_song, None).expect("Could not play track song");
+                                click_player.play_song_now(&click_song, None).expect("Could not play click song");
 
-                                    started_playing = true;
-                                    info!("Started playing song {}", track_file.clone());
+                                started_playing = true;
+                                info!("Started playing song {}", track_file.clone());
 
-                                }
+                            }
 
-                            },
-                            _ => {}
-
-                        }
+                        },
+                        _ => {}
 
                     }
                 },
@@ -624,333 +621,285 @@ fn handle_song_end_conditions(
 }
 
 fn handle_q_event<T>(
-    event: KeyEvent,
     track_player: &mut Player,
     click_player: &mut Player,
     terminal: &mut Terminal<T>,
 ) where
     T: Backend,
 {
-    if event.kind == KeyEventKind::Release {
-        info!("Quitting");
-        track_player.stop();
-        click_player.stop();
-        disable_raw_mode().expect("Can not disable raw mode");
-        terminal.clear().expect("Failed to clear the terminal");
-        terminal.show_cursor().expect("Failed to show cursor");
-        std::process::exit(0);
-    }
+    info!("Quitting");
+    track_player.stop();
+    click_player.stop();
+    disable_raw_mode().expect("Can not disable raw mode");
+    terminal.clear().expect("Failed to clear the terminal");
+    terminal.show_cursor().expect("Failed to show cursor");
+    std::process::exit(0);
 }
 
 fn handle_down_event (
-    event: KeyEvent,
     active_menu_item: &mut MenuItem,
     device_list_state: &mut ListState,
     playlist_state: &mut ListState,
     songlist_state: &mut ListState,
 ) {
 
-    if event.kind == KeyEventKind::Release {
-
-        match active_menu_item {
-            MenuItem::Devices => {
-                if let Some(selected) = device_list_state.selected() {
-                    let amount_devices = read_devices().expect("can't fetch device list").len();
-                    if selected >= amount_devices - 1 {
-                        device_list_state.select(Some(0));
-                    } else {
-                        device_list_state.select(Some(selected + 1));
-                    }
+    match active_menu_item {
+        MenuItem::Devices => {
+            if let Some(selected) = device_list_state.selected() {
+                let amount_devices = read_devices().expect("can't fetch device list").len();
+                if selected >= amount_devices - 1 {
+                    device_list_state.select(Some(0));
+                } else {
+                    device_list_state.select(Some(selected + 1));
                 }
-                info!("Set device to {}", device_list_state.selected().unwrap());
+            }
+            info!("Set device to {}", device_list_state.selected().unwrap());
 
-            },
-            MenuItem::Playlists => {
-                if let Some(selected) = playlist_state.selected() {
-                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
-                    if selected >= amount_playlists - 1 {
-                        playlist_state.select(Some(0));
-                    } else {
-                        playlist_state.select(Some(selected + 1));
-                    }
+        },
+        MenuItem::Playlists => {
+            if let Some(selected) = playlist_state.selected() {
+                let amount_playlists = read_playlists().expect("can't fetch play list").len();
+                if selected >= amount_playlists - 1 {
+                    playlist_state.select(Some(0));
+                } else {
+                    playlist_state.select(Some(selected + 1));
                 }
-                info!("Set playlist to {}", playlist_state.selected().unwrap());
+            }
+            info!("Set playlist to {}", playlist_state.selected().unwrap());
 
-            },
-            MenuItem::Songs => {
-                if let Some(selected) = songlist_state.selected() {
-                    let amount_songs = read_songs().expect("can't fetch play list").len();
-                    if selected >= amount_songs - 1 {
-                        songlist_state.select(Some(0));
-                    } else {
-                        songlist_state.select(Some(selected + 1));
-                    }
+        },
+        MenuItem::Songs => {
+            if let Some(selected) = songlist_state.selected() {
+                let amount_songs = read_songs().expect("can't fetch play list").len();
+                if selected >= amount_songs - 1 {
+                    songlist_state.select(Some(0));
+                } else {
+                    songlist_state.select(Some(selected + 1));
                 }
-                info!("Set song to {}", songlist_state.selected().unwrap());
+            }
+            info!("Set song to {}", songlist_state.selected().unwrap());
 
-            },
-            _ => {}
-
-        }
+        },
+        _ => {}
 
     }
-
 }
 
 fn handle_up_event (
-    event: KeyEvent,
     active_menu_item: &mut MenuItem,
     device_list_state: &mut ListState,
     playlist_state: &mut ListState,
     songlist_state: &mut ListState,
 ) {
-
-    if event.kind == KeyEventKind::Release {
-
-        match active_menu_item {
-            MenuItem::Devices => {
-                if let Some(selected) = device_list_state.selected() {
-                    let amount_devices = read_devices().expect("can't fetch device list").len();
-                    if selected > 0 {
-                        device_list_state.select(Some(selected - 1));
-                    } else {
-                        device_list_state.select(Some(amount_devices - 1));
-                    }
+    match active_menu_item {
+        MenuItem::Devices => {
+            if let Some(selected) = device_list_state.selected() {
+                let amount_devices = read_devices().expect("can't fetch device list").len();
+                if selected > 0 {
+                    device_list_state.select(Some(selected - 1));
+                } else {
+                    device_list_state.select(Some(amount_devices - 1));
                 }
-                info!("Set device to {}", device_list_state.selected().unwrap());
-            },
-            MenuItem::Playlists => {
+            }
+            info!("Set device to {}", device_list_state.selected().unwrap());
+        },
+        MenuItem::Playlists => {
 
-                if let Some(selected) = playlist_state.selected() {
-                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
-                    if selected > 0 {
-                        playlist_state.select(Some(selected - 1));
-                    } else {
-                        playlist_state.select(Some(amount_playlists - 1));
-                    }
+            if let Some(selected) = playlist_state.selected() {
+                let amount_playlists = read_playlists().expect("can't fetch play list").len();
+                if selected > 0 {
+                    playlist_state.select(Some(selected - 1));
+                } else {
+                    playlist_state.select(Some(amount_playlists - 1));
                 }
-                info!("Set playlist to {}", playlist_state.selected().unwrap());
-            },
-            MenuItem::Songs => {
+            }
+            info!("Set playlist to {}", playlist_state.selected().unwrap());
+        },
+        MenuItem::Songs => {
 
-                if let Some(selected) = songlist_state.selected() {
-                    let amount_songs = read_songs().expect("can't fetch songs").len();
-                    if selected > 0 {
-                        songlist_state.select(Some(selected - 1));
-                    } else {
-                        songlist_state.select(Some(amount_songs - 1));
-                    }
+            if let Some(selected) = songlist_state.selected() {
+                let amount_songs = read_songs().expect("can't fetch songs").len();
+                if selected > 0 {
+                    songlist_state.select(Some(selected - 1));
+                } else {
+                    songlist_state.select(Some(amount_songs - 1));
                 }
-                info!("Set song to {}", songlist_state.selected().unwrap());
+            }
+            info!("Set song to {}", songlist_state.selected().unwrap());
 
-            },
-            _ => {}
-
-        }
+        },
+        _ => {}
 
     }
-
 }
 
 fn handle_space_event(
-    event: KeyEvent,
     active_menu_item: &mut MenuItem,
     track_player: &mut Player,
     click_player: &mut Player,
 ) {
 
-    if event.kind == KeyEventKind::Release {
+    match active_menu_item {
+        MenuItem::Songs => {
+            track_player.set_playing(! track_player.is_playing());
+            click_player.set_playing(! click_player.is_playing());
 
-        match active_menu_item {
-            MenuItem::Songs => {
-                track_player.set_playing(! track_player.is_playing());
-                click_player.set_playing(! click_player.is_playing());
+            info!("Stopped playback of song");
 
-                info!("Stopped playback of song");
-
-            },
-            _ => {}
-
-        }
+        },
+        _ => {}
 
     }
 
 }
 
 fn handle_z_event(
-    event: KeyEvent,
     active_menu_item: &mut MenuItem,
     track_player: &mut Player,
     click_player: &mut Player,
 ) {
 
-    if event.kind == KeyEventKind::Release {
+    match active_menu_item {
+        MenuItem::Songs => {
+            if track_player.is_playing() {
+                track_player.seek(Duration::from_secs(0));
+                click_player.seek(Duration::from_secs(0));
+            }
+            info!("Restarted song");
 
-        match active_menu_item {
-            MenuItem::Songs => {
-                if track_player.is_playing() {
-                    track_player.seek(Duration::from_secs(0));
-                    click_player.seek(Duration::from_secs(0));
-                }
-                info!("Restarted song");
-
-            },
-            _ => {}
-
-        }
+        },
+        _ => {}
 
     }
 
 }
 
 fn handle_page_down_event(
-    event: KeyEvent,
     active_menu_item: &mut MenuItem,
     playlist_state: &mut ListState,
     songlist_state: &mut ListState,
 ) {
-    if event.kind == KeyEventKind::Release {
-
-        match active_menu_item {
-            MenuItem::Playlists => {
-                if let Some(selected) = playlist_state.selected() {
-                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
-                    if selected >= amount_playlists - 1 {
-                        playlist_state.select(Some(0));
-                    } else {
-                        playlist_state.select(Some(selected + 10));
-                    }
+    match active_menu_item {
+        MenuItem::Playlists => {
+            if let Some(selected) = playlist_state.selected() {
+                let amount_playlists = read_playlists().expect("can't fetch play list").len();
+                if selected >= amount_playlists - 1 {
+                    playlist_state.select(Some(0));
+                } else {
+                    playlist_state.select(Some(selected + 10));
                 }
+            }
 
-                info!("Set playlist to {}", playlist_state.selected().unwrap());
+            info!("Set playlist to {}", playlist_state.selected().unwrap());
 
-            },
-            MenuItem::Songs => {
-                if let Some(selected) = songlist_state.selected() {
-                    let amount_songs = read_songs().expect("can't fetch play list").len();
-                    if selected + 10 > amount_songs {
-                        songlist_state.select(Some(0));
-                    } else {
-                        songlist_state.select(Some(selected + 10));
-                    }
+        },
+        MenuItem::Songs => {
+            if let Some(selected) = songlist_state.selected() {
+                let amount_songs = read_songs().expect("can't fetch play list").len();
+                if selected + 10 > amount_songs {
+                    songlist_state.select(Some(0));
+                } else {
+                    songlist_state.select(Some(selected + 10));
                 }
-                info!("Set song to {}", songlist_state.selected().unwrap());
+            }
+            info!("Set song to {}", songlist_state.selected().unwrap());
 
-            },
-            _ => {}
-
-        }
+        },
+        _ => {}
 
     }
-
 }
 
 fn handle_page_up_event(
-    event: KeyEvent,
     active_menu_item: &mut MenuItem,
     playlist_state: &mut ListState,
     songlist_state: &mut ListState,
 ) {
-    if event.kind == KeyEventKind::Release {
 
-        match active_menu_item {
-            MenuItem::Playlists => {
+    match active_menu_item {
+        MenuItem::Playlists => {
 
-                if let Some(selected) = playlist_state.selected() {
-                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
-                    if selected > 0 {
-                        playlist_state.select(Some(selected - 10));
-                    } else {
-                        playlist_state.select(Some(amount_playlists - 1));
-                    }
+            if let Some(selected) = playlist_state.selected() {
+                let amount_playlists = read_playlists().expect("can't fetch play list").len();
+                if selected > 0 {
+                    playlist_state.select(Some(selected - 10));
+                } else {
+                    playlist_state.select(Some(amount_playlists - 1));
                 }
-                info!("Set playlist to {}",  playlist_state.selected().unwrap());
-            },
-            MenuItem::Songs => {
+            }
+            info!("Set playlist to {}",  playlist_state.selected().unwrap());
+        },
+        MenuItem::Songs => {
 
-                if let Some(selected) = songlist_state.selected() {
-                    let amount_songs = read_songs().expect("can't fetch songs").len();
-                    if selected > 10 {
-                        songlist_state.select(Some(selected - 10));
-                    } else {
-                        songlist_state.select(Some(amount_songs - 1));
-                    }
+            if let Some(selected) = songlist_state.selected() {
+                let amount_songs = read_songs().expect("can't fetch songs").len();
+                if selected > 10 {
+                    songlist_state.select(Some(selected - 10));
+                } else {
+                    songlist_state.select(Some(amount_songs - 1));
                 }
-                info!("Set song to {}", songlist_state.selected().unwrap());
+            }
+            info!("Set song to {}", songlist_state.selected().unwrap());
 
-            },
-            _ => {}
-
-        }
+        },
+        _ => {}
 
     }
 }
 
 fn handle_left_arrow_event(
-    event: KeyEvent,
     active_menu_item: &mut MenuItem,
     track_player: &mut Player,
     click_player: &mut Player,
 ) {
-    if event.kind == KeyEventKind::Release {
+    match active_menu_item {
+        MenuItem::Songs => {
+            let current_speed = track_player.get_playback_speed();
+            if current_speed > 0.1 {
+                track_player.set_playback_speed(current_speed - 0.01);
+                click_player.set_playback_speed(current_speed - 0.01);
+            }
 
-        match active_menu_item {
-            MenuItem::Songs => {
-                let current_speed = track_player.get_playback_speed();
-                if current_speed > 0.1 {
-                    track_player.set_playback_speed(current_speed - 0.01);
-                    click_player.set_playback_speed(current_speed - 0.01);
-                }
+            info!("Set playback speed to {}", track_player.get_playback_speed());
+        },
+        _ => {}
 
-                info!("Set playback speed to {}", track_player.get_playback_speed());
-            },
-            _ => {}
-
-        }
     }
 }
 
 fn handle_right_arrow_event(
-    event: KeyEvent,
     active_menu_item: &mut MenuItem,
     track_player: &mut Player,
     click_player: &mut Player,
 ) {
-    if event.kind == KeyEventKind::Release {
 
-        match active_menu_item {
-            MenuItem::Songs => {
-                let current_speed = track_player.get_playback_speed();
-                if current_speed > 0.1 {
-                    track_player.set_playback_speed(current_speed + 0.01);
-                    click_player.set_playback_speed(current_speed + 0.01);
-                }
+    match active_menu_item {
+        MenuItem::Songs => {
+            let current_speed = track_player.get_playback_speed();
+            if current_speed > 0.1 {
+                track_player.set_playback_speed(current_speed + 0.01);
+                click_player.set_playback_speed(current_speed + 0.01);
+            }
 
-                info!("Set playback speed to {}", track_player.get_playback_speed());
-            },
-            _ => {}
+            info!("Set playback speed to {}", track_player.get_playback_speed());
+        },
+        _ => {}
 
-        }
     }
 }
 
 fn handle_r_event(
-    event: KeyEvent,
     active_menu_item: &mut MenuItem,
     track_player: &mut Player,
     click_player: &mut Player,
 ) {
-    if event.kind == KeyEventKind::Release {
-
-        match active_menu_item {
-            MenuItem::Songs => {
-                track_player.set_playback_speed(1.0);
-                click_player.set_playback_speed(1.0);
-                info!("Reset playback speed to 1x ");
-            },
-            _ => {}
-
-        }
+    match active_menu_item {
+        MenuItem::Songs => {
+            track_player.set_playback_speed(1.0);
+            click_player.set_playback_speed(1.0);
+            info!("Reset playback speed to 1x ");
+        },
+        _ => {}
 
     }
 }
