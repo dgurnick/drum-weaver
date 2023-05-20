@@ -98,7 +98,7 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     // make sure the file exists. If it doesn't try to find the compressed version and decompress it.
     let (track_file, click_file) = get_file_paths(music_folder, track_position);
 
-    let arguments = PlayerArguments {  
+    let mut arguments = PlayerArguments {  
         music_folder: music_folder.to_string(),
         track_song: track_file,
         click_song: click_file,
@@ -110,12 +110,12 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     };
 
     if ui {
-        match run_ui(arguments) {
+        match run_ui(&mut arguments) {
             Ok(_) => {},
             Err(err) => return Err(format!("Could not start the ui. {}", err)),
         }
     } else {
-        match run_cli(arguments) {
+        match run_cli(&arguments) {
             Ok(_) => {},
             Err(err) => return Err(format!("Could not run the cli: {}", err)),
         }
@@ -125,10 +125,10 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
 
 }
 
-fn run_cli(arguments: PlayerArguments) -> Result<i32, String> {
+fn run_cli(arguments: &PlayerArguments) -> Result<i32, String> {
     info!("Playing song on console");
 
-    let (track_player, click_player) = play_song(arguments)?;
+    let (track_player, click_player) = play_song(arguments.clone())?;
     while track_player.has_current_song() && click_player.has_current_song() {
         std::thread::sleep(std::time::Duration::from_secs(1));
 

@@ -654,6 +654,14 @@ impl Player {
 	pub fn seek(&self, time: Duration) -> bool {
 		self.player_state.seek(time)
 	}
+
+	//TODO: Implement volume control
+	#[allow(dead_code, unused_variables)]
+	pub fn set_volume(&self, volume: f32) -> bool {
+		return true;
+	}
+	
+
 	/// Sets whether playback is enabled or not, without touching the song queue.
 	///
 	/// See also [`is_playing`](Player::is_playing)

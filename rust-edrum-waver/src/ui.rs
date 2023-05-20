@@ -25,7 +25,7 @@ use crate::songlist::import_songs;
 
 use cpal::traits::HostTrait;
 
-pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting UI");
 
     enable_raw_mode().expect("Can not run in raw mode");
@@ -58,6 +58,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
     let mut track_player = Player::new(None, track_device).expect("Could not create track player");
     let mut click_player = Player::new(None, click_device).expect("Could not create click player");
+    let mut track_song: Song;
+    let mut click_song: Song;
 
     track_player.set_playback_speed(arguments.playback_speed);
     click_player.set_playback_speed(arguments.playback_speed);
@@ -219,6 +221,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                 track_player.set_playback_speed(arguments.playback_speed);
                                 click_player.set_playback_speed(arguments.playback_speed);
 
+
                                 info!("Set track device to {}", selected_track_device);
                                 
                             },
@@ -264,8 +267,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                                 let track_file = active_arguments.track_song.clone();
                                 let click_file = active_arguments.click_song.clone();
 
-                                let track_song = Song::from_file(&track_file, track_volume).expect("Could not create track song");
-                                let click_song = Song::from_file(&click_file, click_volume).expect("Could not create click song");
+                                track_song = Song::from_file(&track_file, track_volume).expect("Could not create track song");
+                                click_song = Song::from_file(&click_file, click_volume).expect("Could not create click song");
                             
                                 track_player.play_song_now(&track_song, None).expect("Could not play track song");
                                 click_player.play_song_now(&click_song, None).expect("Could not play click song");
@@ -292,24 +295,57 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
            && !click_player.has_current_song()
            && started_playing
         {
-            active_arguments = match handle_song_end_conditions(
-                &mut track_player,
-                &mut click_player,
-                &mut songlist_state,
-                &active_arguments,
-            ) {
-                Ok(arguments) => arguments,
-                Err(err) => {
-                    error!("Could not handle song end conditions: {}", err);
-                    break;
+            #[allow(unused_assignments)]
+            let mut new_position = 0;
+            if let Some(selected) = songlist_state.selected() {
+                info!("The current position is {}", selected);
+                let amount_songs = import_songs().unwrap().len();
+                if selected > amount_songs - 1 {
+                    info!("Moving to position 1");
+                    new_position = 0;
+                    
+                } else {
+                    new_position = selected + 1;
+                    info!("Moving to the next song");
                 }
-            };
+
+                songlist_state.select(Some(new_position));
+
+                let (track_file, click_file) = get_file_paths(&active_arguments.music_folder, new_position);
+                info!("The new track file is {}", track_file);
+
+                active_arguments = PlayerArguments {
+                    music_folder: active_arguments.music_folder.clone(),
+                    track_song: track_file,
+                    click_song: click_file,
+                    track_volume: active_arguments.track_volume,
+                    click_volume: active_arguments.click_volume,
+                    track_device_position: active_arguments.track_device_position,
+                    click_device_position: active_arguments.click_device_position,
+                    playback_speed: active_arguments.playback_speed,
+                };
+                
+                track_song =
+                    Song::from_file(&active_arguments.track_song, Some(active_arguments.track_volume)).expect("Could not create track song");
+                click_song =
+                    Song::from_file(&active_arguments.click_song, Some(active_arguments.click_volume)).expect("Could not create click song");
+            
+                track_player.stop();
+                click_player.stop();
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                track_player
+                    .play_song_now(&track_song, None)
+                    .expect("Could not play track song");
+                click_player
+                    .play_song_now(&click_song, None)
+                    .expect("Could not play click song");
+
+            }
+            
         }
   
     }
 
-
-    Ok(())
 }
 
 fn render_home<'a>() -> Paragraph<'a> {
@@ -454,58 +490,6 @@ fn render_songs<'a>(songlist_state: &ListState) -> (List<'a>, Table<'a>) {
     ]);
 
     (list, song_detail)
-}
-
-fn handle_song_end_conditions(
-    track_player: &mut Player,
-    click_player: &mut Player,
-    songlist_state: &mut ListState,
-    arguments: &PlayerArguments,
-) -> Result<PlayerArguments, String> {
-    
-    if let Some(selected) = songlist_state.selected() {
-        let amount_songs = import_songs().unwrap().len();
-        if selected > amount_songs - 1 {
-            songlist_state.select(Some(0));
-        } else {
-            songlist_state.select(Some(selected + 1));
-        }
-    }
-
-    if let Some(selected) = songlist_state.selected() {
-        let (track_file, click_file) = get_file_paths(&arguments.music_folder, selected + 1);
-
-        let play_arguments = PlayerArguments {
-            music_folder: arguments.music_folder.clone(),
-            track_song: track_file,
-            click_song: click_file,
-            track_volume: arguments.track_volume,
-            click_volume: arguments.click_volume,
-            track_device_position: arguments.track_device_position,
-            click_device_position: arguments.click_device_position,
-            playback_speed: arguments.playback_speed,
-        };
-
-        let track_volume = Some(play_arguments.track_volume);
-        let click_volume = Some(play_arguments.click_volume);
-
-        let track_song =
-            Song::from_file(&arguments.track_song, track_volume).expect("Could not create track song");
-        let click_song =
-            Song::from_file(&arguments.click_song, click_volume).expect("Could not create click song");
-
-        track_player
-            .play_song_now(&track_song, None)
-            .expect("Could not play track song");
-        click_player
-            .play_song_now(&click_song, None)
-            .expect("Could not play click song");
-
-        Ok(play_arguments)
-
-    } else {
-        Err("Could not find next song".to_string())
-    }
 }
 
 fn handle_q_event<T>(
@@ -753,3 +737,4 @@ fn handle_r_event(
 
     }
 }
+
