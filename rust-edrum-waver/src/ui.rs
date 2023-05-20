@@ -22,6 +22,7 @@ use tui::{
 use crate::common::{Event, MenuItem, PlayerArguments, get_file_paths, read_devices};
 use crate::playlist::{read_playlists, delete_playlist, get_songs};
 use crate::audio::{Player, Song};
+use crate::songlist::import_songs;
 
 use cpal::traits::HostTrait;
 
@@ -66,6 +67,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
     let mut started_playing = false;
     let mut active_arguments: PlayerArguments = arguments.clone();
+    let mut active_playlist_name = String::new();
+    let mut is_entering_playlist_name = false;
 
     // create our transmit-receive loop
     thread::spawn(move || {
@@ -105,7 +108,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 )
                 .split(size);
 
-            let current_playlist = Paragraph::new("None")
+            let current_playlist = Paragraph::new(active_playlist_name.clone())
                 .style(Style::default().fg(Color::Gray))
                 .alignment(Alignment::Left)
                 .block(
@@ -145,6 +148,10 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
             match active_menu_item {
                 MenuItem::Home => rect.render_widget(render_home(), chunks[1]),
                 MenuItem::Playlists => {
+
+
+
+
                     let playlist_chunks = Layout::default()
                         .direction(Direction::Horizontal)
                         .constraints(
@@ -156,10 +163,12 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                             ].as_ref(),
                         )
                         .split(chunks[1]);
-                    let (left, right, help) = render_playlists(&playlist_state);
+                    let (left, right, help) = render_playlists(is_entering_playlist_name, &mut active_playlist_name, &playlist_state);
                     rect.render_stateful_widget(left, playlist_chunks[0], &mut playlist_state);
                     rect.render_widget(right, playlist_chunks[1]);
                     rect.render_widget(help, playlist_chunks[2]);
+
+
                 },
                 MenuItem::Songs => {
                     let songlist_chunks = Layout::default()
@@ -168,7 +177,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                             [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
                         )
                         .split(chunks[1]);
-                    let (left, right) = render_songs(&playlist_state, &songlist_state);
+                    let (left, right) = render_songs(&songlist_state);
                     rect.render_stateful_widget(left, songlist_chunks[0], &mut songlist_state);
                     rect.render_widget(right, songlist_chunks[1]);
                 },
@@ -199,9 +208,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 KeyCode::Up => handle_up_event(&mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
                 KeyCode::Char(' ') => handle_space_event(&mut active_menu_item, &mut track_player, &mut click_player),
                 KeyCode::Char('z') => handle_z_event(&mut active_menu_item, &mut track_player, &mut click_player),
-                //KeyCode::Insert => handle_insert_event(&mut active_menu_item, &playlist_state),
                 KeyCode::Delete => handle_delete_event(&mut active_menu_item, &mut playlist_state),
-
                 KeyCode::Char('c') => {
                     // I won't refactor this into another function because it uses everything and I'm dumb
                     if event.kind == KeyEventKind::Release {
@@ -270,12 +277,14 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 KeyCode::Left => handle_left_arrow_event(&mut active_menu_item, &mut track_player, &mut click_player),
                 KeyCode::Right => handle_right_arrow_event(&mut active_menu_item, &mut track_player, &mut click_player),
                 KeyCode::Char('r') => handle_r_event(&mut active_menu_item, &mut track_player, &mut click_player),
+                KeyCode::Esc => {
+                    
+                },
 
                 KeyCode::Enter => {
 
                     match active_menu_item {
                         MenuItem::Playlists => {
-
                             info!("TODO Play selected play list");
 
                         },
@@ -318,6 +327,20 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
                     }
                 },
+                KeyCode::Insert => {
+                    match active_menu_item {
+                        MenuItem::Playlists => {
+                            is_entering_playlist_name = true;
+
+                        },
+                        _ => {}
+
+                    }
+
+                },
+
+                event::KeyCode::Char(c) => {
+                }
                 _ => {}
             },
             Event::Input(_) => {},
@@ -375,7 +398,7 @@ fn render_home<'a>() -> Paragraph<'a> {
     
 }
 
-fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Table<'a>, Paragraph<'a>) {
+fn render_playlists<'a>(is_entering_playlist: bool, active_playlist_name: &mut String, playlist_state: &ListState) -> (List<'a>, Table<'a>, Paragraph<'a>) {
 
     let playlist_ui = Block::default()
         .borders(Borders::ALL)
@@ -394,6 +417,7 @@ fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Table<'a>, Par
         )
         .expect("exists")
         .clone();
+    *active_playlist_name = selected_playlist.name.clone();
 
     let items: Vec<_> = playlists
         .iter()
@@ -507,7 +531,7 @@ fn render_devices<'a>(track_device: usize, click_device: usize) -> List<'a> {
 }       
 
 // TODO: Add * if song is in the current playlist
-fn render_songs<'a>(playlist_state: &ListState, songlist_state: &ListState) -> (List<'a>, Table<'a>) {
+fn render_songs<'a>(songlist_state: &ListState) -> (List<'a>, Table<'a>) {
 
     let playlist_ui = Block::default()
         .borders(Borders::ALL)
@@ -515,7 +539,7 @@ fn render_songs<'a>(playlist_state: &ListState, songlist_state: &ListState) -> (
         .title("Songs")
         .border_type(BorderType::Plain);
 
-    let songs = get_songs(playlist_state.selected().unwrap());
+    let songs = import_songs().unwrap();
 
     let items: Vec<_> = songs
         .iter()
@@ -686,7 +710,14 @@ fn handle_down_event (
         },
         MenuItem::Songs => {
             if let Some(selected) = songlist_state.selected() {
-                let amount_songs = get_songs(selected).len();
+                let songs = match import_songs() {
+                    Ok(songs) => songs,
+                    Err(err) => {
+                        error!("Could not import songs: {}", err);
+                        return;
+                    }
+                };
+                let amount_songs = songs.len();
                 if selected >= amount_songs - 1 {
                     songlist_state.select(Some(0));
                 } else {
@@ -734,7 +765,14 @@ fn handle_up_event (
         MenuItem::Songs => {
 
             if let Some(selected) = songlist_state.selected() {
-                let amount_songs = get_songs(selected).len();
+                let songs = match import_songs() {
+                    Ok(songs) => songs,
+                    Err(err) => {
+                        error!("Could not import songs: {}", err);
+                        return;
+                    }
+                };
+                let amount_songs = songs.len();
                 if selected > 0 {
                     songlist_state.select(Some(selected - 1));
                 } else {
