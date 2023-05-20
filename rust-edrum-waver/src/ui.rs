@@ -311,6 +311,25 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                     }
                 },
 
+                KeyCode::Char('z') => {
+                    if event.kind == KeyEventKind::Release {
+
+                        match active_menu_item {
+                            MenuItem::Songs => {
+                                if track_player.is_playing() {
+                                    track_player.seek(Duration::from_secs(0));
+                                    click_player.seek(Duration::from_secs(0));
+                                }
+                                info!("Restarted song");
+
+                            },
+                            _ => {}
+
+                        }
+
+                    }
+                },
+
                 KeyCode::Char('c') => {
                     if event.kind == KeyEventKind::Release {
 
