@@ -48,7 +48,6 @@ pub enum Error {
 #[derive(Copy, Clone, Debug)]
 pub enum MenuItem {
     Home,
-    Playlists,
     Songs,
     Devices,
 }
@@ -57,7 +56,6 @@ impl From<MenuItem> for usize {
     fn from(input: MenuItem) -> usize {
         match input {
             MenuItem::Home => 0,
-            MenuItem::Playlists => 1,
             MenuItem::Songs => 2,
             MenuItem::Devices => 3,
         }

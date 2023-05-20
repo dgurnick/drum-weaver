@@ -20,7 +20,6 @@ use tui::{
 };
 
 use crate::common::{Event, MenuItem, PlayerArguments, get_file_paths, read_devices};
-use crate::playlist::{read_playlists, delete_playlist, get_songs};
 use crate::audio::{Player, Song};
 use crate::songlist::import_songs;
 
@@ -42,10 +41,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
     let mut terminal = Terminal::new(backend)?;
     terminal.clear()?;
 
-    let menu_titles = vec!["Home", "Playlists", "Songs", "Devices", "Quit"];
+    let menu_titles = vec!["Home", "Songs", "Devices", "Quit"];
     let mut active_menu_item = MenuItem::Home;
-    let mut playlist_state = ListState::default();
-    playlist_state.select(Some(0));
 
     let mut songlist_state = ListState::default();
     songlist_state.select(Some(0));
@@ -67,8 +64,6 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
     let mut started_playing = false;
     let mut active_arguments: PlayerArguments = arguments.clone();
-    let mut active_playlist_name = String::new();
-    let mut is_entering_playlist_name = false;
 
     // create our transmit-receive loop
     thread::spawn(move || {
@@ -108,18 +103,6 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 )
                 .split(size);
 
-            let current_playlist = Paragraph::new(active_playlist_name.clone())
-                .style(Style::default().fg(Color::Gray))
-                .alignment(Alignment::Left)
-                .block(
-                    Block::default()
-                        .borders(Borders::all())
-                        .style(Style::default().fg(Color::White))
-                        .title("Current playlist")
-                        .border_type(BorderType::Plain),
-
-                );
-
             let menu = menu_titles
                 .iter()
                 .map(|t| {
@@ -147,29 +130,6 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
             match active_menu_item {
                 MenuItem::Home => rect.render_widget(render_home(), chunks[1]),
-                MenuItem::Playlists => {
-
-
-
-
-                    let playlist_chunks = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints(
-                            [
-                                Constraint::Percentage(40), 
-                                Constraint::Percentage(40),
-                                Constraint::Percentage(20),
-
-                            ].as_ref(),
-                        )
-                        .split(chunks[1]);
-                    let (left, right, help) = render_playlists(is_entering_playlist_name, &mut active_playlist_name, &playlist_state);
-                    rect.render_stateful_widget(left, playlist_chunks[0], &mut playlist_state);
-                    rect.render_widget(right, playlist_chunks[1]);
-                    rect.render_widget(help, playlist_chunks[2]);
-
-
-                },
                 MenuItem::Songs => {
                     let songlist_chunks = Layout::default()
                         .direction(Direction::Horizontal)
@@ -193,22 +153,19 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 },
 
             }
-            rect.render_widget(current_playlist, chunks[2]);
 
         })?;
 
         match rx.recv()? {
             Event::Input(event) if event.kind == KeyEventKind::Release => match event.code  {
                 KeyCode::Char('h') => active_menu_item = MenuItem::Home,
-                KeyCode::Char('p') => active_menu_item = MenuItem::Playlists,
                 KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
                 KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
                 KeyCode::Char('q') => handle_q_event(&mut track_player, &mut click_player, &mut terminal),
-                KeyCode::Down => handle_down_event(&mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
-                KeyCode::Up => handle_up_event(&mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
+                KeyCode::Down => handle_down_event(&mut active_menu_item, &mut device_list_state, &mut songlist_state),
+                KeyCode::Up => handle_up_event(&mut active_menu_item, &mut device_list_state, &mut songlist_state),
                 KeyCode::Char(' ') => handle_space_event(&mut active_menu_item, &mut track_player, &mut click_player),
                 KeyCode::Char('z') => handle_z_event(&mut active_menu_item, &mut track_player, &mut click_player),
-                KeyCode::Delete => handle_delete_event(&mut active_menu_item, &mut playlist_state),
                 KeyCode::Char('c') => {
                     // I won't refactor this into another function because it uses everything and I'm dumb
                     if event.kind == KeyEventKind::Release {
@@ -272,8 +229,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                     }
                 },
 
-                KeyCode::PageDown => handle_page_down_event(&mut active_menu_item, &mut playlist_state, &mut songlist_state),
-                KeyCode::PageUp => handle_page_up_event(&mut active_menu_item, &mut playlist_state, &mut songlist_state),
+                KeyCode::PageDown => handle_page_down_event(&mut active_menu_item, &mut songlist_state),
+                KeyCode::PageUp => handle_page_up_event(&mut active_menu_item, &mut songlist_state),
                 KeyCode::Left => handle_left_arrow_event(&mut active_menu_item, &mut track_player, &mut click_player),
                 KeyCode::Right => handle_right_arrow_event(&mut active_menu_item, &mut track_player, &mut click_player),
                 KeyCode::Char('r') => handle_r_event(&mut active_menu_item, &mut track_player, &mut click_player),
@@ -284,10 +241,6 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 KeyCode::Enter => {
 
                     match active_menu_item {
-                        MenuItem::Playlists => {
-                            info!("TODO Play selected play list");
-
-                        },
                         MenuItem::Songs => {
 
                             if let Some(selected) = songlist_state.selected() {     
@@ -327,20 +280,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
                     }
                 },
-                KeyCode::Insert => {
-                    match active_menu_item {
-                        MenuItem::Playlists => {
-                            is_entering_playlist_name = true;
 
-                        },
-                        _ => {}
-
-                    }
-
-                },
-
-                event::KeyCode::Char(c) => {
-                }
                 _ => {}
             },
             Event::Input(_) => {},
@@ -384,7 +324,6 @@ fn render_home<'a>() -> Paragraph<'a> {
             Style::default().fg(Color::LightBlue),
         )]),
         Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::raw("Press 'p' to access playlists, 'a' to add a new playlist and 'd' to delete the currently selected playlist.")]),
     ])
     .alignment(Alignment::Center)
     .block(
@@ -398,97 +337,6 @@ fn render_home<'a>() -> Paragraph<'a> {
     
 }
 
-fn render_playlists<'a>(is_entering_playlist: bool, active_playlist_name: &mut String, playlist_state: &ListState) -> (List<'a>, Table<'a>, Paragraph<'a>) {
-
-    let playlist_ui = Block::default()
-        .borders(Borders::ALL)
-        .style(Style::default().fg(Color::White))
-        .border_type(BorderType::Plain);
-
-    info!("Attempting to read the playlists");
-    
-    let playlists = read_playlists().expect("can fetch play list");
-    
-    let selected_playlist = playlists
-        .get(
-            playlist_state
-                .selected()
-                .expect("there is always a selected playlist"),
-        )
-        .expect("exists")
-        .clone();
-    *active_playlist_name = selected_playlist.name.clone();
-
-    let items: Vec<_> = playlists
-        .iter()
-        .map(|playlist| {
-            let display_name = if playlist.id == selected_playlist.id {
-                playlist.name.clone() + " *"
-            } else {
-                playlist.name.clone()
-            };
-            ListItem::new(Spans::from(vec![Span::styled(
-                display_name,
-                Style::default(),
-            )]))
-        })
-        .collect();
-
-    let list = List::new(items).block(playlist_ui).highlight_style(
-        Style::default()
-            .bg(Color::Yellow)
-            .fg(Color::Black)
-            .add_modifier(Modifier::BOLD),
-    );
-
-    let songs = selected_playlist.songs.clone();
-    // Create table rows
-    let rows: Vec<Row> = songs.iter().map(|record| {
-        Row::new(vec![
-            Cell::from(record.song.to_string()),
-            Cell::from(record.artist.to_string()),
-        ])
-    }).collect();
-    
-    let song_table = Table::new(rows)
-    .header(Row::new(vec![
-        Cell::from(Span::styled(
-            "Name",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Cell::from(Span::styled(
-            "Artist",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-    ]))
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .style(Style::default().fg(Color::White))
-            .title("Detail")
-            .border_type(BorderType::Plain),
-    )
-    .widths(&[
-        Constraint::Percentage(50),
-        Constraint::Percentage(50),
-    ]);
-
-
-    let help = Paragraph::new(vec![
-        Spans::from(vec![Span::raw("Press 'INSERT' to ADD a playlist")]),
-        Spans::from(vec![Span::raw("Press 'DELETE' to DELETE a playlist")]),
-    ])
-    .alignment(Alignment::Left)
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .style(Style::default().fg(Color::White))
-            .title("Help")
-            .border_type(BorderType::Plain),
-    );
-
-    (list, song_table, help)
-}       
 
 fn render_devices<'a>(track_device: usize, click_device: usize) -> List<'a> {
     let device_ui = Block::default()
@@ -616,7 +464,7 @@ fn handle_song_end_conditions(
 ) -> Result<PlayerArguments, String> {
     
     if let Some(selected) = songlist_state.selected() {
-        let amount_songs = get_songs(selected).len();
+        let amount_songs = import_songs().unwrap().len();
         if selected > amount_songs - 1 {
             songlist_state.select(Some(0));
         } else {
@@ -679,7 +527,6 @@ fn handle_q_event<T>(
 fn handle_down_event (
     active_menu_item: &mut MenuItem,
     device_list_state: &mut ListState,
-    playlist_state: &mut ListState,
     songlist_state: &mut ListState,
 ) {
 
@@ -694,18 +541,6 @@ fn handle_down_event (
                 }
             }
             info!("Set device to {}", device_list_state.selected().unwrap());
-
-        },
-        MenuItem::Playlists => {
-            if let Some(selected) = playlist_state.selected() {
-                let amount_playlists = read_playlists().expect("can't fetch play list").len();
-                if selected >= amount_playlists - 1 {
-                    playlist_state.select(Some(0));
-                } else {
-                    playlist_state.select(Some(selected + 1));
-                }
-            }
-            info!("Set playlist to {}", playlist_state.selected().unwrap());
 
         },
         MenuItem::Songs => {
@@ -735,7 +570,6 @@ fn handle_down_event (
 fn handle_up_event (
     active_menu_item: &mut MenuItem,
     device_list_state: &mut ListState,
-    playlist_state: &mut ListState,
     songlist_state: &mut ListState,
 ) {
     match active_menu_item {
@@ -749,18 +583,6 @@ fn handle_up_event (
                 }
             }
             info!("Set device to {}", device_list_state.selected().unwrap());
-        },
-        MenuItem::Playlists => {
-
-            if let Some(selected) = playlist_state.selected() {
-                let amount_playlists = read_playlists().expect("can't fetch play list").len();
-                if selected > 0 {
-                    playlist_state.select(Some(selected - 1));
-                } else {
-                    playlist_state.select(Some(amount_playlists - 1));
-                }
-            }
-            info!("Set playlist to {}", playlist_state.selected().unwrap());
         },
         MenuItem::Songs => {
 
@@ -830,26 +652,13 @@ fn handle_z_event(
 
 fn handle_page_down_event(
     active_menu_item: &mut MenuItem,
-    playlist_state: &mut ListState,
     songlist_state: &mut ListState,
 ) {
     match active_menu_item {
-        MenuItem::Playlists => {
-            if let Some(selected) = playlist_state.selected() {
-                let amount_playlists = read_playlists().expect("can't fetch play list").len();
-                if selected >= amount_playlists - 1 {
-                    playlist_state.select(Some(0));
-                } else {
-                    playlist_state.select(Some(selected + 10));
-                }
-            }
-
-            info!("Set playlist to {}", playlist_state.selected().unwrap());
-
-        },
+        
         MenuItem::Songs => {
             if let Some(selected) = songlist_state.selected() {
-                let amount_songs = get_songs(selected).len();
+                let amount_songs = import_songs().unwrap().len();
                 if selected + 10 > amount_songs {
                     songlist_state.select(Some(0));
                 } else {
@@ -866,27 +675,14 @@ fn handle_page_down_event(
 
 fn handle_page_up_event(
     active_menu_item: &mut MenuItem,
-    playlist_state: &mut ListState,
     songlist_state: &mut ListState,
 ) {
 
     match active_menu_item {
-        MenuItem::Playlists => {
-
-            if let Some(selected) = playlist_state.selected() {
-                let amount_playlists = read_playlists().expect("can't fetch play list").len();
-                if selected > 0 {
-                    playlist_state.select(Some(selected - 10));
-                } else {
-                    playlist_state.select(Some(amount_playlists - 1));
-                }
-            }
-            info!("Set playlist to {}",  playlist_state.selected().unwrap());
-        },
         MenuItem::Songs => {
 
             if let Some(selected) = songlist_state.selected() {
-                let amount_songs = get_songs(selected).len();
+                let amount_songs = import_songs().unwrap().len();
                 if selected > 10 {
                     songlist_state.select(Some(selected - 10));
                 } else {
@@ -952,35 +748,6 @@ fn handle_r_event(
             track_player.set_playback_speed(1.0);
             click_player.set_playback_speed(1.0);
             info!("Reset playback speed to 1x ");
-        },
-        _ => {}
-
-    }
-}
-
-fn handle_delete_event(
-    active_menu_item: &mut MenuItem,
-    playlist_state: &mut ListState,
-) {
-    match active_menu_item {
-        MenuItem::Playlists => {
-            if let Some(selected) = playlist_state.selected() {
-                let playlists = read_playlists().expect("can't fetch play list");
-                let selected_playlist = playlists
-                    .get(selected)
-                    .expect("exists")
-                    .clone();
-
-                if selected_playlist.name == "All songs" {
-                    error!("Can not delete default playlist");
-                    return;
-                }
-
-                match delete_playlist(selected_playlist.id) {
-                    Ok(_) => info!("Deleted playlist {}", selected_playlist.id),
-                    Err(_) => error!("Could not delete playlist {}", selected_playlist.id),
-                };
-            }
         },
         _ => {}
 
