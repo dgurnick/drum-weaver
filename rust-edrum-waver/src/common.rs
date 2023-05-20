@@ -1,14 +1,11 @@
-use chrono::{DateTime, Utc};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize};
 use std::fs::metadata;
 use std::path::PathBuf;
 use thiserror::Error;
-use std::fs;
 use std::io;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
-
-use crate::audio::{Player, Song};
+use crate::songlist::SongRecord;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 
@@ -24,33 +21,13 @@ pub struct PlayerArguments {
     pub playback_speed: f64,
 }
 
-#[derive(Debug, Deserialize, Clone)]
-#[allow(unused_variables)]
-pub struct SongRecord {
-    pub file_name: String,
-    #[allow(dead_code)] pub genre: String,
-    #[allow(dead_code)] pub year: String, 
-    #[allow(dead_code)] pub artist: String,
-    #[allow(dead_code)] pub song: String,
-    #[allow(dead_code)] pub album: String,
-    #[allow(dead_code)] pub length: String,
-    #[allow(dead_code)] pub bpm: usize,
-    pub folder: String,
-}
+
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused_variables)]
 pub struct DeviceDetail {
     pub name: String,
     pub position: usize,
-}
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Playlist {
-    pub id: usize,
-    pub name: String,
-    pub category: String,
-    pub age: usize,
-    pub created_at: DateTime<Utc>,
 }
 
 pub enum Event<I> {
@@ -152,74 +129,6 @@ fn check_file_existence(folder_path: String, file_name: String) -> Result<(), St
         return Err(format!("File '{}' does not exist", path.display()));
     }
     Ok(())
-}
-
-pub fn read_playlists() -> Result<Vec<Playlist>, Error> {
-    let db_content = fs::read_to_string("assets/playlists.json")?;
-    let parsed: Vec<Playlist> = serde_json::from_str(&db_content)?;
-    Ok(parsed)
-}
-
-lazy_static! {
-    static ref SONGS: Mutex<Vec<SongRecord>> = Mutex::new(Vec::new());
-}
-
-pub fn read_songs() -> Result<Vec<SongRecord>, Error> {
-
-    let mut songs = SONGS.lock().unwrap();
-
-    if songs.is_empty() {
-        let db_content = fs::read_to_string("assets/song_list.csv")?;
-        let mut reader = csv::Reader::from_reader(db_content.as_bytes());
-
-        for result in reader.deserialize() {
-            let song: SongRecord = result?;
-            songs.push(song);
-        }
-    }
-
-    Ok(songs.clone())
-
-}
-
-pub fn play_song(arguments: PlayerArguments) -> Result<(Player, Player), String> {
-    let host = cpal::default_host();
-    let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
-
-    let track_device = &available_devices[arguments.track_device_position];
-    let click_device = &available_devices[arguments.click_device_position];
-
-    let track_play = Player::new(None, track_device).expect("Could not create track player");
-    let click_play = Player::new(None, click_device).expect("Could not create click player");
-
-    track_play.set_playback_speed(arguments.playback_speed);
-    click_play.set_playback_speed(arguments.playback_speed);
-
-    let track_volume = Some(arguments.track_volume);
-    let click_volume = Some(arguments.click_volume);
-
-    let track_song = Song::from_file(arguments.track_song, track_volume).expect("Could not create track song");
-    let click_song = Song::from_file(arguments.click_song, click_volume).expect("Could not create click song");
-
-    track_play.play_song_now(&track_song, None).expect("Could not play track song");
-    click_play.play_song_now(&click_song, None).expect("Could not play click song");
-
-    Ok((track_play, click_play))
-    
-    // while track_play.has_current_song() && click_play.has_current_song() {
-    //     std::thread::sleep(std::time::Duration::from_secs(1));
-
-    //     // let (track_samples, track_position) = track_play.get_playback_position().expect("Could not get track playback position");
-    //     // let (click_samples, click_position) = click_play.get_playback_position().expect("Could not get click playback position");
-
-    //     // println!("Track: {}/{} Click: {}/{}", 
-    //     //     track_position.as_secs(), 
-    //     //     track_samples.as_secs(), 
-    //     //     click_position.as_secs(), 
-    //     //     click_samples.as_secs());
-        
-    // }
-
 }
 
 lazy_static! {

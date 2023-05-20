@@ -19,11 +19,9 @@ use tui::{
     Terminal,
 };
 
-use crate::common::{Event, PlayerArguments, get_file_paths};
-use crate::common::MenuItem;
-use crate::common::read_playlists;
-use crate::common::read_songs;
-use crate::common::read_devices;
+use crate::common::{Event, MenuItem, PlayerArguments, get_file_paths, read_devices};
+use crate::playlist::{read_playlists, delete_playlist};
+use crate::songlist::read_songs;
 
 use crate::audio::{Player, Song};
 
@@ -71,6 +69,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
     let mut started_playing = false;
     let mut active_arguments: PlayerArguments = arguments.clone();
 
+    // create our transmit-receive loop
     thread::spawn(move || {
         let mut last_tick = Instant::now();
         loop {
@@ -92,7 +91,6 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
         }
     });
 
-
     loop {
         terminal.draw(|rect| {
             let size = rect.size();
@@ -109,14 +107,14 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 )
                 .split(size);
 
-            let copyright = Paragraph::new("Drum karaoke player")
+            let current_playlist = Paragraph::new("None")
                 .style(Style::default().fg(Color::Gray))
-                .alignment(Alignment::Center)
+                .alignment(Alignment::Left)
                 .block(
                     Block::default()
                         .borders(Borders::all())
                         .style(Style::default().fg(Color::White))
-                        .title("Copyright")
+                        .title("Current playlist")
                         .border_type(BorderType::Plain),
 
                 );
@@ -152,12 +150,18 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                     let playlist_chunks = Layout::default()
                         .direction(Direction::Horizontal)
                         .constraints(
-                            [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
+                            [
+                                Constraint::Percentage(40), 
+                                Constraint::Percentage(40),
+                                Constraint::Percentage(20),
+
+                            ].as_ref(),
                         )
                         .split(chunks[1]);
-                    let (left, right) = render_playlists(&playlist_state);
+                    let (left, right, help) = render_playlists(&playlist_state);
                     rect.render_stateful_widget(left, playlist_chunks[0], &mut playlist_state);
                     rect.render_widget(right, playlist_chunks[1]);
+                    rect.render_widget(help, playlist_chunks[2]);
                 },
                 MenuItem::Songs => {
                     let songlist_chunks = Layout::default()
@@ -182,7 +186,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 },
 
             }
-            rect.render_widget(copyright, chunks[2]);
+            rect.render_widget(current_playlist, chunks[2]);
 
         })?;
 
@@ -197,6 +201,8 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 KeyCode::Up => handle_up_event(&mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
                 KeyCode::Char(' ') => handle_space_event(&mut active_menu_item, &mut track_player, &mut click_player),
                 KeyCode::Char('z') => handle_z_event(&mut active_menu_item, &mut track_player, &mut click_player),
+                //KeyCode::Insert => handle_insert_event(&mut active_menu_item, &playlist_state),
+                KeyCode::Delete => handle_delete_event(&mut active_menu_item, &mut playlist_state),
 
                 KeyCode::Char('c') => {
                     // I won't refactor this into another function because it uses everything and I'm dumb
@@ -371,24 +377,17 @@ fn render_home<'a>() -> Paragraph<'a> {
     
 }
 
-fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Table<'a>) {
+fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Table<'a>, Paragraph<'a>) {
+
     let playlist_ui = Block::default()
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::White))
-        .title("Playlists")
         .border_type(BorderType::Plain);
 
+    info!("Attempting to read the playlists");
+    
     let playlists = read_playlists().expect("can fetch play list");
-    let items: Vec<_> = playlists
-        .iter()
-        .map(|playlist| {
-            ListItem::new(Spans::from(vec![Span::styled(
-                playlist.name.clone(),
-                Style::default(),
-            )]))
-        })
-        .collect();
-
+    
     let selected_playlist = playlists
         .get(
             playlist_state
@@ -398,6 +397,21 @@ fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Table<'a>) {
         .expect("exists")
         .clone();
 
+    let items: Vec<_> = playlists
+        .iter()
+        .map(|playlist| {
+            let display_name = if playlist.id == selected_playlist.id {
+                playlist.name.clone() + " *"
+            } else {
+                playlist.name.clone()
+            };
+            ListItem::new(Spans::from(vec![Span::styled(
+                display_name,
+                Style::default(),
+            )]))
+        })
+        .collect();
+
     let list = List::new(items).block(playlist_ui).highlight_style(
         Style::default()
             .bg(Color::Yellow)
@@ -405,51 +419,52 @@ fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Table<'a>) {
             .add_modifier(Modifier::BOLD),
     );
 
-    let playlist_detail = Table::new(vec![Row::new(vec![
-        Cell::from(Span::raw(selected_playlist.id.to_string())),
-        Cell::from(Span::raw(selected_playlist.name)),
-        Cell::from(Span::raw(selected_playlist.category)),
-        Cell::from(Span::raw(selected_playlist.age.to_string())),
-        Cell::from(Span::raw(selected_playlist.created_at.to_string())),
-    ])])
-    .header(Row::new(vec![
-        Cell::from(Span::styled(
-            "ID",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Cell::from(Span::styled(
-            "Name",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Cell::from(Span::styled(
-            "Category",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Cell::from(Span::styled(
-            "Age",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Cell::from(Span::styled(
-            "Created At",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-    ]))
+    let songs = selected_playlist.songs.clone();
+    // Create table rows
+    let rows: Vec<Row> = songs.iter().map(|record| {
+        Row::new(vec![
+            Cell::from(record.artist.to_string()),
+            Cell::from(record.song.to_string()),
+        ])
+    }).collect();
+    
+    let song_table = Table::new(rows)
+        .header(Row::new(vec![
+            Cell::from(Span::styled(
+                "Artist",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Cell::from(Span::styled(
+                "Song",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+        ]))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .style(Style::default().fg(Color::White))
+                .title("Detail")
+                .border_type(BorderType::Plain),
+        )
+        .widths(&[
+            Constraint::Percentage(50),
+            Constraint::Percentage(50),
+        ]);
+
+    let help = Paragraph::new(vec![
+        Spans::from(vec![Span::raw("Press 'INSERT' to ADD a playlist")]),
+        Spans::from(vec![Span::raw("Press 'DELETE' to DELETE a playlist")]),
+    ])
+    .alignment(Alignment::Left)
     .block(
         Block::default()
             .borders(Borders::ALL)
             .style(Style::default().fg(Color::White))
-            .title("Detail")
+            .title("Help")
             .border_type(BorderType::Plain),
-    )
-    .widths(&[
-        Constraint::Percentage(5),
-        Constraint::Percentage(20),
-        Constraint::Percentage(20),
-        Constraint::Percentage(5),
-        Constraint::Percentage(20),
-    ]);
+    );
 
-    (list, playlist_detail)
+    (list, song_table, help)
 }       
 
 fn render_devices<'a>(track_device: usize, click_device: usize) -> List<'a> {
@@ -492,6 +507,7 @@ fn render_devices<'a>(track_device: usize, click_device: usize) -> List<'a> {
     list
 }       
 
+// TODO: Add * if song is in the current playlist
 fn render_songs<'a>(songlist_state: &ListState) -> (List<'a>, Table<'a>) {
 
     let playlist_ui = Block::default()
@@ -898,6 +914,35 @@ fn handle_r_event(
             track_player.set_playback_speed(1.0);
             click_player.set_playback_speed(1.0);
             info!("Reset playback speed to 1x ");
+        },
+        _ => {}
+
+    }
+}
+
+fn handle_delete_event(
+    active_menu_item: &mut MenuItem,
+    playlist_state: &mut ListState,
+) {
+    match active_menu_item {
+        MenuItem::Playlists => {
+            if let Some(selected) = playlist_state.selected() {
+                let playlists = read_playlists().expect("can't fetch play list");
+                let selected_playlist = playlists
+                    .get(selected)
+                    .expect("exists")
+                    .clone();
+
+                if selected_playlist.name == "All songs" {
+                    error!("Can not delete default playlist");
+                    return;
+                }
+
+                match delete_playlist(selected_playlist.id) {
+                    Ok(_) => info!("Deleted playlist {}", selected_playlist.id),
+                    Err(_) => error!("Could not delete playlist {}", selected_playlist.id),
+                };
+            }
         },
         _ => {}
 

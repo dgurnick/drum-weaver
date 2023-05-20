@@ -1,11 +1,14 @@
 use clap::{Arg, ArgMatches};
 use log::{info};
-use log4rs;
 
 mod common;
-use common::{PlayerArguments, get_file_paths, play_song, dump_devices};
+use common::{PlayerArguments, get_file_paths, dump_devices};
+mod playlist;
+
 mod ui;
 use ui::run_ui;
+mod songlist;
+use songlist::play_song;
 mod audio;
 
 fn main() {
