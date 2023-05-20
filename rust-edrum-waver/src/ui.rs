@@ -20,9 +20,7 @@ use tui::{
 };
 
 use crate::common::{Event, MenuItem, PlayerArguments, get_file_paths, read_devices};
-use crate::playlist::{read_playlists, delete_playlist};
-use crate::songlist::read_songs;
-
+use crate::playlist::{read_playlists, delete_playlist, get_songs};
 use crate::audio::{Player, Song};
 
 use cpal::traits::HostTrait;
@@ -170,7 +168,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                             [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
                         )
                         .split(chunks[1]);
-                    let (left, right) = render_songs(&songlist_state);
+                    let (left, right) = render_songs(&playlist_state, &songlist_state);
                     rect.render_stateful_widget(left, songlist_chunks[0], &mut songlist_state);
                     rect.render_widget(right, songlist_chunks[1]);
                 },
@@ -423,33 +421,34 @@ fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Table<'a>, Par
     // Create table rows
     let rows: Vec<Row> = songs.iter().map(|record| {
         Row::new(vec![
-            Cell::from(record.artist.to_string()),
             Cell::from(record.song.to_string()),
+            Cell::from(record.artist.to_string()),
         ])
     }).collect();
     
     let song_table = Table::new(rows)
-        .header(Row::new(vec![
-            Cell::from(Span::styled(
-                "Artist",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-            Cell::from(Span::styled(
-                "Song",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-        ]))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .style(Style::default().fg(Color::White))
-                .title("Detail")
-                .border_type(BorderType::Plain),
-        )
-        .widths(&[
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
-        ]);
+    .header(Row::new(vec![
+        Cell::from(Span::styled(
+            "Name",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Cell::from(Span::styled(
+            "Artist",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+    ]))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .style(Style::default().fg(Color::White))
+            .title("Detail")
+            .border_type(BorderType::Plain),
+    )
+    .widths(&[
+        Constraint::Percentage(50),
+        Constraint::Percentage(50),
+    ]);
+
 
     let help = Paragraph::new(vec![
         Spans::from(vec![Span::raw("Press 'INSERT' to ADD a playlist")]),
@@ -508,7 +507,7 @@ fn render_devices<'a>(track_device: usize, click_device: usize) -> List<'a> {
 }       
 
 // TODO: Add * if song is in the current playlist
-fn render_songs<'a>(songlist_state: &ListState) -> (List<'a>, Table<'a>) {
+fn render_songs<'a>(playlist_state: &ListState, songlist_state: &ListState) -> (List<'a>, Table<'a>) {
 
     let playlist_ui = Block::default()
         .borders(Borders::ALL)
@@ -516,7 +515,8 @@ fn render_songs<'a>(songlist_state: &ListState) -> (List<'a>, Table<'a>) {
         .title("Songs")
         .border_type(BorderType::Plain);
 
-    let songs = read_songs().expect("can fetch song list");
+    let songs = get_songs(playlist_state.selected().unwrap());
+
     let items: Vec<_> = songs
         .iter()
         .map(|song| {
@@ -592,7 +592,7 @@ fn handle_song_end_conditions(
 ) -> Result<PlayerArguments, String> {
     
     if let Some(selected) = songlist_state.selected() {
-        let amount_songs = read_songs().expect("can't fetch play list").len();
+        let amount_songs = get_songs(selected).len();
         if selected > amount_songs - 1 {
             songlist_state.select(Some(0));
         } else {
@@ -686,7 +686,7 @@ fn handle_down_event (
         },
         MenuItem::Songs => {
             if let Some(selected) = songlist_state.selected() {
-                let amount_songs = read_songs().expect("can't fetch play list").len();
+                let amount_songs = get_songs(selected).len();
                 if selected >= amount_songs - 1 {
                     songlist_state.select(Some(0));
                 } else {
@@ -734,7 +734,7 @@ fn handle_up_event (
         MenuItem::Songs => {
 
             if let Some(selected) = songlist_state.selected() {
-                let amount_songs = read_songs().expect("can't fetch songs").len();
+                let amount_songs = get_songs(selected).len();
                 if selected > 0 {
                     songlist_state.select(Some(selected - 1));
                 } else {
@@ -811,7 +811,7 @@ fn handle_page_down_event(
         },
         MenuItem::Songs => {
             if let Some(selected) = songlist_state.selected() {
-                let amount_songs = read_songs().expect("can't fetch play list").len();
+                let amount_songs = get_songs(selected).len();
                 if selected + 10 > amount_songs {
                     songlist_state.select(Some(0));
                 } else {
@@ -848,7 +848,7 @@ fn handle_page_up_event(
         MenuItem::Songs => {
 
             if let Some(selected) = songlist_state.selected() {
-                let amount_songs = read_songs().expect("can't fetch songs").len();
+                let amount_songs = get_songs(selected).len();
                 if selected > 10 {
                     songlist_state.select(Some(selected - 10));
                 } else {

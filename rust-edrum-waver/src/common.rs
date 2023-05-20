@@ -5,7 +5,7 @@ use thiserror::Error;
 use std::io;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
-use crate::songlist::SongRecord;
+use crate::playlist::SongRecord;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 
