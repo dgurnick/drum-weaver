@@ -553,7 +553,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
         }
 
-        if ! 1==0 && track_player.has_current_song() && !click_player.has_current_song() && started_playing {
+        if ! track_player.has_current_song() && !click_player.has_current_song() && started_playing {
             if let Some(selected) = songlist_state.selected() {
                 let amount_songs = read_songs().expect("can't fetch play list").len();
                 if selected > amount_songs - 1 {
@@ -591,6 +591,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
             }
 
         }   
+   
     }
 
 
