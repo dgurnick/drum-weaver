@@ -200,6 +200,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 KeyCode::Char('z') => handle_z_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
 
                 KeyCode::Char('c') => {
+                    // I won't refactor this into another function because it uses everything and I'm dumb
                     if event.kind == KeyEventKind::Release {
 
                         match active_menu_item {
@@ -230,6 +231,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 },
 
                 KeyCode::Char('t') => {
+                    // I won't refactor this into another function because it uses everything and I'm dumb
                     if event.kind == KeyEventKind::Release {
 
                         match active_menu_item {
@@ -260,42 +262,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                     }
                 },
 
-                KeyCode::PageDown => {
-                    
-                    if event.kind == KeyEventKind::Release {
-
-                        match active_menu_item {
-                            MenuItem::Playlists => {
-                                if let Some(selected) = playlist_state.selected() {
-                                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
-                                    if selected >= amount_playlists - 1 {
-                                        playlist_state.select(Some(0));
-                                    } else {
-                                        playlist_state.select(Some(selected + 10));
-                                    }
-                                }
-
-                                info!("Set playlist to {}", playlist_state.selected().unwrap());
-
-                            },
-                            MenuItem::Songs => {
-                                if let Some(selected) = songlist_state.selected() {
-                                    let amount_songs = read_songs().expect("can't fetch play list").len();
-                                    if selected + 10 > amount_songs {
-                                        songlist_state.select(Some(0));
-                                    } else {
-                                        songlist_state.select(Some(selected + 10));
-                                    }
-                                }
-                                info!("Set song to {}", songlist_state.selected().unwrap());
-
-                            },
-                            _ => {}
-
-                        }
-
-                    }
-                }
+                KeyCode::PageDown => handle_page_down_event(event, &mut active_menu_item, &mut playlist_state, &mut songlist_state),
                 KeyCode::PageUp => {
                     if event.kind == KeyEventKind::Release {
 
@@ -910,6 +877,48 @@ fn handle_z_event(
                     click_player.seek(Duration::from_secs(0));
                 }
                 info!("Restarted song");
+
+            },
+            _ => {}
+
+        }
+
+    }
+
+}
+
+fn handle_page_down_event(
+    event: KeyEvent,
+    active_menu_item: &mut MenuItem,
+    playlist_state: &mut ListState,
+    songlist_state: &mut ListState,
+) {
+    if event.kind == KeyEventKind::Release {
+
+        match active_menu_item {
+            MenuItem::Playlists => {
+                if let Some(selected) = playlist_state.selected() {
+                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
+                    if selected >= amount_playlists - 1 {
+                        playlist_state.select(Some(0));
+                    } else {
+                        playlist_state.select(Some(selected + 10));
+                    }
+                }
+
+                info!("Set playlist to {}", playlist_state.selected().unwrap());
+
+            },
+            MenuItem::Songs => {
+                if let Some(selected) = songlist_state.selected() {
+                    let amount_songs = read_songs().expect("can't fetch play list").len();
+                    if selected + 10 > amount_songs {
+                        songlist_state.select(Some(0));
+                    } else {
+                        songlist_state.select(Some(selected + 10));
+                    }
+                }
+                info!("Set song to {}", songlist_state.selected().unwrap());
 
             },
             _ => {}
