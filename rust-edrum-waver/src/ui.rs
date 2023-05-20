@@ -265,7 +265,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 KeyCode::PageUp => handle_page_up_event(event, &mut active_menu_item, &mut playlist_state, &mut songlist_state),
                 KeyCode::Left => handle_left_arrow_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
                 KeyCode::Right => handle_right_arrow_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
-                KeyCode::Char('r') => handle_right_arrow_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
+                KeyCode::Char('r') => handle_r_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
 
                 KeyCode::Enter => {
                     if event.kind == KeyEventKind::Release {
@@ -319,7 +319,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 },
                 _ => {}
             },
-            Event::Input(_) => todo!(),
+            Event::Input(_) => {},
             Event::Tick => {}
 
         }
