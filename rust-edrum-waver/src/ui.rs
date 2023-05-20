@@ -1,6 +1,8 @@
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use std::{io, thread};
+use crossterm::event::KeyEvent;
+use crossterm::terminal;
 use log::{debug, error, info, trace, warn};
 use log4rs;
 
@@ -9,6 +11,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 
+use tui::backend::Backend;
 use tui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
@@ -190,17 +193,11 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
         match rx.recv()? {
 
             Event::Input(event) => match event.code {
-                KeyCode::Char('q') => {
-                    info!("Quitting");
-                    disable_raw_mode().expect("Can not disable raw mode");
-                    terminal.clear()?;
-                    terminal.show_cursor()?;
-                    break;
-                },
                 KeyCode::Char('h') => active_menu_item = MenuItem::Home,
                 KeyCode::Char('p') => active_menu_item = MenuItem::Playlists,
                 KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
                 KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
+                KeyCode::Char('q') => handle_q_event(event, &mut track_player, &mut click_player, &mut terminal),
                 KeyCode::Down => {
                     
                     if event.kind == KeyEventKind::Release {
@@ -576,7 +573,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
 
         if !track_player.has_current_song()
            && !click_player.has_current_song()
-            && started_playing
+           && started_playing
         {
             active_arguments = match handle_song_end_conditions(
                 &mut track_player,
@@ -870,5 +867,24 @@ fn handle_song_end_conditions(
 
     } else {
         Err("Could not find next song".to_string())
+    }
+}
+
+fn handle_q_event<T>(
+    event: KeyEvent,
+    track_player: &mut Player,
+    click_player: &mut Player,
+    terminal: &mut Terminal<T>,
+) where
+    T: Backend,
+{
+    if event.kind == KeyEventKind::Release {
+        info!("Quitting");
+        track_player.stop();
+        click_player.stop();
+        disable_raw_mode().expect("Can not disable raw mode");
+        terminal.clear().expect("Failed to clear the terminal");
+        terminal.show_cursor().expect("Failed to show cursor");
+        std::process::exit(0);
     }
 }
