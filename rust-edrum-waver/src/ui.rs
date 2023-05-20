@@ -198,53 +198,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
                 KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
                 KeyCode::Char('q') => handle_q_event(event, &mut track_player, &mut click_player, &mut terminal),
-                KeyCode::Down => {
-                    
-                    if event.kind == KeyEventKind::Release {
-
-                        match active_menu_item {
-                            MenuItem::Devices => {
-                                if let Some(selected) = device_list_state.selected() {
-                                    let amount_devices = read_devices().expect("can't fetch device list").len();
-                                    if selected >= amount_devices - 1 {
-                                        device_list_state.select(Some(0));
-                                    } else {
-                                        device_list_state.select(Some(selected + 1));
-                                    }
-                                }
-                                info!("Set device to {}", device_list_state.selected().unwrap());
-
-                            },
-                            MenuItem::Playlists => {
-                                if let Some(selected) = playlist_state.selected() {
-                                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
-                                    if selected >= amount_playlists - 1 {
-                                        playlist_state.select(Some(0));
-                                    } else {
-                                        playlist_state.select(Some(selected + 1));
-                                    }
-                                }
-                                info!("Set playlist to {}", playlist_state.selected().unwrap());
-
-                            },
-                            MenuItem::Songs => {
-                                if let Some(selected) = songlist_state.selected() {
-                                    let amount_songs = read_songs().expect("can't fetch play list").len();
-                                    if selected >= amount_songs - 1 {
-                                        songlist_state.select(Some(0));
-                                    } else {
-                                        songlist_state.select(Some(selected + 1));
-                                    }
-                                }
-                                info!("Set song to {}", songlist_state.selected().unwrap());
-
-                            },
-                            _ => {}
-
-                        }
-
-                    }
-                }
+                KeyCode::Down => handle_down_event(event, &mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
                 KeyCode::Up => {
                     if event.kind == KeyEventKind::Release {
 
@@ -887,4 +841,59 @@ fn handle_q_event<T>(
         terminal.show_cursor().expect("Failed to show cursor");
         std::process::exit(0);
     }
+}
+
+fn handle_down_event (
+    event: KeyEvent,
+    active_menu_item: &mut MenuItem,
+    device_list_state: &mut ListState,
+    playlist_state: &mut ListState,
+    songlist_state: &mut ListState,
+) {
+
+    if event.kind == KeyEventKind::Release {
+
+        match active_menu_item {
+            MenuItem::Devices => {
+                if let Some(selected) = device_list_state.selected() {
+                    let amount_devices = read_devices().expect("can't fetch device list").len();
+                    if selected >= amount_devices - 1 {
+                        device_list_state.select(Some(0));
+                    } else {
+                        device_list_state.select(Some(selected + 1));
+                    }
+                }
+                info!("Set device to {}", device_list_state.selected().unwrap());
+
+            },
+            MenuItem::Playlists => {
+                if let Some(selected) = playlist_state.selected() {
+                    let amount_playlists = read_playlists().expect("can't fetch play list").len();
+                    if selected >= amount_playlists - 1 {
+                        playlist_state.select(Some(0));
+                    } else {
+                        playlist_state.select(Some(selected + 1));
+                    }
+                }
+                info!("Set playlist to {}", playlist_state.selected().unwrap());
+
+            },
+            MenuItem::Songs => {
+                if let Some(selected) = songlist_state.selected() {
+                    let amount_songs = read_songs().expect("can't fetch play list").len();
+                    if selected >= amount_songs - 1 {
+                        songlist_state.select(Some(0));
+                    } else {
+                        songlist_state.select(Some(selected + 1));
+                    }
+                }
+                info!("Set song to {}", songlist_state.selected().unwrap());
+
+            },
+            _ => {}
+
+        }
+
+    }
+
 }
