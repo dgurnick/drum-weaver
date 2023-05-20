@@ -201,25 +201,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
                 KeyCode::Down => handle_down_event(event, &mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
                 KeyCode::Up => handle_up_event(event, &mut active_menu_item, &mut device_list_state, &mut playlist_state, &mut songlist_state),
                 KeyCode::Char(' ') => handle_space_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
-
-                KeyCode::Char('z') => {
-                    if event.kind == KeyEventKind::Release {
-
-                        match active_menu_item {
-                            MenuItem::Songs => {
-                                if track_player.is_playing() {
-                                    track_player.seek(Duration::from_secs(0));
-                                    click_player.seek(Duration::from_secs(0));
-                                }
-                                info!("Restarted song");
-
-                            },
-                            _ => {}
-
-                        }
-
-                    }
-                },
+                KeyCode::Char('z') => handle_z_event(event, &mut active_menu_item, &mut track_player, &mut click_player),
 
                 KeyCode::Char('c') => {
                     if event.kind == KeyEventKind::Release {
@@ -906,6 +888,32 @@ fn handle_space_event(
                 click_player.set_playing(! click_player.is_playing());
 
                 info!("Stopped playback of song");
+
+            },
+            _ => {}
+
+        }
+
+    }
+
+}
+
+fn handle_z_event(
+    event: KeyEvent,
+    active_menu_item: &mut MenuItem,
+    track_player: &mut Player,
+    click_player: &mut Player,
+) {
+
+    if event.kind == KeyEventKind::Release {
+
+        match active_menu_item {
+            MenuItem::Songs => {
+                if track_player.is_playing() {
+                    track_player.seek(Duration::from_secs(0));
+                    click_player.seek(Duration::from_secs(0));
+                }
+                info!("Restarted song");
 
             },
             _ => {}

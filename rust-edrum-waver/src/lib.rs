@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 // this is player-rs. As soon as i get permission on gitlab to fork, I'll make the change there.
 // The modification allows a device to be passed in the player allowing different tracks on different
 // output devices. 
