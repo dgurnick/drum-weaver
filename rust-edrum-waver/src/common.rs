@@ -8,11 +8,9 @@ use std::io;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
 
-use crate::lib::{Player, Song};
+use crate::audio::{Player, Song};
 
 use cpal::traits::{DeviceTrait, HostTrait};
-
-
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct PlayerArguments {
@@ -95,7 +93,9 @@ pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, S
     let _ = reader.headers();
 
     let mut position = 1;
+    #[allow(unused_assignments)]
     let mut track_path_str: String = String::new();
+    #[allow(unused_assignments)]
     let mut click_path_str: String = String::new();
 
     for record in reader.deserialize() {
@@ -142,6 +142,7 @@ pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, S
 
 }
 
+#[allow(dead_code)]
 fn check_file_existence(folder_path: String, file_name: String) -> Result<(), String> {
     let mut path = PathBuf::new();
     path.push(folder_path);

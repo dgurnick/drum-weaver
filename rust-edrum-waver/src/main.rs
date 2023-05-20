@@ -1,12 +1,12 @@
 use clap::{Arg, ArgMatches};
-use log::{debug, error, info, trace, warn};
+use log::{info};
 use log4rs;
 
 mod common;
 use common::{PlayerArguments, get_file_paths, play_song, dump_devices};
 mod ui;
 use ui::run_ui;
-mod lib;
+mod audio;
 
 fn main() {
 
@@ -129,8 +129,8 @@ fn run_cli(arguments: PlayerArguments) -> Result<i32, String> {
     while track_player.has_current_song() && click_player.has_current_song() {
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        let (track_samples, track_position) = track_player.get_playback_position().expect("Could not get track playback position");
-        let (click_samples, click_position) = click_player.get_playback_position().expect("Could not get click playback position");
+        let (_track_samples, _track_position) = track_player.get_playback_position().expect("Could not get track playback position");
+        let (_click_samples, _click_position) = click_player.get_playback_position().expect("Could not get click playback position");
 
         // println!("Track: {}/{} Click: {}/{}", 
         //     track_position.as_secs(), 

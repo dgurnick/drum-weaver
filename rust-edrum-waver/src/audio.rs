@@ -11,9 +11,9 @@ use std::thread;
 use std::time::Duration;
 
 use color_eyre::eyre::{ensure, Report, Result};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::{
-	Device, FrameCount, FromSample, HostId, OutputCallbackInfo, Sample, SampleFormat, SizedSample,
+	Device, FrameCount, FromSample, OutputCallbackInfo, Sample, SampleFormat, SizedSample,
 	Stream, StreamConfig, SupportedBufferSize, SupportedStreamConfigRange,
 };
 use log::{debug, error, info, warn};
@@ -417,6 +417,7 @@ impl PlayerState {
 		*self.next_samples.write().unwrap() = None;
 		*self.playback.write().unwrap() = None;
 	}
+	#[allow(dead_code)]
 	fn skip(&self) {
 		*self.playback.write().unwrap() = None;
 	}
@@ -451,6 +452,7 @@ impl PlayerState {
 			false
 		}
 	}
+	#[allow(dead_code)]
 	fn force_remove_next_song(&self) {
 		let (mut playback, mut next_song) = (
 			self.playback.write().unwrap(),
@@ -595,6 +597,7 @@ impl Player {
 	}
 	
 	/// Set the song that will play after the current song is over (or immediately if no song is currently playing), optionally start playing in the middle of the song.
+	#[allow(dead_code)]
 	pub fn play_song_next(&self, song: &Song, start_time: Option<Duration>) -> Result<()> {
 		self.player_state.play_song(song, start_time)
 	}
@@ -608,6 +611,7 @@ impl Player {
 	///
 	/// This will remove the current song if no next song exists to avoid a race condition in case the current song ends after you have determined that the next song must be replaced but before you call this function.
 	/// See also [`force_remove_next_song`](Player::force_remove_next_song)
+	#[allow(dead_code)]
 	pub fn force_replace_next_song(&self, song: &Song, start_time: Option<Duration>) -> Result<()> {
 		self.player_state.force_remove_next_song();
 		self.player_state.play_song(song, start_time)?;
@@ -617,6 +621,7 @@ impl Player {
 	///
 	/// This will remove the current song if no next song exists to avoid a race condition in case the current song ends after you have determined that the next song must be replaced but before you call this function.
 	/// See also [`force_replace_next_song`](Player::force_replace_next_song)
+	#[allow(dead_code)]
 	pub fn force_remove_next_song(&self) -> Result<()> {
 		self.player_state.force_remove_next_song();
 		Ok(())
@@ -630,6 +635,7 @@ impl Player {
 	/// Skip the currently playing song (i.e. stop playing it immediately.
 	///
 	/// This will immediately start playing the next song if it exists.
+	#[allow(dead_code)]
 	pub fn skip(&self) {
 		self.player_state.skip();
 	}
@@ -664,6 +670,7 @@ impl Player {
 	///
 	/// If you want to check whether there is currently a song playing, use [`has_current_song`][Player::has_current_song] and [`is_playing`][Player::is_playing].
 	/// This should always be queried before calling [`play_song_next`](Player::play_song_next) if you do not intend on replacing the song currently in the queue.
+	#[allow(dead_code)]
 	pub fn has_next_song(&self) -> bool {
 		self.player_state
 			.next_samples

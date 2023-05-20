@@ -1,15 +1,13 @@
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use std::{io, thread};
-use crossterm::event::KeyEvent;
-use crossterm::terminal;
-use log::{debug, error, info, trace, warn};
-use log4rs;
 
 use crossterm::{
-    event::{self, Event as CEvent, KeyCode, KeyEventKind},
+    event::{self, Event as CEvent, KeyCode, KeyEvent, KeyEventKind},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
+
+use log::{error, info};
 
 use tui::backend::Backend;
 use tui::{
@@ -21,16 +19,14 @@ use tui::{
     Terminal,
 };
 
-//use lazy_static::lazy_static;
-
-use crate::common::{Event, PlayerArguments, get_file_paths, play_song};
+use crate::common::{Event, PlayerArguments, get_file_paths};
 use crate::common::MenuItem;
 use crate::common::read_playlists;
 use crate::common::read_songs;
 use crate::common::read_devices;
-use crate::common::SongRecord;
-use crate::lib::{Player, Song};
-use cpal::Device;
+
+use crate::audio::{Player, Song};
+
 use cpal::traits::HostTrait;
 
 pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Error>> {
@@ -47,7 +43,7 @@ pub fn run_ui(arguments: PlayerArguments) -> Result<(), Box<dyn std::error::Erro
     let stdout = io::stdout();
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    terminal.clear();
+    terminal.clear()?;
 
     let menu_titles = vec!["Home", "Playlists", "Songs", "Devices", "Quit"];
     let mut active_menu_item = MenuItem::Home;
@@ -576,7 +572,7 @@ fn render_playlists<'a>(playlist_state: &ListState) -> (List<'a>, Table<'a>) {
     (list, playlist_detail)
 }       
 
-fn render_devices<'a>(track_device: usize, click_device: usize) -> (List<'a>) {
+fn render_devices<'a>(track_device: usize, click_device: usize) -> List<'a> {
     let device_ui = Block::default()
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::White))
@@ -597,7 +593,7 @@ fn render_devices<'a>(track_device: usize, click_device: usize) -> (List<'a>) {
             } else {
                 "-"
             };
-            let mut selected_state = format!("{} {}", selected_track, selected_click);
+            let selected_state = format!("{} {}", selected_track, selected_click);
 
             ListItem::new(Spans::from(vec![Span::styled(
                 format!("[{}] {} : {}", selected_state, device.position, device.name.clone()),
