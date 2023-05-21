@@ -6,15 +6,13 @@ use thiserror::Error;
 use std::io;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
-use crate::playlist::SongRecord;
+use crate::{playlist::SongRecord, songlist::import_songs};
 
 use cpal::traits::{DeviceTrait, HostTrait};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct PlayerArguments {
     pub music_folder: String,
-    pub track_song: String,
-    pub click_song: String,
     pub track_volume: f32,
     pub click_volume: f32,
     pub track_device_position: usize,
@@ -65,20 +63,15 @@ impl From<MenuItem> for usize {
 
 pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, String) {
 
-    let mut reader = csv::Reader::from_path("assets/song_list.csv").unwrap();
-    let _ = reader.headers();
+    let songs = import_songs().expect("Could not import songs");
 
-    let mut position = 1;
-    #[allow(unused_assignments)]
-    let mut track_path_str: String = String::new();
-    #[allow(unused_assignments)]
-    let mut click_path_str: String = String::new();
-
-    for record in reader.deserialize() {
-
-        let song: SongRecord = record.unwrap();
+    let mut position = 0;   
+    let mut track_path_str = "".to_string();
+    let mut click_path_str = "".to_string();
+    for song in songs {
 
         if position == song_position {
+            info!("Found matching position");
             let mut track_path  = PathBuf::new();
             track_path.push(music_folder);
             track_path.push(&song.folder);
@@ -101,6 +94,7 @@ pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, S
                  output_folder.push(music_folder);
                  output_folder.push(song.folder);
 
+                info!("Decompressing file: {}", archive_path.display());
                  sevenz_rust::decompress_file(&archive_path, output_folder).expect("Failed to decompress file");
 
             } 

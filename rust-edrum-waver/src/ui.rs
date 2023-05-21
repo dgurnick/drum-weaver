@@ -1,750 +1,240 @@
-use cpal::traits::HostTrait;
-use crossterm::{
-    event::{
-        self, 
-        Event as CEvent, 
-        KeyCode, 
-        KeyEventKind, 
-    },
-    terminal::{disable_raw_mode, enable_raw_mode},
+use std::sync::{Arc, Mutex};
+
+use cpal::{traits::HostTrait, Device};
+use eframe;
+use egui;
+use egui_extras::{TableBuilder, Column};
+use log::{info, LevelFilter};
+
+use crate::{
+    common::{PlayerArguments, get_file_paths, read_devices, DeviceDetail}, 
+    songlist::import_songs, 
+    playlist::SongRecord, 
+    audio::{Player, Song}
 };
 
-use log::{error, info};
-use std::sync::mpsc;
-use std::time::{Duration, Instant};
-use std::{io, thread};
-use tui::backend::Backend;
-use tui::{
-    backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, Tabs},
-    Terminal,
-};
+pub fn run_ui(arguments: &mut PlayerArguments) -> Result<i32, String> {
 
-use crate::common::{Event, MenuItem, PlayerArguments, get_file_paths, read_devices};
-use crate::audio::{Player, Song};
-use crate::songlist::import_songs;
+    let options = eframe::NativeOptions {
+        initial_window_size: Some(egui::vec2(800.0, 600.0)),
+        ..Default::default()
+    };
 
-pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error::Error>> {
-    info!("Starting UI");
+    let mut app = MyApp::default();
+    app.ui_device_volume = (&arguments.track_volume * 100.0).round() as usize;
+    app.ui_click_volume = (&arguments.click_volume * 100.0).round() as usize;
+    app.actual_click_volume = arguments.click_volume;
+    app.actual_device_volume = arguments.track_volume;
+    app.songs = import_songs().expect("Could not import songs");
 
-    enable_raw_mode().expect("Can not run in raw mode");
-    
-    let (tx, rx) = mpsc::channel();
-    let tick_rate = Duration::from_millis(200);
+    let _ = match eframe::run_native(
+        "Drummer's Karaoke",
+        options,
+        Box::new(move |_cc| Box::new(app.clone())),
+    ) {
+        Ok(_) => Ok(0),
+        Err(e) => Err(e.to_string())
+    };
 
-    let mut selected_track_device = arguments.track_device_position;
-    let mut selected_click_device = arguments.click_device_position;
+    Ok(0)
 
-    let stdout = io::stdout();
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-    terminal.clear()?;
+}
 
-    let menu_titles = vec!["Home", "Songs", "Devices", "Quit"];
-    let mut active_menu_item = MenuItem::Home;
 
-    let mut songlist_state = ListState::default();
-    songlist_state.select(Some(0));
+#[derive(Clone)]
+struct MyApp {
 
-    let mut device_list_state = ListState::default();
-    device_list_state.select(Some(0));
+    ui_device_volume: usize,
+    ui_click_volume: usize,
+    actual_device_volume: f32,
+    actual_click_volume: f32,
+    search_for: String,
+    songs: Vec<SongRecord>,
+    filtered_songs: Vec<SongRecord>,
+    track_play: Option<Arc<Mutex<Player>>>,
+    click_play: Option<Arc<Mutex<Player>>>,
+}
 
-    let host = cpal::default_host();
-    let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
-
-    let mut track_device = &available_devices[arguments.track_device_position];
-    let mut click_device = &available_devices[arguments.click_device_position];
-
-    let mut track_player = Player::new(None, track_device).expect("Could not create track player");
-    let mut click_player = Player::new(None, click_device).expect("Could not create click player");
-    let mut track_song: Song;
-    let mut click_song: Song;
-
-    track_player.set_playback_speed(arguments.playback_speed);
-    click_player.set_playback_speed(arguments.playback_speed);
-
-    let mut started_playing = false;
-    let mut active_arguments: PlayerArguments = arguments.clone();
-    
-    // create our transmit-receive loop
-    thread::spawn(move || {
-        let mut last_tick = Instant::now();
-        loop {
-            let timeout = tick_rate
-                .checked_sub(last_tick.elapsed())
-                .unwrap_or_else(|| Duration::from_secs(0));
-
-            if event::poll(timeout).expect("Polling works") {
-                if let CEvent::Key(key) = event::read().expect("can read events") {
-                    tx.send(Event::Input(key)).expect("can send events");
-                }
-            }
-
-            if last_tick.elapsed() >= tick_rate {
-                if let Ok(_) = tx.send(Event::Tick) {
-                    last_tick = Instant::now();
-                }
-            }
+impl Default for MyApp {
+    fn default() -> Self {
+        Self {
+            ui_device_volume: 100,
+            ui_click_volume: 100,
+            actual_device_volume: 1.0,
+            actual_click_volume: 1.0,
+            search_for: String::new(),
+            songs: Vec::new(),
+            filtered_songs: Vec::new(),
+            track_play: None,
+            click_play: None,
         }
-    });
+    }
+}
 
-    loop {
-        terminal.draw(|rect| {
-            let size = rect.size();
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .margin(2)
-                .constraints(
-                    [
-                        Constraint::Length(3),
-                        Constraint::Min(2),
-                        Constraint::Length(3),
-                    ]
-                    .as_ref(),
-                )
-                .split(size);
+trait MusicPlayer {
+    fn play(&mut self, arguments: PlayerArguments, song: SongRecord);
+}
 
-            let menu = menu_titles
-                .iter()
-                .map(|t| {
-                    let (first, rest) = t.split_at(1);
-                    Spans::from(vec![
-                        Span::styled(
-                            first,
-                            Style::default()
-                                .fg(Color::Yellow)
-                                .add_modifier(Modifier::UNDERLINED),
-                        ),
-                        Span::styled(rest, Style::default().fg(Color::White)),
-                    ])
-                })
-                .collect();
+impl MusicPlayer for MyApp {
 
-            let tabs = Tabs::new(menu)
-                .select(active_menu_item.into())
-                .block(Block::default().title("Menu").borders(Borders::ALL))
-                .style(Style::default().fg(Color::White))
-                .highlight_style(Style::default().fg(Color::Yellow))
-                .divider(Span::raw("|"));
+    fn play(&mut self, arguments: PlayerArguments, song: SongRecord) {
+        info!("Play song: {}", song.song);
 
-            rect.render_widget(tabs, chunks[0]);
+        let (track_file, click_file) = get_file_paths(&arguments.music_folder, song.id);
+        info!("Track file: {}", track_file);
+        info!("Click file: {}", click_file);
 
-            match active_menu_item {
-                MenuItem::Home => rect.render_widget(render_home(), chunks[1]),
-                MenuItem::Songs => {
-                    let songlist_chunks = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints(
-                            [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
-                        )
-                        .split(chunks[1]);
-                    let (left, right) = render_songs(&songlist_state);
-                    rect.render_stateful_widget(left, songlist_chunks[0], &mut songlist_state);
-                    rect.render_widget(right, songlist_chunks[1]);
-                },
-                MenuItem::Devices => {
-                    let device_chunks = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints(
-                            [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
-                        )
-                        .split(chunks[1]);
-                    let left = render_devices(selected_track_device, selected_click_device);
-                    rect.render_stateful_widget(left, device_chunks[0], &mut device_list_state);
-                },
+        let host = cpal::default_host();
+        let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
+        let track_device = &available_devices[arguments.track_device_position];
+        let click_device = &available_devices[arguments.click_device_position];
 
-            }
+        let track_volume = Some(arguments.track_volume);
+        let click_volume = Some(arguments.click_volume);
 
-        })?;
+        let track_song = Song::from_file(track_file, track_volume).expect("Could not create track song");
+        let click_song = Song::from_file(click_file, click_volume).expect("Could not create click song");
 
-        match rx.recv()? {
-            Event::Input(event) if event.kind == KeyEventKind::Release => match event.code  {
-                KeyCode::Char('h') => active_menu_item = MenuItem::Home,
-                KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
-                KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
-                KeyCode::Char('q') => handle_q_event(&mut track_player, &mut click_player, &mut terminal),
-                KeyCode::Down => handle_down_event(&mut active_menu_item, &mut device_list_state, &mut songlist_state),
-                KeyCode::Up => handle_up_event(&mut active_menu_item, &mut device_list_state, &mut songlist_state),
-                KeyCode::Char(' ') => handle_space_event(&mut active_menu_item, &mut track_player, &mut click_player),
-                KeyCode::Char('z') => handle_z_event(&mut active_menu_item, &mut track_player, &mut click_player),
-                KeyCode::Char('c') => {
-                    // I won't refactor this into another function because it uses everything and I'm dumb
-                    if event.kind == KeyEventKind::Release {
+        info!("Songs are loaded. Grabbing players");
+        // Create the player instances and retain ownership using Arc<Mutex>
+        let track_play = Arc::new(Mutex::new(Player::new(None, track_device).expect("Could not create track player")));
+        let click_play = Arc::new(Mutex::new(Player::new(None, click_device).expect("Could not create click player")));
 
-                        match active_menu_item {
-                            MenuItem::Devices => {
-                                if let Some(selected) = device_list_state.selected() {
-                                    selected_click_device = selected;
-                                }
+        // Store the Arc<Mutex<Player>> instances in MyApp
+        self.track_play = Some(track_play.clone());
+        self.click_play = Some(click_play.clone());
 
-                                track_player.stop();
-                                click_player.stop();
+        info!("Waiting to lock player");
+        {
+            // Acquire the lock and play the track song
+            let mut track_play_guard = track_play.lock().unwrap();
+            let track_play_ref = &mut *track_play_guard;
 
-                                track_device = &available_devices[selected_track_device];
-                                click_device = &available_devices[selected_click_device];
-
-                                track_player = Player::new(None, track_device).expect("Could not create track player");
-                                click_player = Player::new(None, click_device).expect("Could not create click player");
-
-                                track_player.set_playback_speed(arguments.playback_speed);
-                                click_player.set_playback_speed(arguments.playback_speed);
-
-                                info!("Set click device to {}", selected_click_device);
-                            },
-                            _ => {}
-
-                        }
-
-                    }
-                },
-
-                KeyCode::Char('t') => {
-                    // I won't refactor this into another function because it uses everything and I'm dumb
-                    if event.kind == KeyEventKind::Release {
-
-                        match active_menu_item {
-                            MenuItem::Devices => {
-                                if let Some(selected) = device_list_state.selected() {
-                                    selected_track_device = selected;
-                                }
-
-                                track_player.stop();
-                                click_player.stop();
-
-                                track_device = &available_devices[selected_track_device];
-                                click_device = &available_devices[selected_click_device];
-
-                                track_player = Player::new(None, track_device).expect("Could not create track player");
-                                click_player = Player::new(None, click_device).expect("Could not create click player");
-
-                                track_player.set_playback_speed(arguments.playback_speed);
-                                click_player.set_playback_speed(arguments.playback_speed);
-
-
-                                info!("Set track device to {}", selected_track_device);
-                                
-                            },
-                            _ => {}
-
-                        }
-
-                    }
-                },
-
-                KeyCode::PageDown => handle_page_down_event(&mut active_menu_item, &mut songlist_state),
-                KeyCode::PageUp => handle_page_up_event(&mut active_menu_item, &mut songlist_state),
-                KeyCode::Left => handle_left_arrow_event(&mut active_menu_item, &mut track_player, &mut click_player),
-                KeyCode::Right => handle_right_arrow_event(&mut active_menu_item, &mut track_player, &mut click_player),
-                KeyCode::Char('r') => handle_r_event(&mut active_menu_item, &mut track_player, &mut click_player),
-                KeyCode::Esc => {
-                    
-                },
-
-                KeyCode::Enter => {
-
-                    match active_menu_item {
-                        MenuItem::Songs => {
-
-                            if let Some(selected) = songlist_state.selected() {     
-
-                                let (track_file, click_file) = get_file_paths(&arguments.music_folder, selected + 1);
-
-                                active_arguments = PlayerArguments {
-                                    music_folder: arguments.music_folder.clone(),
-                                    track_song: track_file,
-                                    click_song: click_file,
-                                    track_volume: arguments.track_volume,
-                                    click_volume: arguments.click_volume,
-                                    track_device_position: arguments.track_device_position,
-                                    click_device_position: arguments.click_device_position,
-                                    playback_speed: arguments.playback_speed,
-                                };
-
-                                let track_volume = Some(active_arguments.track_volume);
-                                let click_volume = Some(active_arguments.click_volume);
-
-                                let track_file = active_arguments.track_song.clone();
-                                let click_file = active_arguments.click_song.clone();
-
-                                track_song = Song::from_file(&track_file, track_volume).expect("Could not create track song");
-                                click_song = Song::from_file(&click_file, click_volume).expect("Could not create click song");
-                            
-                                track_player.play_song_now(&track_song, None).expect("Could not play track song");
-                                click_player.play_song_now(&click_song, None).expect("Could not play click song");
-
-                                started_playing = true;
-                                info!("Started playing song {}", track_file.clone());
-
-                            }
-
-                        },
-                        _ => {}
-
-                    }
-                },
-
-                _ => {}
-            },
-            Event::Input(_) => {},
-            Event::Tick => {
-                if    ! track_player.has_current_song()
-                   && ! click_player.has_current_song()
-                   && started_playing
-                {
-                    info!("Song ended, moving to the next song");
-
-                    #[allow(unused_assignments)]
-                    let new_position: usize;
-                    if let Some(selected) = songlist_state.selected() {
-                        info!("The current position is {}", selected);
-                        let amount_songs = import_songs().unwrap().len();
-                        if selected > amount_songs - 1 {
-                            info!("Moving to position 1");
-                            new_position = 0;
-                            
-                        } else {
-                            new_position = selected + 1;
-                            info!("Moving to the next song: {}", new_position);
-                        }
-
-                        songlist_state.select(Some(new_position));
-
-                        std::thread::sleep(std::time::Duration::from_secs(2));
-
-                        let (track_file, click_file) = get_file_paths(&active_arguments.music_folder, new_position + 1);
-                        info!("The new track file is {}", track_file);
-    
-                        active_arguments = PlayerArguments {
-                            music_folder: active_arguments.music_folder.clone(),
-                            track_song: track_file,
-                            click_song: click_file,
-                            track_volume: active_arguments.track_volume,
-                            click_volume: active_arguments.click_volume,
-                            track_device_position: active_arguments.track_device_position,
-                            click_device_position: active_arguments.click_device_position,
-                            playback_speed: active_arguments.playback_speed,
-                        };
-                    
-                        track_song =
-                            Song::from_file(&active_arguments.track_song, Some(active_arguments.track_volume)).expect("Could not create track song");
-                        click_song =
-                            Song::from_file(&active_arguments.click_song, Some(active_arguments.click_volume)).expect("Could not create click song");
-                    
-                        std::thread::sleep(std::time::Duration::from_secs(2));
-                        track_player
-                            .play_song_next(&track_song, None)
-                            .expect("Could not play track song");
-                        click_player
-                            .play_song_next(&click_song, None)
-                            .expect("Could not play click song");
-
-                    }
-
-                }
-            }
-
+            // Borrow the track_song within the lock
+            let track_song_ref = &track_song;
+            track_play_ref.set_playback_speed(arguments.playback_speed);
+            track_play_ref.play_song_now(track_song_ref, None).expect("Could not play track song");
         }
 
-  
+        {
+            // Acquire the lock and play the click song
+            let mut click_play_guard = click_play.lock().unwrap();
+            let click_play_ref = &mut *click_play_guard;
+
+            // Borrow the click_song within the lock
+            let click_song_ref = &click_song;
+            click_play_ref.set_playback_speed(arguments.playback_speed);
+            click_play_ref.play_song_now(click_song_ref, None).expect("Could not play click song");
+        }
+
+        info!("Music is playing");
     }
-
 }
 
-fn render_home<'a>() -> Paragraph<'a> {
-    let home = Paragraph::new(vec![
-        Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::raw("Welcome")]),
-        Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::raw("to")]),
-        Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::styled(
-            "Drum Karaoke",
-            Style::default().fg(Color::LightBlue),
-        )]),
-        Spans::from(vec![Span::raw("")]),
-    ])
-    .alignment(Alignment::Center)
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .style(Style::default().fg(Color::White))
-            .title("Home")
-            .border_type(BorderType::Plain),
-    );
-    home
-    
-}
+impl eframe::App for MyApp {
 
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+      
+        egui::CentralPanel::default().show(ctx, |ui| {
 
-fn render_devices<'a>(track_device: usize, click_device: usize) -> List<'a> {
-    let device_ui = Block::default()
-        .borders(Borders::ALL)
-        .style(Style::default().fg(Color::White))
-        .title("Devices")
-        .border_type(BorderType::Plain);
+            ui.heading("Drummer's Karaoke");
+            ui.separator();
 
-    let devices = read_devices().expect("can't fetch device list");
-    let items: Vec<_> = devices
-        .iter()
-        .map(|device| {
-            let selected_track = if device.position == track_device {
-                "T"
-            } else {
-                "-"
-            };
-            let selected_click = if device.position == click_device {
-                "C"
-            } else {
-                "-"
-            };
-            let selected_state = format!("{} {}", selected_track, selected_click);
+            ui.horizontal(|ui| {
 
-            ListItem::new(Spans::from(vec![Span::styled(
-                format!("[{}] {} : {}", selected_state, device.position, device.name.clone()),
-                Style::default(),
-            )]))
-        })
-        .collect();
-
-    let list = List::new(items).block(device_ui).highlight_style(
-        Style::default()
-            .bg(Color::Yellow)
-            .fg(Color::Black)
-            .add_modifier(Modifier::BOLD),
-    );
-
-    list
-}       
-
-// TODO: Add * if song is in the current playlist
-fn render_songs<'a>(songlist_state: &ListState) -> (List<'a>, Table<'a>) {
-
-    let playlist_ui = Block::default()
-        .borders(Borders::ALL)
-        .style(Style::default().fg(Color::White))
-        .title("Songs")
-        .border_type(BorderType::Plain);
-
-    let songs = import_songs().unwrap();
-
-    let items: Vec<_> = songs
-        .iter()
-        .map(|song| {
-            ListItem::new(Spans::from(vec![Span::styled(
-                format!("{} - {}", song.artist.clone(), song.song.clone()),
-                Style::default(),
-            )]))
-        })
-        .collect();
-
-    let selected_song = songs
-        .get(
-            songlist_state
-                .selected()
-                .expect("there is always a selected song"),
-        )
-        .expect("exists")
-        .clone();
-
-    let list = List::new(items).block(playlist_ui).highlight_style(
-        Style::default()
-            .bg(Color::Yellow)
-            .fg(Color::Black)
-            .add_modifier(Modifier::BOLD),
-    );
-
-    let song_detail = Table::new(vec![Row::new(vec![
-        Cell::from(Span::raw(selected_song.song)),
-        Cell::from(Span::raw(selected_song.genre)),
-        Cell::from(Span::raw(selected_song.artist)),
-        Cell::from(Span::raw(selected_song.album)),
-    ])])
-    .header(Row::new(vec![
-        Cell::from(Span::styled(
-            "Song",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Cell::from(Span::styled(
-            "Genre",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Cell::from(Span::styled(
-            "Artist",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Cell::from(Span::styled(
-            "Album",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-    ]))
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .style(Style::default().fg(Color::White))
-            .title("Detail")
-            .border_type(BorderType::Plain),
-    )
-    .widths(&[
-        Constraint::Percentage(20),
-        Constraint::Percentage(20),
-        Constraint::Percentage(20),
-        Constraint::Percentage(20),
-    ]);
-
-    (list, song_detail)
-}
-
-fn handle_q_event<T>(
-    track_player: &mut Player,
-    click_player: &mut Player,
-    terminal: &mut Terminal<T>,
-) where
-    T: Backend,
-{
-    info!("Quitting");
-    track_player.stop();
-    click_player.stop();
-    disable_raw_mode().expect("Can not disable raw mode");
-    terminal.clear().expect("Failed to clear the terminal");
-    terminal.show_cursor().expect("Failed to show cursor");
-    std::process::exit(0);
-}
-
-fn handle_down_event (
-    active_menu_item: &mut MenuItem,
-    device_list_state: &mut ListState,
-    songlist_state: &mut ListState,
-) {
-
-    match active_menu_item {
-        MenuItem::Devices => {
-            if let Some(selected) = device_list_state.selected() {
-                let amount_devices = read_devices().expect("can't fetch device list").len();
-                if selected >= amount_devices - 1 {
-                    device_list_state.select(Some(0));
-                } else {
-                    device_list_state.select(Some(selected + 1));
+                ui.label(format!("Device Volume: {}" , self.actual_device_volume));
+                let device_volume_slider = egui::Slider::new(&mut self.ui_device_volume, 0..=100);
+                if ui.add(device_volume_slider).changed() {
+                    self.actual_device_volume = (self.ui_device_volume as f32) / 100.0;
                 }
-            }
-            info!("Set device to {}", device_list_state.selected().unwrap());
-        },
-        MenuItem::Songs => {
-            if let Some(selected) = songlist_state.selected() {
-                let songs = match import_songs() {
-                    Ok(songs) => songs,
-                    Err(err) => {
-                        error!("Could not import songs: {}", err);
-                        return;
-                    }
-                };
-                let amount_songs = songs.len();
-                #[allow(unused_assignments)]
-                let mut new_position = selected;
-                if selected >= amount_songs - 1 {
-                    new_position = 0;
-                } else {
-                    new_position = selected + 1;
+
+                ui.label(format!("Click Volume: {}" , self.actual_click_volume));
+                let click_volume_slider = egui::Slider::new(&mut self.ui_click_volume, 0..=100);
+                if ui.add(click_volume_slider).changed() {
+                    self.actual_click_volume = (self.ui_click_volume as f32) / 100.0;
                 }
-                songlist_state.select(Some(new_position));
-            }
-            info!("Set song to {}", songlist_state.selected().unwrap());
+                
 
-        },
-        _ => {}
-
-    }
-}
-
-fn handle_up_event (
-    active_menu_item: &mut MenuItem,
-    device_list_state: &mut ListState,
-    songlist_state: &mut ListState,
-) {
-    match active_menu_item {
-        MenuItem::Devices => {
-            if let Some(selected) = device_list_state.selected() {
-                let amount_devices = read_devices().expect("can't fetch device list").len();
-                if selected > 0 {
-                    device_list_state.select(Some(selected - 1));
-                } else {
-                    device_list_state.select(Some(amount_devices - 1));
-                }
-            }
-            info!("Set device to {}", device_list_state.selected().unwrap());
-        },
-        MenuItem::Songs => {
-
-            if let Some(selected) = songlist_state.selected() {
-                let songs = match import_songs() {
-                    Ok(songs) => songs,
-                    Err(err) => {
-                        error!("Could not import songs: {}", err);
-                        return;
-                    }
-                };
-                let amount_songs = songs.len();
-                #[allow(unused_assignments)]
-                let mut new_position = 0;
-                if selected > 0 {
-                    new_position = selected - 1;
-                } else {
-                    new_position = amount_songs - 1;
-                }
-                songlist_state.select(Some(new_position));
-            }
-            info!("Set song to {}", songlist_state.selected().unwrap());
-
-        },
-        _ => {}
-
-    }
-}
-
-fn handle_space_event(
-    active_menu_item: &mut MenuItem,
-    track_player: &mut Player,
-    click_player: &mut Player,
-) {
-
-    match active_menu_item {
-        MenuItem::Songs => {
-            track_player.set_playing(! track_player.is_playing());
-            click_player.set_playing(! click_player.is_playing());
-
-            info!("Stopped playback of song");
-
-        },
-        _ => {}
-
-    }
-
-}
-
-fn handle_z_event(
-    active_menu_item: &mut MenuItem,
-    track_player: &mut Player,
-    click_player: &mut Player,
-) {
-
-    match active_menu_item {
-        MenuItem::Songs => {
-            if track_player.is_playing() {
-                track_player.seek(Duration::from_secs(0));
-                click_player.seek(Duration::from_secs(0));
-            }
-            info!("Restarted song");
-
-        },
-        _ => {}
-
-    }
-
-}
-
-fn handle_page_down_event(
-    active_menu_item: &mut MenuItem,
-    songlist_state: &mut ListState,
-) {
-    match active_menu_item {
+            });
         
-        MenuItem::Songs => {
-            if let Some(selected) = songlist_state.selected() {
-                let amount_songs = import_songs().unwrap().len();
-                if selected + 10 > amount_songs {
-                    songlist_state.select(Some(0));
-                } else {
-                    songlist_state.select(Some(selected + 10));
+            ui.horizontal(|ui| {
+                let search_label = ui.label("Find a song: ");
+
+                if ui.text_edit_singleline(&mut self.search_for).labelled_by(search_label.id).changed() {
+                    if self.search_for.is_empty() {
+                        self.filtered_songs = Vec::new();
+                        return;
+                    }
+                    self.filtered_songs = filter_songs(self.songs.clone(), self.search_for.clone());
+                    
                 }
-            }
-            info!("Set song to {}", songlist_state.selected().unwrap());
 
-        },
-        _ => {}
+            });
+            ui.separator();
+            
+            ui.allocate_ui(ui.available_size(), |ui| {
+                TableBuilder::new(ui)
+                    .column(Column::auto_with_initial_suggestion(200.0))
+                    .column(Column::remainder())
+                    .column(Column::auto_with_initial_suggestion(50.0))
+                    .header(0.0, |mut header| {
+                        header.col(|ui| {
+                            ui.heading("Artist");
+                        });
+                        header.col(|ui| {
+                            ui.heading("Title");
+                        });
+                        header.col(|ui| {
+                        
+                        });
 
+                    })
+                    .body( |mut body| {
+                        let songs = if self.filtered_songs.is_empty() {
+                            &self.songs
+                        } else {
+                            &self.filtered_songs
+                        };
+
+                        for song in songs {
+                            body.row(20.0, |mut row| {
+                                row.col(|ui| {
+                                    ui.label(song.artist.clone());
+                                });
+                                row.col(|ui| {
+                                    ui.label(song.song.clone());
+                                });
+                                row.col(|ui| {
+                                    if ui.button("Play").clicked() {
+                                        play_song(song.clone());
+                                    }
+
+                                });
+                            });
+
+                        }
+
+                    });
+            
+            });
+
+        });
     }
 }
 
-fn handle_page_up_event(
-    active_menu_item: &mut MenuItem,
-    songlist_state: &mut ListState,
-) {
+fn filter_songs(songs: Vec<SongRecord>, filter: String) -> Vec<SongRecord> {
+    let mut filtered_songs = Vec::new();
 
-    match active_menu_item {
-        MenuItem::Songs => {
-
-            if let Some(selected) = songlist_state.selected() {
-                let amount_songs = import_songs().unwrap().len();
-                if selected > 10 {
-                    songlist_state.select(Some(selected - 10));
-                } else {
-                    songlist_state.select(Some(amount_songs - 1));
-                }
-            }
-            info!("Set song to {}", songlist_state.selected().unwrap());
-
-        },
-        _ => {}
-
+    for song in songs {
+        if song.artist.contains(&filter) || song.song.contains(&filter) {
+            filtered_songs.push(song);
+        }
     }
+
+    filtered_songs
 }
 
-fn handle_left_arrow_event(
-    active_menu_item: &mut MenuItem,
-    track_player: &mut Player,
-    click_player: &mut Player,
-) {
-    match active_menu_item {
-        MenuItem::Songs => {
-            let current_speed = track_player.get_playback_speed();
-            if current_speed > 0.1 {
-                track_player.set_playback_speed(current_speed - 0.01);
-                click_player.set_playback_speed(current_speed - 0.01);
-            }
-
-            info!("Set playback speed to {}", track_player.get_playback_speed());
-        },
-        _ => {}
-
-    }
-}
-
-fn handle_right_arrow_event(
-    active_menu_item: &mut MenuItem,
-    track_player: &mut Player,
-    click_player: &mut Player,
-) {
-
-    match active_menu_item {
-        MenuItem::Songs => {
-            let current_speed = track_player.get_playback_speed();
-            if current_speed > 0.1 {
-                track_player.set_playback_speed(current_speed + 0.01);
-                click_player.set_playback_speed(current_speed + 0.01);
-            }
-
-            info!("Set playback speed to {}", track_player.get_playback_speed());
-        },
-        _ => {}
-
-    }
-}
-
-fn handle_r_event(
-    active_menu_item: &mut MenuItem,
-    track_player: &mut Player,
-    click_player: &mut Player,
-) {
-    match active_menu_item {
-        MenuItem::Songs => {
-            track_player.set_playback_speed(1.0);
-            click_player.set_playback_speed(1.0);
-            info!("Reset playback speed to 1x ");
-        },
-        _ => {}
-
-    }
-}
-
+fn play_song(song: SongRecord) {
+    info!("Play song: {}", song.song);
+    
+}   

@@ -14,7 +14,6 @@ mod playlist;
 mod ui;
 use ui::run_ui;
 mod songlist;
-use songlist::play_song;
 mod audio;
 
 fn main() {
@@ -105,12 +104,6 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         .unwrap_or(0);
     info!("Initializing with click device: {}", click_device);
 
-    let ui = matches
-        .get_one::<String>("ui")
-        .map(|value| value == "1")
-        .unwrap_or(true);
-    info!("Initializing with UI option: {}", ui);
-
     let print_devices = matches
         .get_one::<String>("print_devices")
         .map(|value| value == "1")
@@ -128,13 +121,8 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         return Ok(0);
     }
 
-    // make sure the file exists. If it doesn't try to find the compressed version and decompress it.
-    let (track_file, click_file) = get_file_paths(music_folder, track_position);
-
     let mut arguments = PlayerArguments {  
         music_folder: music_folder.to_string(),
-        track_song: track_file,
-        click_song: click_file,
         track_volume: track_volume,
         click_volume: click_volume,
         track_device_position: track_device,
@@ -142,38 +130,11 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         playback_speed: playback_speed,
     };
 
-    if ui {
-        match run_ui(&mut arguments) {
-            Ok(_) => {},
-            Err(err) => return Err(format!("Could not start the ui. {}", err)),
-        }
-    } else {
-        match run_cli(&arguments) {
-            Ok(_) => {},
-            Err(err) => return Err(format!("Could not run the cli: {}", err)),
-        }
+    match run_ui(&mut arguments) {
+        Ok(_) => {},
+        Err(err) => return Err(format!("Could not start the ui. {}", err)),
     }
 
     Ok(0)
 
-}
-
-fn run_cli(arguments: &PlayerArguments) -> Result<i32, String> {
-    info!("Playing song on console");
-
-    let (track_player, click_player) = play_song(arguments.clone())?;
-    while track_player.has_current_song() && click_player.has_current_song() {
-        std::thread::sleep(std::time::Duration::from_secs(1));
-
-        let (_track_samples, _track_position) = track_player.get_playback_position().expect("Could not get track playback position");
-        let (_click_samples, _click_position) = click_player.get_playback_position().expect("Could not get click playback position");
-
-        // println!("Track: {}/{} Click: {}/{}", 
-        //     track_position.as_secs(), 
-        //     track_samples.as_secs(), 
-        //     click_position.as_secs(), 
-        //     click_samples.as_secs());
-        
-    }
-    Ok(0)
 }

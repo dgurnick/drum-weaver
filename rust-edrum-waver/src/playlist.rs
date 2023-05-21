@@ -16,6 +16,8 @@ pub struct Playlist {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[allow(unused_variables)]
 pub struct SongRecord {
+    #[serde(default)]
+    pub id: usize,  
     pub file_name: String,
     #[allow(dead_code)] pub genre: String,
     #[allow(dead_code)] pub year: String, 
