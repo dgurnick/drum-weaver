@@ -1,3 +1,4 @@
+use log::info;
 use serde::{Deserialize};
 use std::fs::metadata;
 use std::path::PathBuf;
@@ -106,6 +107,8 @@ pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, S
 
             track_path_str = track_path.display().to_string();
             click_path_str = click_path.display().to_string();
+            info!("Will play track from file: {}", track_path_str);
+            info!("Will play click from file: {}", click_path_str);
             return (track_path_str, click_path_str);
 
         } else {

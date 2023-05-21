@@ -424,7 +424,16 @@ impl PlayerState {
 	fn play_song(&self, song: &Song, time: Option<Duration>) -> Result<()> {
 		let initial_pos = time.unwrap_or_default();
 		let samples = self.decode_song(song, initial_pos)?;
+
+		// seek to the last x seconds
+		//let seek_pos = samples.song_length
+	    //	.checked_sub(Duration::from_secs(10))
+		//	.unwrap_or_default();
+
 		*self.next_samples.write().unwrap() = Some((samples, initial_pos));
+		
+		// self.seek(seek_pos);
+		
 		Ok(())
 	}
 	fn set_playing(&self, playing: bool) {

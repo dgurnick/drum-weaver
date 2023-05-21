@@ -1,5 +1,11 @@
 use clap::{Arg, ArgMatches};
-use log::{info};
+use log::{info, LevelFilter};
+
+use log4rs::append::rolling_file::policy::compound::{CompoundPolicy, trigger::size::SizeTrigger};
+use log4rs::append::rolling_file::policy::compound::roll::delete::DeleteRoller;
+use log4rs::append::rolling_file::RollingFileAppender;
+use log4rs::config::{Appender, Config, Root};
+use log4rs::encode::pattern::PatternEncoder;
 
 mod common;
 use common::{PlayerArguments, get_file_paths, dump_devices};
@@ -13,7 +19,7 @@ mod audio;
 
 fn main() {
 
-    log4rs::init_file("logging_config.yml", Default::default()).unwrap();
+    init_logging();
 
     let matches = clap::Command::new("eDrums Wav Player")
         .version("0.1")
@@ -34,6 +40,33 @@ fn main() {
     }
 
 }
+
+fn init_logging() {
+    if let Err(_err) = log4rs::init_file("logging_config.yml", Default::default()) {
+        // Create the file appender
+        let file_appender = RollingFileAppender::builder()
+            .encoder(Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S)(utc)} - {h({l})}: {m}{n}")))
+            .build("log/my.log", Box::new(CompoundPolicy::new(
+                Box::new(SizeTrigger::new(50 * 1024)), // 50 KB
+                Box::new(DeleteRoller::new())
+        ))).unwrap();
+
+        // Create the root logger
+        let root = Root::builder()
+            .appender("file")
+            .build(LevelFilter::Trace);
+
+        // Create the configuration with the file appender and root logger
+        let config = Config::builder()
+            .appender(Appender::builder().build("file", Box::new(file_appender)))
+            .build(root)
+            .unwrap();
+
+        // Initialize the logger with the configuration
+        log4rs::init_config(config).unwrap();
+    };
+}
+
 
 /// Runs the program as determined by the main function
 fn run(matches: &ArgMatches) -> Result<i32, String> {

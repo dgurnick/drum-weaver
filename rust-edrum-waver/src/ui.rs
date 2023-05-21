@@ -1,14 +1,18 @@
-use std::sync::mpsc;
-use std::time::{Duration, Instant};
-use std::{io, thread};
-
+use cpal::traits::HostTrait;
 use crossterm::{
-    event::{self, Event as CEvent, KeyCode, KeyEventKind},
+    event::{
+        self, 
+        Event as CEvent, 
+        KeyCode, 
+        KeyEventKind, 
+    },
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 
 use log::{error, info};
-
+use std::sync::mpsc;
+use std::time::{Duration, Instant};
+use std::{io, thread};
 use tui::backend::Backend;
 use tui::{
     backend::CrosstermBackend,
@@ -22,8 +26,6 @@ use tui::{
 use crate::common::{Event, MenuItem, PlayerArguments, get_file_paths, read_devices};
 use crate::audio::{Player, Song};
 use crate::songlist::import_songs;
-
-use cpal::traits::HostTrait;
 
 pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting UI");
@@ -66,7 +68,7 @@ pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error:
 
     let mut started_playing = false;
     let mut active_arguments: PlayerArguments = arguments.clone();
-
+    
     // create our transmit-receive loop
     thread::spawn(move || {
         let mut last_tick = Instant::now();
@@ -287,62 +289,65 @@ pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error:
                 _ => {}
             },
             Event::Input(_) => {},
-            Event::Tick => {}
+            Event::Tick => {
+                if    ! track_player.has_current_song()
+                   && ! click_player.has_current_song()
+                   && started_playing
+                {
+                    info!("Song ended, moving to the next song");
 
-        }
+                    #[allow(unused_assignments)]
+                    let new_position: usize;
+                    if let Some(selected) = songlist_state.selected() {
+                        info!("The current position is {}", selected);
+                        let amount_songs = import_songs().unwrap().len();
+                        if selected > amount_songs - 1 {
+                            info!("Moving to position 1");
+                            new_position = 0;
+                            
+                        } else {
+                            new_position = selected + 1;
+                            info!("Moving to the next song: {}", new_position);
+                        }
 
-        if !track_player.has_current_song()
-           && !click_player.has_current_song()
-           && started_playing
-        {
-            #[allow(unused_assignments)]
-            let mut new_position = 0;
-            if let Some(selected) = songlist_state.selected() {
-                info!("The current position is {}", selected);
-                let amount_songs = import_songs().unwrap().len();
-                if selected > amount_songs - 1 {
-                    info!("Moving to position 1");
-                    new_position = 0;
+                        songlist_state.select(Some(new_position));
+
+                        std::thread::sleep(std::time::Duration::from_secs(2));
+
+                        let (track_file, click_file) = get_file_paths(&active_arguments.music_folder, new_position + 1);
+                        info!("The new track file is {}", track_file);
+    
+                        active_arguments = PlayerArguments {
+                            music_folder: active_arguments.music_folder.clone(),
+                            track_song: track_file,
+                            click_song: click_file,
+                            track_volume: active_arguments.track_volume,
+                            click_volume: active_arguments.click_volume,
+                            track_device_position: active_arguments.track_device_position,
+                            click_device_position: active_arguments.click_device_position,
+                            playback_speed: active_arguments.playback_speed,
+                        };
                     
-                } else {
-                    new_position = selected + 1;
-                    info!("Moving to the next song");
+                        track_song =
+                            Song::from_file(&active_arguments.track_song, Some(active_arguments.track_volume)).expect("Could not create track song");
+                        click_song =
+                            Song::from_file(&active_arguments.click_song, Some(active_arguments.click_volume)).expect("Could not create click song");
+                    
+                        std::thread::sleep(std::time::Duration::from_secs(2));
+                        track_player
+                            .play_song_next(&track_song, None)
+                            .expect("Could not play track song");
+                        click_player
+                            .play_song_next(&click_song, None)
+                            .expect("Could not play click song");
+
+                    }
+
                 }
-
-                songlist_state.select(Some(new_position));
-
-                let (track_file, click_file) = get_file_paths(&active_arguments.music_folder, new_position);
-                info!("The new track file is {}", track_file);
-
-                active_arguments = PlayerArguments {
-                    music_folder: active_arguments.music_folder.clone(),
-                    track_song: track_file,
-                    click_song: click_file,
-                    track_volume: active_arguments.track_volume,
-                    click_volume: active_arguments.click_volume,
-                    track_device_position: active_arguments.track_device_position,
-                    click_device_position: active_arguments.click_device_position,
-                    playback_speed: active_arguments.playback_speed,
-                };
-                
-                track_song =
-                    Song::from_file(&active_arguments.track_song, Some(active_arguments.track_volume)).expect("Could not create track song");
-                click_song =
-                    Song::from_file(&active_arguments.click_song, Some(active_arguments.click_volume)).expect("Could not create click song");
-            
-                track_player.stop();
-                click_player.stop();
-                std::thread::sleep(std::time::Duration::from_secs(2));
-                track_player
-                    .play_song_now(&track_song, None)
-                    .expect("Could not play track song");
-                click_player
-                    .play_song_now(&click_song, None)
-                    .expect("Could not play click song");
-
             }
-            
+
         }
+
   
     }
 
@@ -525,7 +530,6 @@ fn handle_down_event (
                 }
             }
             info!("Set device to {}", device_list_state.selected().unwrap());
-
         },
         MenuItem::Songs => {
             if let Some(selected) = songlist_state.selected() {
@@ -537,11 +541,14 @@ fn handle_down_event (
                     }
                 };
                 let amount_songs = songs.len();
+                #[allow(unused_assignments)]
+                let mut new_position = selected;
                 if selected >= amount_songs - 1 {
-                    songlist_state.select(Some(0));
+                    new_position = 0;
                 } else {
-                    songlist_state.select(Some(selected + 1));
+                    new_position = selected + 1;
                 }
+                songlist_state.select(Some(new_position));
             }
             info!("Set song to {}", songlist_state.selected().unwrap());
 
@@ -579,11 +586,14 @@ fn handle_up_event (
                     }
                 };
                 let amount_songs = songs.len();
+                #[allow(unused_assignments)]
+                let mut new_position = 0;
                 if selected > 0 {
-                    songlist_state.select(Some(selected - 1));
+                    new_position = selected - 1;
                 } else {
-                    songlist_state.select(Some(amount_songs - 1));
+                    new_position = amount_songs - 1;
                 }
+                songlist_state.select(Some(new_position));
             }
             info!("Set song to {}", songlist_state.selected().unwrap());
 
