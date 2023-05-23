@@ -128,4 +128,12 @@ impl Player {
             }
         }
     }
+
+    pub fn set_volume(&mut self, volume: f32) {
+        self.volume = volume;
+    }
+
+    pub fn set_seek_in_seconds(&mut self, seek_in_seconds: u32) {
+        self.seek_in_seconds = seek_in_seconds;
+    }
 }
