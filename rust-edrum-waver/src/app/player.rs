@@ -47,6 +47,7 @@ impl Player {
     pub fn select_track(&mut self, track: Option<LibraryItem>) {
         self.selected_track = track;
         if let Some(track) = &self.selected_track {
+            tracing::info!("Selecting track to play: {}", track.title().unwrap());
             self.audio_tx
                 .send(AudioCommand::PlayTrack(track.clone()))
                 .expect("Failed to send play request to audio thread");
@@ -77,10 +78,12 @@ impl Player {
             }
             _ => (),
         }
+        self.selected_track = None;
     }
 
     pub fn play(&mut self) {
-        if let Some(_selected_trac) = &self.selected_track {
+        if let Some(_selected_track) = &self.selected_track {
+            tracing::info!("Will play: {}", _selected_track.title().unwrap());
             match self.track_state {
                 TrackState::Unstarted | TrackState::Stopped | TrackState::Playing => {
                     self.track_state = TrackState::Playing;
@@ -95,6 +98,8 @@ impl Player {
                         .expect("Failed to send play command to the audio thread")
                 }
             }
+        } else {
+            tracing::info!("There is no selected track to play");
         }
     }
 

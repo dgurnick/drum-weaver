@@ -19,45 +19,60 @@ impl AppComponent for SongList {
                     ui.label("Playing");
                     ui.label("#");
                     ui.label("Artist");
-                    ui.label("Album");
                     ui.label("Title");
+                    ui.label("Album");
                     ui.label("Genre");
-                    ui.label("");
                     ui.end_row();
 
                     for song in ctx.library.as_ref().unwrap().items().iter() {
+                        #[warn(unused_assignments)]
+                        let mut _is_selected = false;
+                        #[warn(unused_assignments)]
+                        let mut _is_clicked = false;
                         if let Some(selected_song) = &ctx.player.as_ref().unwrap().selected_track {
                             if selected_song == song {
-                                ui.label("▶".to_string());
+                                _is_clicked =
+                                    ui.button(RichText::new("■").color(Color32::RED)).clicked();
+                                _is_selected = true;
                             } else {
-                                ui.label(" ".to_string());
+                                _is_clicked = ui
+                                    .button(RichText::new("▶").color(Color32::LIGHT_GRAY))
+                                    .clicked();
                             }
                         } else {
-                            ui.label("");
+                            _is_clicked = ui
+                                .button(RichText::new("▶").color(Color32::LIGHT_GRAY))
+                                .clicked();
                         }
 
-                        ui.label(&song.key().to_string());
+                        if _is_selected {
+                            ui.label(
+                                RichText::new(&song.key().to_string()).color(Color32::LIGHT_GREEN),
+                            );
+                            ui.label(
+                                RichText::new(&song.artist().unwrap()).color(Color32::LIGHT_GREEN),
+                            );
+                            ui.label(
+                                RichText::new(&song.title().unwrap()).color(Color32::LIGHT_GREEN),
+                            );
+                            ui.label(
+                                RichText::new(&song.album().unwrap_or("".to_string()))
+                                    .color(Color32::LIGHT_GREEN),
+                            );
+                            ui.label(
+                                RichText::new(&song.genre().unwrap()).color(Color32::LIGHT_GREEN),
+                            );
+                        } else {
+                            ui.label(&song.key().to_string());
+                            ui.label(&song.artist().unwrap_or(" ".to_string()));
+                            ui.label(&song.title().unwrap_or(" ".to_string()));
+                            ui.label(&song.album().unwrap_or("".to_string()));
+                            ui.label(&song.genre().unwrap_or("?".to_string()));
+                        }
 
-                        ui.add(
-                            egui::Label::new(&song.artist().unwrap_or("?".to_string()))
-                                .sense(egui::Sense::click()),
-                        );
-
-                        ui.add(
-                            egui::Label::new(&song.album().unwrap_or("?".to_string()))
-                                .sense(egui::Sense::click()),
-                        );
-
-                        let song_label = ui.add(
-                            egui::Button::new(&song.title().unwrap_or("?".to_string()))
-                                .sense(egui::Sense::click()),
-                        );
-
-                        ui.label(&song.genre().unwrap_or("?".to_string()));
-
-                        ui.label(RichText::new("▶").color(Color32::LIGHT_YELLOW));
-
-                        if song_label.clicked() || song_label.double_clicked() {
+                        if _is_clicked && _is_selected {
+                            ctx.player.as_mut().unwrap().stop();
+                        } else if _is_clicked {
                             ctx.player
                                 .as_mut()
                                 .unwrap()

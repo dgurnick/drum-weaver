@@ -7,7 +7,7 @@ use eframe::egui;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU32;
 use std::sync::mpsc::channel;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 mod app;
@@ -64,7 +64,7 @@ fn main() {
             None
         }
     };
-    let (audio_tx, _audio_rx) = channel();
+    let (audio_tx, audio_rx) = channel();
     let (tx, rx) = channel();
     let cursor = Arc::new(AtomicU32::new(0));
     let _cursor_clone = cursor.clone();
@@ -76,7 +76,37 @@ fn main() {
     app.library_sender = Some(tx);
     app.library_receiver = Some(rx);
 
-    let _audio_thread = thread::spawn(move || {});
+    let _audio_thread = thread::spawn(move || loop {
+        let state = Arc::new(Mutex::new(PlayerState::Stopped));
+        let state_clone = state.clone();
+
+        match audio_rx.try_recv() {
+            Ok(cmd) => match cmd {
+                AudioCommand::PlayTrack(track) => {
+                    tracing::info!("Audio will load the song: {}", track.title().unwrap());
+                }
+                AudioCommand::Play => {
+                    tracing::info!("Audio will play the song");
+                    let mut guard = state.lock().unwrap();
+                    *guard = PlayerState::Playing;
+                }
+                AudioCommand::Pause => {
+                    tracing::info!("Audio will pause the song");
+                    let mut guard = state.lock().unwrap();
+                    *guard = PlayerState::Paused;
+                }
+                AudioCommand::Stop => {
+                    tracing::info!("Audio will stop the song");
+                    let mut guard = state.lock().unwrap();
+                    *guard = PlayerState::Stopped;
+                }
+                _ => {
+                    tracing::info!("Audio does not implement the requested event");
+                }
+            },
+            _ => {} // throw away bad events
+        }
+    });
 
     let mut window_options = eframe::NativeOptions::default();
     window_options.initial_window_size = Some(egui::Vec2::new(1024., 768.));

@@ -15,7 +15,6 @@ serde = { version = "1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
-egui_extras = { git = 'https://github.com/emilk/egui' }
 
 [patch.crates-io]
 confy = { git = 'https://github.com/rust-cli/confy' }

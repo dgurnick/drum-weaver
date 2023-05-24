@@ -45,6 +45,17 @@ impl Library {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct LibraryItem {
+    //file_name,genre,year,artist,title,album,length,bpm,folder
+    file_name: Option<String>,
+    genre: Option<String>,
+    year: Option<i32>,
+    artist: Option<String>,
+    title: Option<String>,
+    album: Option<String>,
+    length: Option<String>, // 1:23
+    bpm: Option<u32>,       // 123
+    folder: Option<String>,
+
     #[serde(skip)]
     key: usize,
 
@@ -53,13 +64,6 @@ pub struct LibraryItem {
 
     #[serde(skip)]
     click_path: PathBuf,
-
-    title: Option<String>,
-    artist: Option<String>,
-    album: Option<String>,
-    year: Option<i32>,
-    genre: Option<String>,
-    track_number: Option<u32>,
 }
 
 impl LibraryItem {
@@ -89,9 +93,5 @@ impl LibraryItem {
 
     pub fn genre(&self) -> Option<String> {
         self.genre.clone()
-    }
-
-    pub fn track_number(&self) -> Option<u32> {
-        self.track_number.clone()
     }
 }
