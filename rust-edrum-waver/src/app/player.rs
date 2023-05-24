@@ -12,6 +12,17 @@ pub enum TrackState {
     Paused,
 }
 
+impl std::fmt::Display for TrackState {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TrackState::Unstarted => write!(f, "Unstarted"),
+            TrackState::Stopped => write!(f, "Stopped"),
+            TrackState::Playing => write!(f, "Playing"),
+            TrackState::Paused => write!(f, "Paused"),
+        }
+    }
+}
+
 pub struct Player {
     pub track_state: TrackState,
     pub selected_track: Option<LibraryItem>,
