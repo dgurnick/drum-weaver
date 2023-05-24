@@ -52,6 +52,10 @@ impl LibraryItem {
         self.key
     }
 
+    pub fn set_key(&mut self, key: usize) {
+        self.key = key;
+    }
+
     pub fn title(&self) -> Option<String> {
         self.title.clone()
     }

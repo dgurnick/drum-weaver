@@ -42,9 +42,12 @@ impl AppComponent for MenuBar {
                             let content =
                                 fs::read_to_string(csv_file).expect("Unable to read provided file");
                             let mut reader = csv::Reader::from_reader(content.as_bytes());
+                            let mut counter = 1;
                             for record in reader.deserialize() {
-                                let song: LibraryItem = record.unwrap();
+                                let mut song: LibraryItem = record.unwrap();
+                                song.set_key(counter);
                                 new_library.add(song);
+                                counter += 1;
                             }
 
                             tx.send(new_library)

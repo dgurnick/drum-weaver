@@ -43,8 +43,10 @@ impl eframe::App for App {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             if let Some(library) = &mut self.library {
-                egui::ScrollArea::both().show(ui, |ui| {
-                    SongList::add(self, ui);
+                ui.allocate_ui(ui.available_size_before_wrap(), |ui| {
+                    egui::ScrollArea::both().show(ui, |ui| {
+                        SongList::add(self, ui);
+                    });
                 });
             }
         });
