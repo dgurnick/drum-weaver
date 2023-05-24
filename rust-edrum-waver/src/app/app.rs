@@ -1,5 +1,5 @@
 use eframe::egui;
-use eframe::egui::{FontFamily::Proportional, FontId, Style, TextStyle::*};
+use eframe::egui::{FontFamily::Proportional, FontId, TextStyle::*};
 
 use super::App;
 use crate::app::components::{
@@ -58,7 +58,7 @@ impl eframe::App for App {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            if let Some(library) = &mut self.library {
+            if let Some(_) = &mut self.library {
                 egui::ScrollArea::both().show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     SongList::add(self, ui);

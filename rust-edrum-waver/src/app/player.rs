@@ -1,7 +1,7 @@
 use crate::app::library::LibraryItem;
 use crate::app::playlist::Playlist;
 use crate::AudioCommand;
-use std::sync::atomic::{AtomicU32, Ordering::*};
+use std::sync::atomic::AtomicU32;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 

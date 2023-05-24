@@ -1,7 +1,6 @@
 use super::AppComponent;
-use crate::app::{library::LibraryItem, App, Library};
+use crate::app::{App, Library};
 use eframe::egui::Button;
-use std::fs;
 
 pub struct MenuBar;
 
@@ -14,8 +13,7 @@ impl AppComponent for MenuBar {
                 if ui.button("Set music location").clicked() {
                     if let Some(music_folder) = rfd::FileDialog::new().pick_folder() {
                         tracing::info!("Setting music location to : {}", music_folder.display());
-                        let mut new_library = Library::new(music_folder);
-
+                        let new_library = Library::new(music_folder);
                         ctx.library = Some(new_library.clone());
                     }
                 }

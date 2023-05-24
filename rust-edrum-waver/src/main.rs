@@ -2,22 +2,21 @@ pub use crate::app::library::Library;
 pub use crate::app::player::Player;
 pub use crate::app::App;
 pub use crate::app::*;
-
-use clap::{Arg, ArgMatches};
+use clap::Arg;
 use eframe::egui;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering::*};
+use std::sync::atomic::AtomicU32;
 use std::sync::mpsc::channel;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 
 mod app;
 
 pub enum PlayerState {
-    unstarted,
-    stopped,
-    playing,
-    paused,
+    Unstarted,
+    Stopped,
+    Playing,
+    Paused,
 }
 
 fn main() {
@@ -65,10 +64,10 @@ fn main() {
             None
         }
     };
-    let (audio_tx, audio_rx) = channel();
+    let (audio_tx, _audio_rx) = channel();
     let (tx, rx) = channel();
     let cursor = Arc::new(AtomicU32::new(0));
-    let cursor_clone = cursor.clone();
+    let _cursor_clone = cursor.clone();
     let player = Player::new(audio_tx, cursor);
 
     let mut app = App::load().unwrap_or_default();

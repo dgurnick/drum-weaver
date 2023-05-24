@@ -1,6 +1,5 @@
 use super::AppComponent;
 use crate::app::App;
-use std::sync::atomic::Ordering::Relaxed;
 
 pub struct PlayerComponent;
 
@@ -9,11 +8,11 @@ impl AppComponent for PlayerComponent {
 
     fn add(ctx: &mut Self::Context, ui: &mut eframe::egui::Ui) {
         ui.horizontal(|ui| {
-            let stop_btn = ui.button("■");
-            let play_btn = ui.button("▶");
-            let pause_btn = ui.button("⏸");
-            let prev_btn = ui.button("|◀");
-            let next_btn = ui.button("▶|");
+            let _stop_btn = ui.button("■");
+            let _play_btn = ui.button("▶");
+            let _pause_btn = ui.button("⏸");
+            let _prev_btn = ui.button("|◀");
+            let _next_btn = ui.button("▶|");
 
             let mut volume = ctx.player.as_ref().unwrap().volume;
             ui.add(
