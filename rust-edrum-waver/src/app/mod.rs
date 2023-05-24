@@ -6,7 +6,7 @@ use std::sync::mpsc::{Receiver, Sender};
 
 mod app;
 mod components;
-mod library;
+pub mod library;
 pub mod player;
 mod playlist;
 

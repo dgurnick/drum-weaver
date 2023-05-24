@@ -39,19 +39,8 @@ impl AppComponent for MenuBar {
                             Library::new(ctx.library.as_ref().unwrap().music_folder());
                         let tx = ctx.library_sender.as_ref().unwrap().clone();
                         std::thread::spawn(move || {
-                            let content =
-                                fs::read_to_string(csv_file).expect("Unable to read provided file");
-                            let mut reader = csv::Reader::from_reader(content.as_bytes());
-                            let mut counter = 1;
-                            for record in reader.deserialize() {
-                                let mut song: LibraryItem = record.unwrap();
-                                song.set_key(counter);
-                                new_library.add(song);
-                                counter += 1;
-                            }
-
-                            tx.send(new_library)
-                                .expect("Failed to send library to UI thread");
+                            new_library.load_songs(csv_file);
+                            tx.send(new_library).expect("Could not send new library");
                         });
                     };
                 }

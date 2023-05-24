@@ -1,4 +1,5 @@
 use eframe::egui;
+use eframe::egui::{FontFamily::Proportional, FontId, Style, TextStyle::*};
 
 use super::App;
 use crate::app::components::{
@@ -17,6 +18,21 @@ impl eframe::App for App {
             tracing::info!("Exiting app");
             frame.close();
         }
+
+        let mut style: egui::Style = (*ctx.style()).clone();
+
+        style.text_styles = [
+            (Heading, FontId::new(30.0, Proportional)),
+            (Name("Heading2".into()), FontId::new(25.0, Proportional)),
+            (Name("Context".into()), FontId::new(23.0, Proportional)),
+            (Body, FontId::new(18.0, Proportional)),
+            (Monospace, FontId::new(14.0, Proportional)),
+            (Button, FontId::new(14.0, Proportional)),
+            (Small, FontId::new(10.0, Proportional)),
+        ]
+        .into();
+
+        ctx.set_style(style);
 
         ctx.request_repaint();
 
@@ -43,10 +59,9 @@ impl eframe::App for App {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             if let Some(library) = &mut self.library {
-                ui.allocate_ui(ui.available_size_before_wrap(), |ui| {
-                    egui::ScrollArea::both().show(ui, |ui| {
-                        SongList::add(self, ui);
-                    });
+                egui::ScrollArea::both().show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    SongList::add(self, ui);
                 });
             }
         });

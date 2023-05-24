@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::PathBuf;
+use std::sync::mpsc::Sender;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Library {
@@ -25,6 +27,20 @@ impl Library {
 
     pub fn items(&self) -> Vec<LibraryItem> {
         self.items.clone()
+    }
+
+    pub fn load_songs(&mut self, csv_file: PathBuf) {
+        let content = fs::read_to_string(csv_file).expect("Unable to read provided file");
+        let mut reader = csv::Reader::from_reader(content.as_bytes());
+        let mut counter = 1;
+        self.items.clear();
+
+        for record in reader.deserialize() {
+            let mut song: LibraryItem = record.unwrap();
+            song.set_key(counter);
+            self.add(song);
+            counter += 1;
+        }
     }
 }
 

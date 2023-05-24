@@ -1,7 +1,7 @@
 use super::AppComponent;
 use crate::app::App;
 use eframe::egui;
-use eframe::egui::{Color32, FontId, RichText};
+use eframe::egui::{Color32, RichText};
 
 pub struct SongList;
 
@@ -9,7 +9,8 @@ impl AppComponent for SongList {
     type Context = App;
 
     fn add(ctx: &mut Self::Context, ui: &mut eframe::egui::Ui) {
-        if let Some(library) = &mut ctx.library {
+        if let Some(_) = &mut ctx.library {
+            ui.set_width(ui.available_width());
             egui::Grid::new("Songs")
                 .spacing(egui::vec2(8.0, 8.0))
                 .striped(true)
@@ -37,16 +38,32 @@ impl AppComponent for SongList {
 
                         ui.label(&song.key().to_string());
 
-                        let artist_label = ui.add(
+                        ui.add(
                             egui::Label::new(&song.artist().unwrap_or("?".to_string()))
                                 .sense(egui::Sense::click()),
                         );
 
-                        ui.label(&song.album().unwrap_or("?".to_string()));
-                        ui.label(&song.title().unwrap_or("?".to_string()));
+                        ui.add(
+                            egui::Label::new(&song.album().unwrap_or("?".to_string()))
+                                .sense(egui::Sense::click()),
+                        );
+
+                        let song_label = ui.add(
+                            egui::Button::new(&song.title().unwrap_or("?".to_string()))
+                                .sense(egui::Sense::click()),
+                        );
+
                         ui.label(&song.genre().unwrap_or("?".to_string()));
 
                         ui.label(RichText::new("▶").color(Color32::LIGHT_YELLOW));
+
+                        if song_label.clicked() || song_label.double_clicked() {
+                            ctx.player
+                                .as_mut()
+                                .unwrap()
+                                .select_track(Some(song.clone()));
+                            ctx.player.as_mut().unwrap().play();
+                        }
 
                         ui.end_row();
                     }
