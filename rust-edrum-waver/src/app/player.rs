@@ -30,6 +30,7 @@ pub struct Player {
     pub volume: f32,
     pub seek_in_seconds: u32,
     pub cursor: Arc<AtomicU32>,
+    pub music_folder: Option<String>,
 }
 
 impl Player {
@@ -41,6 +42,7 @@ impl Player {
             volume: 1.0,
             seek_in_seconds: 0,
             cursor,
+            music_folder: None,
         }
     }
 
@@ -49,9 +51,16 @@ impl Player {
         if let Some(track) = &self.selected_track {
             tracing::info!("Selecting track to play: {}", track.title().unwrap());
             self.audio_tx
-                .send(AudioCommand::PlayTrack(track.clone()))
+                .send(AudioCommand::PlayTrack(
+                    self.music_folder.clone().unwrap(),
+                    track.clone(),
+                ))
                 .expect("Failed to send play request to audio thread");
         }
+    }
+
+    pub fn set_music_folder(&mut self, music_folder: String) {
+        self.music_folder = Some(music_folder);
     }
 
     pub fn is_stopped(&self) -> bool {

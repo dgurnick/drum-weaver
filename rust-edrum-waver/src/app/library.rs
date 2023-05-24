@@ -46,24 +46,24 @@ impl Library {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct LibraryItem {
     //file_name,genre,year,artist,title,album,length,bpm,folder
-    file_name: Option<String>,
-    genre: Option<String>,
-    year: Option<i32>,
-    artist: Option<String>,
-    title: Option<String>,
-    album: Option<String>,
-    length: Option<String>, // 1:23
-    bpm: Option<u32>,       // 123
-    folder: Option<String>,
+    pub file_name: Option<String>,
+    pub genre: Option<String>,
+    pub year: Option<i32>,
+    pub artist: Option<String>,
+    pub title: Option<String>,
+    pub album: Option<String>,
+    pub length: Option<String>, // 1:23
+    pub bpm: Option<u32>,       // 123
+    pub folder: Option<String>,
 
     #[serde(skip)]
-    key: usize,
+    pub key: usize,
 
     #[serde(skip)]
-    track_path: PathBuf,
+    pub track_path: PathBuf,
 
     #[serde(skip)]
-    click_path: PathBuf,
+    pub click_path: PathBuf,
 }
 
 impl LibraryItem {

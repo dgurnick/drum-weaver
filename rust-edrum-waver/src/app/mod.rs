@@ -1,3 +1,4 @@
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use library::{Library, LibraryItem};
 use player::Player;
 use playlist::Playlist;
@@ -20,9 +21,11 @@ pub enum AudioCommand {
     Play,
     Pause,
     Seek(u32), // Maybe this should represent a duration?
-    PlayTrack(LibraryItem),
+    PlayTrack(String, LibraryItem),
     Select(usize),
     SetVolume(f32),
+    SetTrackDevice(usize),
+    SetClickDevice(usize),
 }
 
 #[derive(Deserialize, Serialize)]
