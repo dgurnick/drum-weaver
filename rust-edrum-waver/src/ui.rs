@@ -4,6 +4,9 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 
+use crate::audio::{Player, Song};
+use crate::common::{get_file_paths, read_devices, Event, MenuItem, PlayerArguments};
+use crate::songlist::import_songs;
 use log::{error, info};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -21,12 +24,31 @@ use tui::{
     Terminal,
 };
 
-use crate::audio::{Player, Song};
-use crate::common::{get_file_paths, read_devices, Event, MenuItem, PlayerArguments};
-use crate::songlist::import_songs;
-
 pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting UI");
+
+    if arguments.music_folder.is_none() {
+        // let choice = dialog::FileSelection::new("Please select a file")
+        //     .title("File Selection")
+        //     //.path("/home/user/Downloads")
+        //     .show()
+        //     .expect("Could not display dialog box");
+        // arguments.music_folder = Some(choice.unwrap());
+        use native_dialog::FileDialog;
+        let path = FileDialog::new().show_open_single_dir();
+
+        match path {
+            Ok(path) => {
+                if let Some(p) = path {
+                    println!("The user selected this folder: {:?}", p);
+                    arguments.music_folder = Some(p.display().to_string());
+                }
+            }
+            Err(e) => {
+                println!("The user did not select a folder: {:?}", e);
+            }
+        };
+    }
 
     enable_raw_mode().expect("Can not run in raw mode");
 
@@ -65,7 +87,6 @@ pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error:
     click_player.set_playback_speed(arguments.playback_speed);
 
     let mut started_playing = false;
-    let mut active_arguments: PlayerArguments = arguments.clone();
 
     // create our transmit-receive loop
     thread::spawn(move || {
@@ -137,11 +158,8 @@ pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error:
                         .direction(Direction::Horizontal)
                         .constraints([Constraint::Percentage(100)].as_ref())
                         .split(chunks[1]);
-                    let song_table = render_songs(
-                        &songlist_state,
-                        active_arguments.clone(),
-                        track_player.has_current_song(),
-                    );
+                    let song_table =
+                        render_songs(&songlist_state, &arguments, track_player.has_current_song());
                     rect.render_stateful_widget(
                         song_table,
                         songlist_chunks[0],
@@ -162,7 +180,10 @@ pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error:
             }
 
             let footer_text = if track_player.has_current_song() {
-                format!("Playing: {}", active_arguments.track_song.clone())
+                format!(
+                    "Playing: {}",
+                    arguments.track_song.as_ref().unwrap().clone()
+                )
             } else {
                 String::from("No song playing")
             };
@@ -282,30 +303,27 @@ pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error:
                 KeyCode::Enter => match active_menu_item {
                     MenuItem::Songs => {
                         if let Some(selected) = songlist_state.selected() {
-                            let (track_file, click_file) =
-                                get_file_paths(&arguments.music_folder, selected + 1);
+                            let (track_file, click_file) = get_file_paths(
+                                &arguments.music_folder.as_ref().unwrap().clone(),
+                                selected + 1,
+                            );
 
-                            active_arguments = PlayerArguments {
-                                music_folder: arguments.music_folder.clone(),
-                                track_song: track_file,
-                                click_song: click_file,
-                                track_volume: arguments.track_volume,
-                                click_volume: arguments.click_volume,
-                                track_device_position: arguments.track_device_position,
-                                click_device_position: arguments.click_device_position,
-                                playback_speed: arguments.playback_speed,
-                            };
+                            arguments.track_song = Some(track_file);
+                            arguments.click_song = Some(click_file);
 
-                            let track_volume = Some(active_arguments.track_volume);
-                            let click_volume = Some(active_arguments.click_volume);
+                            let track_file = arguments.track_song.clone();
+                            let click_file = arguments.click_song.clone();
 
-                            let track_file = active_arguments.track_song.clone();
-                            let click_file = active_arguments.click_song.clone();
-
-                            track_song = Song::from_file(&track_file, track_volume)
-                                .expect("Could not create track song");
-                            click_song = Song::from_file(&click_file, click_volume)
-                                .expect("Could not create click song");
+                            track_song = Song::from_file(
+                                &track_file.unwrap().clone(),
+                                Some(arguments.track_volume),
+                            )
+                            .expect("Could not create track song");
+                            click_song = Song::from_file(
+                                &click_file.unwrap().clone(),
+                                Some(arguments.click_volume.clone()),
+                            )
+                            .expect("Could not create click song");
 
                             track_player
                                 .play_song_now(&track_song, None)
@@ -315,7 +333,6 @@ pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error:
                                 .expect("Could not play click song");
 
                             started_playing = true;
-                            info!("Started playing song {}", track_file.clone());
                         }
                     }
                     _ => {}
@@ -348,29 +365,23 @@ pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error:
 
                         std::thread::sleep(std::time::Duration::from_secs(2));
 
-                        let (track_file, click_file) =
-                            get_file_paths(&active_arguments.music_folder, new_position + 1);
+                        let (track_file, click_file) = get_file_paths(
+                            &arguments.clone().music_folder.unwrap(),
+                            new_position + 1,
+                        );
                         info!("The new track file is {}", track_file);
 
-                        active_arguments = PlayerArguments {
-                            music_folder: active_arguments.music_folder.clone(),
-                            track_song: track_file,
-                            click_song: click_file,
-                            track_volume: active_arguments.track_volume,
-                            click_volume: active_arguments.click_volume,
-                            track_device_position: active_arguments.track_device_position,
-                            click_device_position: active_arguments.click_device_position,
-                            playback_speed: active_arguments.playback_speed,
-                        };
+                        arguments.track_song = Some(track_file);
+                        arguments.click_song = Some(click_file);
 
                         track_song = Song::from_file(
-                            &active_arguments.track_song,
-                            Some(active_arguments.track_volume),
+                            &arguments.track_song.clone().unwrap(),
+                            Some(arguments.clone().track_volume),
                         )
                         .expect("Could not create track song");
                         click_song = Song::from_file(
-                            &active_arguments.click_song,
-                            Some(active_arguments.click_volume),
+                            &arguments.click_song.clone().unwrap(),
+                            Some(arguments.clone().click_volume),
                         )
                         .expect("Could not create click song");
 
@@ -460,7 +471,7 @@ fn render_devices<'a>(track_device: usize, click_device: usize) -> List<'a> {
 // TODO: Add * if song is in the current playlist
 fn render_songs<'a>(
     songlist_state: &TableState,
-    active_arguments: PlayerArguments,
+    active_arguments: &PlayerArguments,
     is_playing: bool,
 ) -> Table<'a> {
     let playlist_ui = Block::default()
@@ -484,12 +495,12 @@ fn render_songs<'a>(
     for song in songs {
         let mut is_selected = false;
         if is_playing {
-            // TODO: This is bad
-            if active_arguments.track_song.contains(song.song.as_str()) {
-                is_selected = true;
+            if let Some(track_song) = &active_arguments.track_song {
+                if track_song.contains(&song.song) {
+                    is_selected = true;
+                }
             }
         }
-
         let selected_fg = if is_selected {
             Color::LightBlue
         } else {

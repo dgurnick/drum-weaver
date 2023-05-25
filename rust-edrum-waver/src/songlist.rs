@@ -1,4 +1,4 @@
-use cpal::traits::{HostTrait};
+use cpal::traits::HostTrait;
 use lazy_static::lazy_static;
 use std::fs;
 use std::sync::Mutex;
@@ -12,7 +12,6 @@ lazy_static! {
 }
 
 pub fn import_songs() -> Result<Vec<SongRecord>, Error> {
-
     let mut songs = SONGS.lock().unwrap();
 
     if songs.is_empty() {
@@ -26,7 +25,6 @@ pub fn import_songs() -> Result<Vec<SongRecord>, Error> {
     }
 
     Ok(songs.clone())
-
 }
 
 pub fn play_song(arguments: PlayerArguments) -> Result<(Player, Player), String> {
@@ -45,26 +43,31 @@ pub fn play_song(arguments: PlayerArguments) -> Result<(Player, Player), String>
     let track_volume = Some(arguments.track_volume);
     let click_volume = Some(arguments.click_volume);
 
-    let track_song = Song::from_file(arguments.track_song, track_volume).expect("Could not create track song");
-    let click_song = Song::from_file(arguments.click_song, click_volume).expect("Could not create click song");
+    let track_song = Song::from_file(arguments.track_song.unwrap(), track_volume)
+        .expect("Could not create track song");
+    let click_song = Song::from_file(arguments.click_song.unwrap(), click_volume)
+        .expect("Could not create click song");
 
-    track_play.play_song_now(&track_song, None).expect("Could not play track song");
-    click_play.play_song_now(&click_song, None).expect("Could not play click song");
+    track_play
+        .play_song_now(&track_song, None)
+        .expect("Could not play track song");
+    click_play
+        .play_song_now(&click_song, None)
+        .expect("Could not play click song");
 
     Ok((track_play, click_play))
-    
+
     // while track_play.has_current_song() && click_play.has_current_song() {
     //     std::thread::sleep(std::time::Duration::from_secs(1));
 
     //     // let (track_samples, track_position) = track_play.get_playback_position().expect("Could not get track playback position");
     //     // let (click_samples, click_position) = click_play.get_playback_position().expect("Could not get click playback position");
 
-    //     // println!("Track: {}/{} Click: {}/{}", 
-    //     //     track_position.as_secs(), 
-    //     //     track_samples.as_secs(), 
-    //     //     click_position.as_secs(), 
+    //     // println!("Track: {}/{} Click: {}/{}",
+    //     //     track_position.as_secs(),
+    //     //     track_samples.as_secs(),
+    //     //     click_position.as_secs(),
     //     //     click_samples.as_secs());
-        
-    // }
 
+    // }
 }

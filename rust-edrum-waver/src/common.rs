@@ -1,28 +1,26 @@
-use log::info;
-use serde::{Deserialize};
-use std::fs::metadata;
-use std::path::PathBuf;
-use thiserror::Error;
-use std::io;
-use lazy_static::lazy_static;
-use std::sync::Mutex;
 use crate::playlist::SongRecord;
+use lazy_static::lazy_static;
+use log::info;
+use serde::Deserialize;
+use std::fs::metadata;
+use std::io;
+use std::path::PathBuf;
+use std::sync::Mutex;
+use thiserror::Error;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct PlayerArguments {
-    pub music_folder: String,
-    pub track_song: String,
-    pub click_song: String,
+    pub music_folder: Option<String>,
+    pub track_song: Option<String>,
+    pub click_song: Option<String>,
     pub track_volume: f32,
     pub click_volume: f32,
     pub track_device_position: usize,
     pub click_device_position: usize,
     pub playback_speed: f64,
 }
-
-
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused_variables)]
@@ -64,7 +62,6 @@ impl From<MenuItem> for usize {
 }
 
 pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, String) {
-
     let mut reader = csv::Reader::from_path("assets/song_list.csv").unwrap();
     let _ = reader.headers();
 
@@ -75,49 +72,46 @@ pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, S
     let mut click_path_str: String = String::new();
 
     for record in reader.deserialize() {
-
         let song: SongRecord = record.unwrap();
 
         if position == song_position {
-            let mut track_path  = PathBuf::new();
+            let mut track_path = PathBuf::new();
             track_path.push(music_folder);
             track_path.push(&song.folder);
             track_path.push(format!("{}.wav", song.file_name));
 
-            let mut click_path  = PathBuf::new();
+            let mut click_path = PathBuf::new();
             click_path.push(music_folder);
             click_path.push(&song.folder);
             click_path.push(format!("{}_click.wav", song.file_name));
 
-            if ! track_path.exists() {
-                // if there's a 7z file with the same name, decompress it 
-                 //let archive_path = PathBuf::from(format!("{}/{}/{}.7z", music_folder, song.folder, song.file_name));
-                 let mut archive_path = PathBuf::new();
-                 archive_path.push(music_folder);
-                 archive_path.push(song.folder.clone());
-                 archive_path.push(format!("{}.7z", song.file_name));
+            if !track_path.exists() {
+                // if there's a 7z file with the same name, decompress it
+                //let archive_path = PathBuf::from(format!("{}/{}/{}.7z", music_folder, song.folder, song.file_name));
+                let mut archive_path = PathBuf::new();
+                archive_path.push(music_folder);
+                archive_path.push(song.folder.clone());
+                archive_path.push(format!("{}.7z", song.file_name));
 
-                 let mut output_folder = PathBuf::new();
-                 output_folder.push(music_folder);
-                 output_folder.push(song.folder);
+                let mut output_folder = PathBuf::new();
+                output_folder.push(music_folder);
+                output_folder.push(song.folder);
 
-                 sevenz_rust::decompress_file(&archive_path, output_folder).expect("Failed to decompress file");
-
-            } 
+                sevenz_rust::decompress_file(&archive_path, output_folder)
+                    .expect("Failed to decompress file");
+            }
 
             track_path_str = track_path.display().to_string();
             click_path_str = click_path.display().to_string();
             info!("Will play track from file: {}", track_path_str);
             info!("Will play click from file: {}", click_path_str);
             return (track_path_str, click_path_str);
-
         } else {
             position += 1;
         }
     }
 
     Err("Could not find song".to_string()).unwrap()
-
 }
 
 #[allow(dead_code)]
@@ -137,7 +131,6 @@ lazy_static! {
 }
 
 pub fn read_devices() -> Result<Vec<DeviceDetail>, Error> {
-
     let mut devices = DEVICES.lock().unwrap();
 
     if devices.is_empty() {
@@ -150,12 +143,10 @@ pub fn read_devices() -> Result<Vec<DeviceDetail>, Error> {
                 position: position,
             };
             devices.push(detail);
-        
         }
     }
 
     Ok(devices.clone())
-
 }
 
 pub fn dump_devices() {
@@ -163,7 +154,9 @@ pub fn dump_devices() {
 
     println!("Available devices:");
     for device in devices.iter() {
-        println!("Position: {} | Description: {}", device.position, device.name);
-
+        println!(
+            "Position: {} | Description: {}",
+            device.position, device.name
+        );
     }
 }
