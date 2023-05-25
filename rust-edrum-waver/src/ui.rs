@@ -146,7 +146,7 @@ pub fn run_ui(arguments: &mut PlayerArguments) -> Result<(), Box<dyn std::error:
                 .select(active_menu_item.into())
                 .block(Block::default().title("Menu").borders(Borders::ALL))
                 .style(Style::default().fg(Color::White))
-                .highlight_style(Style::default().fg(Color::Yellow))
+                //.highlight_style(Style::default().fg(Color::Yellow))
                 .divider(Span::raw("|"));
 
             rect.render_widget(menu, chunks[0]);
