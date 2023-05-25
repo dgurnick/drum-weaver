@@ -1,10 +1,10 @@
+use crate::common::Error;
+use crate::songlist::import_songs;
 use lazy_static::lazy_static;
 use log::info;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::Mutex;
-use crate::songlist::import_songs;
-use crate::common::Error;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Playlist {
@@ -17,13 +17,20 @@ pub struct Playlist {
 #[allow(unused_variables)]
 pub struct SongRecord {
     pub file_name: String,
-    #[allow(dead_code)] pub genre: String,
-    #[allow(dead_code)] pub year: String, 
-    #[allow(dead_code)] pub artist: String,
-    #[allow(dead_code)] pub song: String,
-    #[allow(dead_code)] pub album: String,
-    #[allow(dead_code)] pub length: String,
-    #[allow(dead_code)] pub bpm: usize,
+    #[allow(dead_code)]
+    pub genre: String,
+    #[allow(dead_code)]
+    pub year: String,
+    #[allow(dead_code)]
+    pub artist: String,
+    #[allow(dead_code)]
+    pub song: String,
+    #[allow(dead_code)]
+    pub album: String,
+    #[allow(dead_code)]
+    pub length: String,
+    #[allow(dead_code)]
+    pub bpm: usize,
     pub folder: String,
 }
 
@@ -38,16 +45,14 @@ pub fn read_playlists() -> Result<Vec<Playlist>, Error> {
         if db_content.is_empty() {
             info!("No playlists found, creating default playlist");
             db_content = create_default_playlist();
-
-        } 
+        }
 
         let parsed: Vec<Playlist> = serde_json::from_str(&db_content)?;
 
         for playlist in parsed {
             playlists.push(playlist);
         }
-
-    } 
+    }
     Ok(playlists.clone())
 }
 
