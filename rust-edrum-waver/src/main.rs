@@ -14,9 +14,11 @@ use common::{dump_devices, PlayerArguments};
 mod playlist;
 
 mod ui;
-use ui::run_ui;
+use ui::App;
 mod songlist;
 use songlist::play_song;
+
+use crate::songlist::import_songs;
 mod audio;
 
 fn main() {
@@ -191,7 +193,7 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     // make sure the file exists. If it doesn't try to find the compressed version and decompress it.
     //let (track_file, click_file) = get_file_paths(music_folder, track_position);
 
-    let mut arguments = PlayerArguments {
+    let arguments = PlayerArguments {
         music_folder: music_folder,
         track_song: None,
         click_song: None,
@@ -203,10 +205,16 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     };
 
     if ui {
-        match run_ui(&mut arguments) {
-            Ok(_) => {}
-            Err(err) => return Err(format!("Could not start the ui. {}", err)),
-        }
+        match import_songs() {
+            Ok(songs) => {
+                let mut app = App::new(arguments, songs);
+                match app.run_ui() {
+                    Ok(_) => {}
+                    Err(err) => return Err(format!("Could not start the ui. {}", err)),
+                }
+            }
+            Err(err) => return Err(format!("Could not import songs: {}", err)),
+        };
     } else {
         match run_cli(&arguments) {
             Ok(_) => {}

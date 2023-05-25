@@ -46,7 +46,6 @@ pub enum Error {
 
 #[derive(Copy, Clone, Debug)]
 pub enum MenuItem {
-    Home,
     Songs,
     Devices,
 }
@@ -54,14 +53,16 @@ pub enum MenuItem {
 impl From<MenuItem> for usize {
     fn from(input: MenuItem) -> usize {
         match input {
-            MenuItem::Home => 0,
-            MenuItem::Songs => 2,
-            MenuItem::Devices => 3,
+            MenuItem::Songs => 1,
+            MenuItem::Devices => 2,
         }
     }
 }
 
-pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, String) {
+pub fn get_file_paths(
+    music_folder: &String,
+    song_position: usize,
+) -> Result<(String, String), Box<dyn std::error::Error>> {
     let mut reader = csv::Reader::from_path("assets/song_list.csv").unwrap();
     let _ = reader.headers();
 
@@ -97,21 +98,36 @@ pub fn get_file_paths(music_folder: &String, song_position: usize) -> (String, S
                 output_folder.push(music_folder);
                 output_folder.push(song.folder);
 
-                sevenz_rust::decompress_file(&archive_path, output_folder)
-                    .expect("Failed to decompress file");
+                let result = sevenz_rust::decompress_file(&archive_path, output_folder);
+                match result {
+                    Ok(_) => {
+                        info!("Decompressed file: {}", archive_path.display());
+                    }
+                    Err(_) => {
+                        info!("Failed to decompress file: {}", archive_path.display());
+                    }
+                }
             }
 
             track_path_str = track_path.display().to_string();
             click_path_str = click_path.display().to_string();
             info!("Will play track from file: {}", track_path_str);
             info!("Will play click from file: {}", click_path_str);
-            return (track_path_str, click_path_str);
+
+            break;
         } else {
             position += 1;
         }
     }
 
-    Err("Could not find song".to_string()).unwrap()
+    // throw an error if the file does not exist
+    if !std::fs::metadata(track_path_str.clone()).is_ok() {
+        Err(format!("Track file does not exist: {}", track_path_str).into())
+    } else if !std::fs::metadata(click_path_str.clone()).is_ok() {
+        Err(format!("Click file does not exist: {}", click_path_str).into())
+    } else {
+        Ok((track_path_str, click_path_str))
+    }
 }
 
 #[allow(dead_code)]

@@ -1,11 +1,26 @@
 {
     "cSpell.words": [
+        "alsa",
+        "ALSA",
         "appender",
         "Appender",
+        "Blackman",
+        "chans",
+        "choppyness",
         "crossterm",
         "Crossterm",
+        "Deque",
+        "gapless",
+        "nanos",
+        "pipewire",
+        "pulseaudio",
+        "resampler",
+        "Resampler",
         "sevenz",
+        "sinc",
+        "Sinc",
         "songlist",
+        "subsec",
         "thiserror"
     ]
 }
