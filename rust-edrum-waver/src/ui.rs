@@ -11,7 +11,10 @@ use crate::{
 };
 use log::{error, info};
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::{
+    collections::BTreeMap,
+    time::{Duration, Instant},
+};
 use std::{io, thread};
 use tui::backend::Backend;
 use tui::{
@@ -38,6 +41,7 @@ pub struct App {
     track_device_idx: usize,
     click_device_idx: usize,
     playback_speed: f64,
+    current_playlist: BTreeMap<usize, SongRecord>,
 }
 
 impl App {
@@ -54,6 +58,7 @@ impl App {
             track_device_idx: arguments.track_device_position,
             click_device_idx: arguments.click_device_position,
             playback_speed: arguments.playback_speed,
+            current_playlist: BTreeMap::new(),
         }
     }
 
@@ -123,8 +128,6 @@ impl App {
         let mut is_going_to = false;
         let mut going_to = String::new();
         let mut footer_message = String::new();
-
-        let mut playlist = Vec<SongRecord>::new();
 
         // create our transmit-receive loop
         thread::spawn(move || {
@@ -197,12 +200,12 @@ impl App {
                             .split(chunks[1]);
                         let song_table =
                             self.render_songs(&songlist_state, track_player.has_current_song());
+
                         rect.render_stateful_widget(
                             song_table,
                             songlist_chunks[0],
                             &mut songlist_state,
                         );
-                        //rect.render_widget(right, songlist_chunks[1]);
                     }
                     MenuItem::Devices => {
                         let device_chunks = Layout::default()
@@ -278,6 +281,49 @@ impl App {
                 }
                 Event::Input(event) if event.kind == KeyEventKind::Release && !is_going_to => {
                     match event.code {
+                        KeyCode::Char('+') => {
+                            if let Some(selected) = songlist_state.selected() {
+                                // add it to the queue. We can keep addint. No issue.
+                                let song = self.songs[selected].clone();
+                                let position = self
+                                    .current_playlist
+                                    .values()
+                                    .position(|song_record| song_record.title == song.title);
+
+                                if position.is_none() {
+                                    self.current_playlist
+                                        .insert(self.current_playlist.len() + 1, song.clone());
+                                    info!("Added song to queue: {}", &song.title);
+                                }
+
+                                for (i, song) in self.current_playlist.values().enumerate() {
+                                    info!("{}: {}", i, song.title);
+                                }
+
+                                self.reindex_playlist();
+                            }
+                        }
+                        KeyCode::Char('-') => {
+                            if let Some(selected) = songlist_state.selected() {
+                                // add it to the queue. We can keep addint. No issue.
+                                let song = self.songs[selected].clone();
+                                let position = self
+                                    .current_playlist
+                                    .values()
+                                    .position(|song_record| song_record.title == song.title);
+
+                                if let Some(pos) = position {
+                                    self.current_playlist.remove(&(&pos + 1));
+                                    info!("Removed song from queue: {}", song.title);
+                                }
+
+                                for (i, song) in self.current_playlist.values().enumerate() {
+                                    info!("{}: {}", i, song.title);
+                                }
+
+                                self.reindex_playlist();
+                            }
+                        }
                         KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
                         KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
                         KeyCode::Char('q') => {
@@ -446,7 +492,26 @@ impl App {
                         info!("Song ended, moving to the next song");
 
                         #[allow(unused_assignments)]
-                        let new_position: usize;
+                        let mut new_position: usize;
+
+                        // move to first in playlist if it's there
+                        if !self.current_playlist.is_empty() {
+                            let (_, song_record) = self.current_playlist.pop_first().unwrap();
+
+                            // find the position of the song_title in our song list
+                            if let Some(index) = self
+                                .songs
+                                .iter()
+                                .position(|song| song.title == song_record.title)
+                            {
+                                // THIS IS A TERRIBLE HACK. I'm sorry.
+                                new_position = index;
+                                songlist_state.select(Some(new_position));
+                            }
+
+                            self.reindex_playlist();
+                        }
+
                         if let Some(selected) = songlist_state.selected() {
                             info!("The current position is {}", selected);
                             let amount_songs = self.songs.len();
@@ -555,7 +620,7 @@ impl App {
 
     // TODO: Add * if song is in the current playlist
     fn render_songs<'a>(&mut self, songlist_state: &TableState, is_playing: bool) -> Table<'a> {
-        let playlist_ui = Block::default()
+        let songlist_ui = Block::default()
             .borders(Borders::ALL)
             .style(Style::default().fg(Color::White))
             .title("Songs")
@@ -576,16 +641,29 @@ impl App {
             let mut is_selected = false;
             if is_playing {
                 if let Some(track_file) = self.track_file.clone() {
-                    if track_file.contains(&song.song) {
+                    if track_file.contains(&song.title) {
                         is_selected = true;
                     }
                 }
             }
+
             let selected_fg = if is_selected {
                 Color::LightBlue
             } else {
                 Color::White
             };
+
+            let playlist_position = self
+                .current_playlist
+                .values()
+                .position(|song_record| song_record.title == song.title.as_str())
+                .map(|index| (index + 1).to_string())
+                .unwrap_or_else(|| String::from(""));
+
+            let playlist_cell = Cell::from(Span::styled(
+                playlist_position,
+                Style::default().fg(selected_fg),
+            ));
 
             let selected_cell = if is_selected {
                 Cell::from(Span::styled(
@@ -600,13 +678,14 @@ impl App {
             };
 
             let row = Row::new(vec![
+                playlist_cell,
                 selected_cell,
                 Cell::from(Span::styled(
                     song.artist.clone(),
                     Style::default().fg(selected_fg),
                 )),
                 Cell::from(Span::styled(
-                    song.song.clone(),
+                    song.title.clone(),
                     Style::default().fg(selected_fg),
                 )),
                 Cell::from(Span::styled(
@@ -622,7 +701,7 @@ impl App {
         }
 
         let song_table = Table::new(rows)
-            .block(playlist_ui)
+            .block(songlist_ui)
             .highlight_style(
                 Style::default()
                     .bg(Color::Yellow)
@@ -630,6 +709,7 @@ impl App {
                     .add_modifier(Modifier::BOLD),
             )
             .header(Row::new(vec![
+                Cell::from(Span::raw(" ")),
                 Cell::from(Span::raw(" ")),
                 Cell::from(Span::styled(
                     "Artist",
@@ -656,6 +736,7 @@ impl App {
                     .border_type(BorderType::Plain),
             )
             .widths(&[
+                Constraint::Length(3),
                 Constraint::Length(1),
                 Constraint::Percentage(20),
                 Constraint::Percentage(20),
@@ -663,6 +744,55 @@ impl App {
                 Constraint::Percentage(20),
             ]);
 
+        // let playlist_ui = Block::default()
+        //     .borders(Borders::ALL)
+        //     .style(Style::default().fg(Color::White))
+        //     .title("Queue")
+        //     .border_type(BorderType::Plain);
+
+        // let mut rows = vec![];
+        // for song in self.current_playlist.values() {
+        //     let row = Row::new(vec![
+        //         Cell::from(Span::styled(
+        //             song.artist.clone(),
+        //             Style::default().fg(Color::LightGreen),
+        //         )),
+        //         Cell::from(Span::styled(
+        //             song.title.clone(),
+        //             Style::default().fg(Color::LightGreen),
+        //         )),
+        //     ]);
+        //     rows.push(row);
+        // }
+
+        // let playlist_table = Table::new(rows)
+        //     .block(playlist_ui)
+        //     .highlight_style(
+        //         Style::default()
+        //             .bg(Color::Yellow)
+        //             .fg(Color::Black)
+        //             .add_modifier(Modifier::BOLD),
+        //     )
+        //     .header(Row::new(vec![
+        //         Cell::from(Span::styled(
+        //             "Artist",
+        //             Style::default().add_modifier(Modifier::BOLD),
+        //         )),
+        //         Cell::from(Span::styled(
+        //             "Song",
+        //             Style::default().add_modifier(Modifier::BOLD),
+        //         )),
+        //     ]))
+        //     .block(
+        //         Block::default()
+        //             .borders(Borders::ALL)
+        //             .style(Style::default().fg(Color::White))
+        //             .title("Detail")
+        //             .border_type(BorderType::Plain),
+        //     )
+        //     .widths(&[Constraint::Percentage(50), Constraint::Percentage(50)]);
+
+        // (song_table, playlist_table)
         song_table
     }
 
@@ -912,18 +1042,30 @@ impl App {
             );
         } else if let Some(position) = self.songs.clone().iter().position(|record| {
             record
-                .song
+                .title
                 .to_lowercase()
                 .starts_with(&going_to.clone().to_lowercase())
         }) {
             songlist_state.select(Some(position));
             *footer_message = format!(
                 "Search for {} found song '{}'",
-                going_to, self.songs[position].song
+                going_to, self.songs[position].title
             );
         } else {
             // No match found
             *footer_message = format!("No song or artist starting with '{}'", going_to);
+        }
+    }
+
+    fn reindex_playlist(&mut self) {
+        let mut idx = 0;
+
+        let values: Vec<SongRecord> = self.current_playlist.values().cloned().collect();
+        self.current_playlist.clear();
+
+        for song_record in values {
+            idx += 1;
+            self.current_playlist.insert(idx, song_record);
         }
     }
 }

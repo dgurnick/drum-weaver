@@ -24,7 +24,7 @@ pub struct SongRecord {
     #[allow(dead_code)]
     pub artist: String,
     #[allow(dead_code)]
-    pub song: String,
+    pub title: String,
     #[allow(dead_code)]
     pub album: String,
     #[allow(dead_code)]
