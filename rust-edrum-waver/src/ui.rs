@@ -28,21 +28,39 @@ use tui::{
 
 pub struct App {
     songs: Vec<SongRecord>,
-    arguments: PlayerArguments,
+    music_folder: Option<String>,
+    track_file: Option<String>,
+    click_file: Option<String>,
+    track_song: Option<Song>,
+    click_song: Option<Song>,
+    track_volume: Option<f32>,
+    click_volume: Option<f32>,
+    track_device_idx: usize,
+    click_device_idx: usize,
+    playback_speed: f64,
 }
 
 impl App {
     pub fn new(arguments: PlayerArguments, songs: Vec<SongRecord>) -> App {
         App {
             songs: songs,
-            arguments: arguments,
+            music_folder: None,
+            track_file: None,
+            click_file: None,
+            track_song: None,
+            click_song: None,
+            track_volume: Some(arguments.track_volume),
+            click_volume: Some(arguments.click_volume),
+            track_device_idx: arguments.track_device_position,
+            click_device_idx: arguments.click_device_position,
+            playback_speed: arguments.playback_speed,
         }
     }
 
     pub fn run_ui(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Starting UI");
 
-        if self.arguments.music_folder.is_none() {
+        if self.music_folder.is_none() {
             // let choice = dialog::FileSelection::new("Please select a file")
             //     .title("File Selection")
             //     //.path("/home/user/Downloads")
@@ -56,7 +74,7 @@ impl App {
                 Ok(path) => {
                     if let Some(p) = path {
                         println!("The user selected this folder: {:?}", p);
-                        self.arguments.music_folder = Some(p.display().to_string());
+                        self.music_folder = Some(p.display().to_string());
                     }
                 }
                 Err(e) => {
@@ -70,8 +88,8 @@ impl App {
         let (tx, rx) = mpsc::channel();
         let tick_rate = Duration::from_millis(200);
 
-        let mut selected_track_device = self.arguments.track_device_position;
-        let mut selected_click_device = self.arguments.click_device_position;
+        let mut selected_track_device = self.track_device_idx;
+        let mut selected_click_device = self.click_device_idx;
 
         let stdout = io::stdout();
         let backend = CrosstermBackend::new(stdout);
@@ -90,18 +108,16 @@ impl App {
         let host = cpal::default_host();
         let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
 
-        let mut track_device = &available_devices[self.arguments.track_device_position];
-        let mut click_device = &available_devices[self.arguments.click_device_position];
+        let mut track_device = &available_devices[self.track_device_idx];
+        let mut click_device = &available_devices[self.click_device_idx];
 
         let mut track_player =
             Player::new(None, track_device).expect("Could not create track player");
         let mut click_player =
             Player::new(None, click_device).expect("Could not create click player");
-        let mut track_song: Song;
-        let mut click_song: Song;
 
-        track_player.set_playback_speed(self.arguments.playback_speed);
-        click_player.set_playback_speed(self.arguments.playback_speed);
+        track_player.set_playback_speed(self.playback_speed);
+        click_player.set_playback_speed(self.playback_speed);
 
         let mut started_playing = false;
 
@@ -197,10 +213,7 @@ impl App {
                 }
 
                 let footer_text = if track_player.has_current_song() {
-                    format!(
-                        "Playing: {}",
-                        self.arguments.track_song.as_ref().unwrap().clone()
-                    )
+                    format!("Playing: {}", self.track_file.as_ref().unwrap().clone())
                 } else {
                     String::from("No song playing")
                 };
@@ -258,8 +271,8 @@ impl App {
                                     click_player = Player::new(None, click_device)
                                         .expect("Could not create click player");
 
-                                    track_player.set_playback_speed(self.arguments.playback_speed);
-                                    click_player.set_playback_speed(self.arguments.playback_speed);
+                                    track_player.set_playback_speed(self.playback_speed);
+                                    click_player.set_playback_speed(self.playback_speed);
 
                                     info!("Set click device to {}", selected_click_device);
                                 }
@@ -291,8 +304,8 @@ impl App {
                                     click_player = Player::new(None, click_device)
                                         .expect("Could not create click player");
 
-                                    track_player.set_playback_speed(self.arguments.playback_speed);
-                                    click_player.set_playback_speed(self.arguments.playback_speed);
+                                    track_player.set_playback_speed(self.playback_speed);
+                                    click_player.set_playback_speed(self.playback_speed);
 
                                     info!("Set track device to {}", selected_track_device);
                                 }
@@ -328,7 +341,7 @@ impl App {
                         MenuItem::Songs => {
                             if let Some(selected) = songlist_state.selected() {
                                 let (track_file, click_file) = match get_file_paths(
-                                    &self.arguments.music_folder.as_ref().unwrap().clone(),
+                                    &self.music_folder.as_ref().unwrap(),
                                     selected + 1,
                                 ) {
                                     Ok((track_file, click_file)) => (track_file, click_file),
@@ -338,31 +351,26 @@ impl App {
                                     }
                                 };
 
-                                self.arguments.track_song = Some(track_file);
-                                self.arguments.click_song = Some(click_file);
+                                self.track_song = Some(
+                                    Song::from_file(&track_file, self.track_volume)
+                                        .expect("Could not create track song"),
+                                );
 
-                                let track_file = self.arguments.track_song.clone();
-                                let click_file = self.arguments.click_song.clone();
-
-                                track_song = Song::from_file(
-                                    &track_file.unwrap().clone(),
-                                    Some(self.arguments.track_volume),
-                                )
-                                .expect("Could not create track song");
-                                click_song = Song::from_file(
-                                    &click_file.unwrap().clone(),
-                                    Some(self.arguments.click_volume.clone()),
-                                )
-                                .expect("Could not create click song");
+                                self.click_song = Some(
+                                    Song::from_file(&click_file, self.click_volume.clone())
+                                        .expect("Could not create click song"),
+                                );
 
                                 track_player
-                                    .play_song_now(&track_song, None)
+                                    .play_song_now(&self.track_song.as_ref().unwrap(), None)
                                     .expect("Could not play track song");
                                 click_player
-                                    .play_song_now(&click_song, None)
+                                    .play_song_now(&self.click_song.as_ref().unwrap(), None)
                                     .expect("Could not play click song");
 
                                 started_playing = true;
+                                self.track_file = Some(track_file);
+                                self.click_file = Some(click_file);
                             }
                         }
                         _ => {}
@@ -396,7 +404,7 @@ impl App {
                             std::thread::sleep(std::time::Duration::from_secs(2));
 
                             let (track_file, click_file) = match get_file_paths(
-                                &self.arguments.clone().music_folder.unwrap(),
+                                &self.music_folder.as_ref().unwrap(),
                                 new_position + 1,
                             ) {
                                 Ok((track_file, click_file)) => (track_file, click_file),
@@ -408,26 +416,31 @@ impl App {
 
                             info!("The new track file is {}", track_file);
 
-                            self.arguments.track_song = Some(track_file);
-                            self.arguments.click_song = Some(click_file);
+                            self.track_file = Some(track_file);
+                            self.click_file = Some(click_file);
 
-                            track_song = Song::from_file(
-                                self.arguments.track_song.clone().unwrap(),
-                                Some(self.arguments.clone().track_volume),
-                            )
-                            .expect("Could not create track song");
-                            click_song = Song::from_file(
-                                self.arguments.click_song.clone().unwrap(),
-                                Some(self.arguments.clone().click_volume),
-                            )
-                            .expect("Could not create click song");
+                            self.track_song = Some(
+                                Song::from_file(
+                                    &self.track_file.clone().unwrap(),
+                                    self.track_volume,
+                                )
+                                .expect("Could not create track song"),
+                            );
+
+                            self.click_song = Some(
+                                Song::from_file(
+                                    &self.click_file.clone().unwrap(),
+                                    self.click_volume,
+                                )
+                                .expect("Could not create click song"),
+                            );
 
                             std::thread::sleep(std::time::Duration::from_secs(2));
                             track_player
-                                .play_song_next(&track_song, None)
+                                .play_song_next(&self.track_song.as_ref().unwrap(), None)
                                 .expect("Could not play track song");
                             click_player
-                                .play_song_next(&click_song, None)
+                                .play_song_next(&self.click_song.as_ref().unwrap(), None)
                                 .expect("Could not play click song");
                         }
                     }
@@ -503,8 +516,8 @@ impl App {
         for song in self.songs.clone() {
             let mut is_selected = false;
             if is_playing {
-                if let Some(track_song) = self.arguments.track_song.clone() {
-                    if track_song.contains(&song.song) {
+                if let Some(track_file) = self.track_file.clone() {
+                    if track_file.contains(&song.song) {
                         is_selected = true;
                     }
                 }
