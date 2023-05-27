@@ -728,6 +728,7 @@ impl App {
                     Style::default().fg(selected_fg),
                 )),
             ]);
+
             rows.push(row);
         }
 
