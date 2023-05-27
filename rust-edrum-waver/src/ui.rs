@@ -1,4 +1,4 @@
-use cpal::traits::HostTrait;
+use cpal::traits::{DeviceTrait, HostTrait};
 use crossterm::{
     event::{self, Event as CEvent, KeyCode, KeyEventKind},
     terminal::{disable_raw_mode, enable_raw_mode},
@@ -220,7 +220,37 @@ impl App {
                     }
                 }
 
-                let footer_text = if footer_message.is_empty() {
+                let track_device_name = match available_devices[selected_track_device].name() {
+                    Ok(name) => name,
+                    Err(_) => "Unknown".to_string(),
+                };
+
+                let click_device_name = match available_devices[selected_click_device].name() {
+                    Ok(name) => name,
+                    Err(_) => "Unknown".to_string(),
+                };
+
+                let track_volume = if let Some(song) = &self.track_song {
+                    song.get_volume_adjustment()
+                } else {
+                    0.0
+                };
+
+                let click_volume = if let Some(song) = &self.click_song {
+                    song.get_volume_adjustment()
+                } else {
+                    0.0
+                };
+
+                let mut footer_device_text = format!(
+                    "Track device: {} - {}% | Click device: {} - {}%",
+                    track_device_name,
+                    track_volume * 100.0 as f32,
+                    click_device_name,
+                    click_volume * 100.0 as f32
+                );
+
+                let playing_footer_text = if footer_message.is_empty() {
                     if track_player.has_current_song() {
                         format!("Playing: {}", self.track_file.as_ref().unwrap().clone())
                     } else {
@@ -230,7 +260,8 @@ impl App {
                     footer_message.clone()
                 };
 
-                let footer_widget = Paragraph::new(footer_text);
+                let footer_widget =
+                    Paragraph::new(format!("{} | {}", footer_device_text, playing_footer_text));
                 rect.render_widget(footer_widget, chunks[2]);
             })?;
 

@@ -814,6 +814,10 @@ impl Song {
             volume_adjustment,
         )
     }
+
+    pub fn get_volume_adjustment(&self) -> f32 {
+        self.volume_adjustment
+    }
 }
 
 #[cfg(any(
