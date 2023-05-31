@@ -10,17 +10,16 @@ use crate::{
     playlist::SongRecord,
 };
 use log::{error, info};
-use ratatui::backend::Backend;
 use ratatui::{
-    backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
+    backend::{Backend, CrosstermBackend},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{
-        Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table,
-        TableState, Tabs,
+        Block, BorderType, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table,
+        TableState, Tabs, Wrap,
     },
-    Terminal,
+    Frame, Terminal,
 };
 use std::sync::mpsc;
 use std::{
@@ -126,6 +125,7 @@ impl App {
 
         let mut is_playing = false;
         let mut is_going_to = false;
+        let mut is_quitting = false;
         let mut going_to = String::new();
         let mut footer_message = String::new();
 
@@ -152,119 +152,127 @@ impl App {
         });
 
         loop {
-            terminal.draw(|rect| {
-                let size = rect.size();
-                let chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .margin(2)
-                    .constraints(
-                        [
-                            Constraint::Length(3),
-                            Constraint::Min(2),
-                            Constraint::Length(3),
-                        ]
-                        .as_ref(),
-                    )
-                    .split(size);
+            if is_quitting {
+                terminal.draw(|f| self.confirm_exit(f))?;
+            } else {
+                terminal.draw(|rect| {
+                    let size = rect.size();
+                    let chunks = Layout::default()
+                        .direction(Direction::Vertical)
+                        .margin(2)
+                        .constraints(
+                            [
+                                Constraint::Length(3),
+                                Constraint::Min(2),
+                                Constraint::Length(3),
+                            ]
+                            .as_ref(),
+                        )
+                        .split(size);
 
-                let menu = menu_titles
-                    .iter()
-                    .map(|t| {
-                        let (first, rest) = t.split_at(1);
-                        Line::from(vec![
-                            Span::styled(
-                                first,
-                                Style::default()
-                                    .fg(Color::Yellow)
-                                    .add_modifier(Modifier::UNDERLINED),
-                            ),
-                            Span::styled(rest, Style::default().fg(Color::White)),
-                        ])
-                    })
-                    .collect();
+                    let menu = menu_titles
+                        .iter()
+                        .map(|t| {
+                            let (first, rest) = t.split_at(1);
+                            Line::from(vec![
+                                Span::styled(
+                                    first,
+                                    Style::default()
+                                        .fg(Color::Yellow)
+                                        .add_modifier(Modifier::UNDERLINED),
+                                ),
+                                Span::styled(rest, Style::default().fg(Color::White)),
+                            ])
+                        })
+                        .collect();
 
-                let menu = Tabs::new(menu)
-                    .select(active_menu_item.into())
-                    .block(Block::default().title("Menu").borders(Borders::ALL))
-                    .style(Style::default().fg(Color::White))
-                    //.highlight_style(Style::default().fg(Color::Yellow))
-                    .divider(Span::raw("|"));
+                    let menu = Tabs::new(menu)
+                        .select(active_menu_item.into())
+                        .block(Block::default().title("Menu").borders(Borders::ALL))
+                        .style(Style::default().fg(Color::White))
+                        //.highlight_style(Style::default().fg(Color::Yellow))
+                        .divider(Span::raw("|"));
 
-                rect.render_widget(menu, chunks[0]);
+                    rect.render_widget(menu, chunks[0]);
 
-                match active_menu_item {
-                    MenuItem::Songs => {
-                        let songlist_chunks = Layout::default()
-                            .direction(Direction::Horizontal)
-                            .constraints([Constraint::Percentage(100)].as_ref())
-                            .split(chunks[1]);
-                        let song_table =
-                            self.render_songs(&songlist_state, track_player.has_current_song());
+                    match active_menu_item {
+                        MenuItem::Songs => {
+                            let songlist_chunks = Layout::default()
+                                .direction(Direction::Horizontal)
+                                .constraints([Constraint::Percentage(100)].as_ref())
+                                .split(chunks[1]);
+                            let song_table =
+                                self.render_songs(&songlist_state, track_player.has_current_song());
 
-                        rect.render_stateful_widget(
-                            song_table,
-                            songlist_chunks[0],
-                            &mut songlist_state,
-                        );
+                            rect.render_stateful_widget(
+                                song_table,
+                                songlist_chunks[0],
+                                &mut songlist_state,
+                            );
+                        }
+                        MenuItem::Devices => {
+                            let device_chunks = Layout::default()
+                                .direction(Direction::Horizontal)
+                                .constraints(
+                                    [Constraint::Percentage(50), Constraint::Percentage(100)]
+                                        .as_ref(),
+                                )
+                                .split(chunks[1]);
+                            let left =
+                                self.render_devices(selected_track_device, selected_click_device);
+                            rect.render_stateful_widget(
+                                left,
+                                device_chunks[0],
+                                &mut device_list_state,
+                            );
+                        }
+                        MenuItem::Help => {
+                            rect.render_widget(self.render_help(), chunks[1]);
+                        }
                     }
-                    MenuItem::Devices => {
-                        let device_chunks = Layout::default()
-                            .direction(Direction::Horizontal)
-                            .constraints(
-                                [Constraint::Percentage(50), Constraint::Percentage(100)].as_ref(),
-                            )
-                            .split(chunks[1]);
-                        let left =
-                            self.render_devices(selected_track_device, selected_click_device);
-                        rect.render_stateful_widget(left, device_chunks[0], &mut device_list_state);
-                    }
-                    MenuItem::Help => {
-                        rect.render_widget(self.render_help(), chunks[1]);
-                    }
-                }
 
-                let track_device_name = match available_devices[selected_track_device].name() {
-                    Ok(name) => name,
-                    Err(_) => "Unknown".to_string(),
-                };
+                    let track_device_name = match available_devices[selected_track_device].name() {
+                        Ok(name) => name,
+                        Err(_) => "Unknown".to_string(),
+                    };
 
-                let click_device_name = match available_devices[selected_click_device].name() {
-                    Ok(name) => name,
-                    Err(_) => "Unknown".to_string(),
-                };
+                    let click_device_name = match available_devices[selected_click_device].name() {
+                        Ok(name) => name,
+                        Err(_) => "Unknown".to_string(),
+                    };
 
-                let track_volume = if let Some(_song) = &self.track_song {
-                    self.track_volume
-                } else {
-                    0
-                };
-
-                let click_volume = if let Some(_song) = &self.click_song {
-                    self.click_volume
-                } else {
-                    0
-                };
-
-                let footer_device_text = format!(
-                    "Track device: {} - {}% | Click device: {} - {}%",
-                    track_device_name, track_volume, click_device_name, click_volume,
-                );
-
-                let playing_footer_text = if footer_message.is_empty() {
-                    if track_player.has_current_song() {
-                        format!("Playing: {}", self.track_file.as_ref().unwrap().clone())
+                    let track_volume = if let Some(_song) = &self.track_song {
+                        self.track_volume
                     } else {
-                        "No song playing".to_string()
-                    }
-                } else {
-                    footer_message.clone()
-                };
+                        0
+                    };
 
-                let footer_widget =
-                    Paragraph::new(format!("{} | {}", footer_device_text, playing_footer_text));
-                rect.render_widget(footer_widget, chunks[2]);
-            })?;
+                    let click_volume = if let Some(_song) = &self.click_song {
+                        self.click_volume
+                    } else {
+                        0
+                    };
 
+                    let footer_device_text = format!(
+                        "Track device: {} - {}% | Click device: {} - {}%",
+                        track_device_name, track_volume, click_device_name, click_volume,
+                    );
+
+                    let playing_footer_text = if footer_message.is_empty() {
+                        if track_player.has_current_song() {
+                            format!("Playing: {}", self.track_file.as_ref().unwrap().clone())
+                        } else {
+                            "No song playing".to_string()
+                        }
+                    } else {
+                        footer_message.clone()
+                    };
+
+                    let footer_widget =
+                        Paragraph::new(format!("{} | {}", footer_device_text, playing_footer_text));
+                    rect.render_widget(footer_widget, chunks[2]);
+                })?;
+            } // is quitting
             match rx.recv()? {
                 Event::Input(event) if event.kind == KeyEventKind::Release && is_going_to => {
                     match event.code {
@@ -399,7 +407,23 @@ impl App {
                         KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
                         KeyCode::Char('h') => active_menu_item = MenuItem::Help,
                         KeyCode::Char('q') => {
-                            self.handle_q_event(&mut track_player, &mut click_player, &mut terminal)
+                            is_quitting = true;
+                        }
+                        KeyCode::Char('y') => {
+                            if is_quitting {
+                                info!("Quitting");
+                                track_player.stop();
+                                click_player.stop();
+                                disable_raw_mode().expect("Can not disable raw mode");
+                                terminal.clear().expect("Failed to clear the terminal");
+                                terminal.show_cursor().expect("Failed to show cursor");
+                                std::process::exit(0);
+                            }
+                        }
+                        KeyCode::Char('n') => {
+                            if is_quitting {
+                                is_quitting = false;
+                            }
                         }
                         KeyCode::Char('g') => {
                             going_to = String::new();
@@ -875,23 +899,6 @@ impl App {
         song_table
     }
 
-    fn handle_q_event<T>(
-        &mut self,
-        track_player: &mut Player,
-        click_player: &mut Player,
-        terminal: &mut Terminal<T>,
-    ) where
-        T: Backend,
-    {
-        info!("Quitting");
-        track_player.stop();
-        click_player.stop();
-        disable_raw_mode().expect("Can not disable raw mode");
-        terminal.clear().expect("Failed to clear the terminal");
-        terminal.show_cursor().expect("Failed to show cursor");
-        std::process::exit(0);
-    }
-
     fn handle_down_event(
         &mut self,
         active_menu_item: &mut MenuItem,
@@ -1226,5 +1233,61 @@ impl App {
         Paragraph::new(help_content.clone())
             .style(Style::default())
             .block(Block::default().borders(Borders::ALL).title("Help"))
+    }
+
+    fn confirm_exit<B: Backend>(&mut self, f: &mut Frame<B>) {
+        let size = f.size();
+
+        let chunks = Layout::default()
+            .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
+            .split(size);
+
+        let paragraph = Paragraph::new(Span::styled(
+            "Hi there",
+            Style::default().add_modifier(Modifier::SLOW_BLINK),
+        ))
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+        f.render_widget(paragraph, chunks[0]);
+
+        let block = Block::default()
+            .borders(Borders::NONE)
+            .style(Style::default().bg(Color::Black));
+        f.render_widget(block, chunks[1]);
+
+        let block = Block::default()
+            .title("Are you sure you want to leave? (Y/N)")
+            .borders(Borders::NONE)
+            .title_alignment(Alignment::Center);
+
+        let area = self.centered_rect(60, 20, size);
+        //f.render_widget(Clear, area); //this clears out the background
+        f.render_widget(block, area);
+    }
+
+    fn centered_rect(&self, percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+        let popup_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(
+                [
+                    Constraint::Percentage((100 - percent_y) / 2),
+                    Constraint::Percentage(percent_y),
+                    Constraint::Percentage((100 - percent_y) / 2),
+                ]
+                .as_ref(),
+            )
+            .split(r);
+
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(
+                [
+                    Constraint::Percentage((100 - percent_x) / 2),
+                    Constraint::Percentage(percent_x),
+                    Constraint::Percentage((100 - percent_x) / 2),
+                ]
+                .as_ref(),
+            )
+            .split(popup_layout[1])[1]
     }
 }
