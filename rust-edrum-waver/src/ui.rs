@@ -10,24 +10,24 @@ use crate::{
     playlist::SongRecord,
 };
 use log::{error, info};
-use std::sync::mpsc;
-use std::{
-    collections::BTreeMap,
-    time::{Duration, Instant},
-};
-use std::{io, thread};
-use tui::backend::Backend;
-use tui::{
+use ratatui::backend::Backend;
+use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
+    text::{Line, Span},
     widgets::{
         Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table,
         TableState, Tabs,
     },
     Terminal,
 };
+use std::sync::mpsc;
+use std::{
+    collections::BTreeMap,
+    time::{Duration, Instant},
+};
+use std::{io, thread};
 
 pub struct App {
     songs: Vec<SongRecord>,
@@ -171,7 +171,7 @@ impl App {
                     .iter()
                     .map(|t| {
                         let (first, rest) = t.split_at(1);
-                        Spans::from(vec![
+                        Line::from(vec![
                             Span::styled(
                                 first,
                                 Style::default()
@@ -674,7 +674,7 @@ impl App {
                 };
                 let selected_state = format!("{} {}", selected_track, selected_click);
 
-                ListItem::new(Spans::from(vec![Span::styled(
+                ListItem::new(Line::from(vec![Span::styled(
                     format!(
                         "[{}] {} : {}",
                         selected_state,
@@ -1156,67 +1156,67 @@ impl App {
             .fg(Color::Yellow);
 
         let help_content = vec![
-            Spans::from(Span::styled("General Commands", header_style)),
-            Spans::from(vec![
+            Line::from(Span::styled("General Commands", header_style)),
+            Line::from(vec![
                 Span::styled("q", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Quit (boo!)."),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("d", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Show device selection. You can pick output devices for tracks and clicks separately."),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("s", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Show the song list."),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("h", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Show this help screen."),
             ]),
-            Spans::from("\n"),
+            Line::from("\n"),
 
-            Spans::from(Span::styled("Song list Commands", header_style)),
-            Spans::from(vec![
+            Line::from(Span::styled("Song list Commands", header_style)),
+            Line::from(vec![
                 Span::styled("Left or Right Arrow", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Slow down or speed up playback."),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("r", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Reset the playback speed."),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("z", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Restart the song that is playing."),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("SPACE", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Pause or continue the song that is playing"),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("1 or 4", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Lower the track or click volume"),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("2 or 5", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Reset the track or click volume"),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("3 or 6", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Increase the track or click volume"),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("g", Style::default().fg(Color::LightCyan)),
                 Span::raw(": start searching for a specific song or artist."),
             ]),
-            Spans::from("\n"),
-            Spans::from("When searching, hit ESC to cancel the search. Enter confirms."),
-            Spans::from("\n"),
-            Spans::from(Span::styled("Queue Commands", header_style)),
-            Spans::from(vec![
+            Line::from("\n"),
+            Line::from("When searching, hit ESC to cancel the search. Enter confirms."),
+            Line::from("\n"),
+            Line::from(Span::styled("Queue Commands", header_style)),
+            Line::from(vec![
                 Span::styled("+", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Adds the selected song to the queue"),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled("-", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Removes the selected song from the queue"),
             ]),

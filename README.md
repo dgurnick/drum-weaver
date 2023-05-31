@@ -44,6 +44,6 @@ Shortcut "r": during playback resets the playback speed.
 ## Improvements
 1. [x] Basic player
 2. [x] Basic UI
-3. [ ] search and filter option
+3. [c] search and filter option
 4. [ ] playlists
 5. [ ] midi controller. something basic with a synth will do. For restart, skip song, skip forward and backward, etc

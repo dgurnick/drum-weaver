@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
+        "addint",
         "alsa",
         "ALSA",
         "appender",
@@ -14,6 +15,8 @@
         "nanos",
         "pipewire",
         "pulseaudio",
+        "ratatui",
+        "reindex",
         "resampler",
         "Resampler",
         "sevenz",
