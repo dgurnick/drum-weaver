@@ -64,33 +64,9 @@ impl App {
     pub fn run_ui(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Starting UI");
 
-        if self.music_folder.is_none() {
-            // let choice = dialog::FileSelection::new("Please select a file")
-            //     .title("File Selection")
-            //     //.path("/home/user/Downloads")
-            //     .show()
-            //     .expect("Could not display dialog box");
-            // arguments.music_folder = Some(choice.unwrap());
-            use native_dialog::FileDialog;
-            let path = FileDialog::new().show_open_single_dir();
-
-            match path {
-                Ok(path) => {
-                    if let Some(p) = path {
-                        println!("The user selected this folder: {:?}", p);
-                        self.music_folder = Some(p.display().to_string());
-                    }
-                }
-                Err(e) => {
-                    println!("The user did not select a folder: {:?}", e);
-                }
-            };
-        }
+        let mut has_music_folder = self.music_folder.is_some();
 
         enable_raw_mode().expect("Can not run in raw mode");
-
-        let (tx, rx) = mpsc::channel();
-        let tick_rate = Duration::from_millis(200);
 
         let mut selected_track_device = self.track_device_idx;
         let mut selected_click_device = self.click_device_idx;
@@ -129,6 +105,9 @@ impl App {
         let mut going_to = String::new();
         let mut footer_message = String::new();
 
+        let (tx, rx) = mpsc::channel();
+        let tick_rate = Duration::from_millis(200);
+
         // create our transmit-receive loop
         thread::spawn(move || {
             let mut last_tick = Instant::now();
@@ -154,6 +133,8 @@ impl App {
         loop {
             if is_quitting {
                 terminal.draw(|f| self.confirm_exit(f))?;
+            } else if !has_music_folder {
+                terminal.draw(|f| self.prepare_for_folder(f))?;
             } else {
                 terminal.draw(|rect| {
                     let size = rect.size();
@@ -274,6 +255,33 @@ impl App {
                 })?;
             } // is quitting
             match rx.recv()? {
+                Event::Input(event) if event.kind == KeyEventKind::Release && !has_music_folder => {
+                    match event.code {
+                        KeyCode::Enter => {
+                            use native_dialog::FileDialog;
+                            let path = FileDialog::new().show_open_single_dir();
+
+                            match path {
+                                Ok(path) => {
+                                    if let Some(p) = path {
+                                        println!("The user selected this folder: {:?}", p);
+                                        self.music_folder = Some(p.display().to_string());
+                                        has_music_folder = true;
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("The user did not select a folder: {:?}", e);
+                                    std::process::exit(0);
+                                }
+                            };
+                        }
+                        KeyCode::Esc => {
+                            // going to has stopped
+                            std::process::exit(0);
+                        }
+                        _ => {}
+                    }
+                }
                 Event::Input(event) if event.kind == KeyEventKind::Release && is_going_to => {
                     match event.code {
                         KeyCode::Enter => {
@@ -1263,6 +1271,22 @@ impl App {
         let area = self.centered_rect(60, 20, size);
         //f.render_widget(Clear, area); //this clears out the background
         f.render_widget(block, area);
+    }
+
+    fn prepare_for_folder<B: Backend>(&mut self, f: &mut Frame<B>) {
+        let size = f.size();
+
+        let chunks = Layout::default()
+            .constraints([Constraint::Percentage(100)].as_ref())
+            .split(size);
+
+        let paragraph = Paragraph::new(Span::styled(
+            "Hi there. You need to select a folder where your music collection is stored. This is typically something called 'Drumless'. Click ENTER to choose your music folder. ESC to close.",
+            Style::default().add_modifier(Modifier::SLOW_BLINK),
+        ))
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+        f.render_widget(paragraph, chunks[0]);
     }
 
     fn centered_rect(&self, percent_x: u16, percent_y: u16, r: Rect) -> Rect {
