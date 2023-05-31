@@ -11,23 +11,39 @@
 4. The spreadsheet is included here as a CSV in the assets folder. 
 5. Automatically extracts the 7z file if not already done. (Who wants to do that manually?)
 6. Is peasant-level Rust. ymmv
+7. Some songs will have clicks out of sync. This is because the dude who made all of these made some mistakes. Blame him and his AI bot. In all their glory.
 
 ## Running it
 1. Download all the files
-2. execute ```cargo run -- --music_folder D: --track 356 --track_volume 100 --click_volume 80 --track_device 1 --click_device 1 --combined 0```
+2. execute ```rust-edrum-waver --music_folder D:\drumless``` ... or point it to wherever you have the huge number of files saved.
+3. Note: the UI automatically moves to the next song. If you want to disable this, add ```--autoskip=0``` as a parameter when you run the app.
+
+## Using the UI
+The UI is a very basic terminal app. It's not meant to do anything fancy (doesn't have search/filter/playlists yet) other than plan a song you want.
+
+Shortcut "S": This brings up the list of songs found by the app.  You can use up/down arrow keys or pgup/pgdn to move up or down.
+Shortcut "Enter": Clicking the ENTER key on a song plays it. It might take a few seconds if the file has not yet been decompressed. Be patient.
+Shortcut "Space": Stops playing the current song.
+Shortcut "D": here you can choose what audio output to use for what channel. up/down moves across devices. "c" selects it for the click track. "t" for the master track. This is super useful for drum karaoke!
+Shortcut "left arrow": reduces playback speed if you're a shitty drummer
+Shortcut "right arrow": makes maximum chaos. 
+Shortcut "r": during playback resets the playback speed.
 
 ## Parameters:
-1. **target_folder** is where you downloaded the massive amount of 7z files
-2. **track** is the position in the csv file (minus 1)
-3. **track_volume** is the master volume. In combined mode, it's what is used. In non-combined mode, it's the main track
-4. **click_volume** is ignored when combined otherwise it's the volume of the click on it's device
+1. **music_folder** is where you downloaded the massive amount of 7z files
+2. **track** is the position in the csv file (minus 1). Useful really in the cli version and ignored in the UI
+3. **track_volume** is the master volume.
+4. **click_volume** is the click volume. For live performances, this is useful --I hope.
 5. **track_device** is where to play the main file in the collection of devices iterated
 6. **click_device** is like the track_device
-7. **combined** indicates if you want to play everything in one device (in case threading is crap) or separate
+7. **ui** If you just want to play the song, 0. If you want to navigate, 1.
+8. **playback_speed** is the startup speed of the player.
+9. **print_devices** will just print your audio devices and exit. You get the same thing in the UI by pressing "d"
+10. **auto_skip** automatically moves to the next song in sequence. It defaults to skip and will not skip if any other parameter is passed. I'm a shitty developer.
 
 ## Improvements
-1. [x] Basic player\
-2. [ ] Basic UI or can be as a local webserver (leptos?)
+1. [x] Basic player
+2. [x] Basic UI
 3. [ ] search and filter option
 4. [ ] playlists
 5. [ ] midi controller. something basic with a synth will do. For restart, skip song, skip forward and backward, etc

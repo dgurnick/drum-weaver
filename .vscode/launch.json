@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Debug",
+        "type": "lldb",
+        "request": "launch",
+        "program": "${workspaceFolder}/rust-edrum-waver/target/debug/rust-edrum-waver.exe",
+        "args": [
+            "--music_folder", "D:\\drumless",
+        ],
+        "cwd": "${workspaceFolder}/rust-edrum-waver/"
+      }
+    ]
+  }
+  

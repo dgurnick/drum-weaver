@@ -1,5 +1,5 @@
-file_name,genre,year,artist,song,album,length,bpm,folder
-(Damn) This Desert Air - Ghost I Own,Alternative,2010,(Damn) This Desert Air,Ghost I Own,Distance Waits,3:38,138,A - C
+file_name,genre,year,artist,title,album,length,bpm,folder
+xx(Damn) This Desert Air - Ghost I Own,Alternative,2010,(Damn) This Desert Air,Ghost I Own,Distance Waits,3:38,138,A - C
 44 - Lycanthrope,Alternative,2006,44,Lycanthrope,When Your Heart Stops Beating,4:00,167,A - C
 .38 Special - Caught Up In You,Southern Rock,1982,.38 Special,Caught Up In You,Special Forces,4:55,132,A - C
 .38 Special - Hold On Loosely,Southern Rock,1981,.38 Special,Hold On Loosely,Wild-Eyed Southern Boys,4:46,127,A - C
@@ -5445,4 +5445,3 @@ YONAKA - PANIC,Alternative,2023,YONAKA,PANIC,PANIC,2:55,147,Update 1
 Young The Giant - Superposition,Alternative,2018,Young The Giant,Superposition,Mirror Master,3:54,85,Update 1
 YUNGBLUD - The Funeral,Alternative,2022,YUNGBLUD,The Funeral,YUNGBLUD,3:34,184,Update 1
 Zing Experience - Faster Than a Bullet,Other,2011,Zing Experience,Faster Than a Bullet,,3:48,80,Update 1
-example,A Genre,2023,An Artist,The Song Title Is,The Album Name Is,3:21,90,A - C
