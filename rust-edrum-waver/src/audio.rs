@@ -119,6 +119,7 @@ impl DecodingSong {
             let mut current_frame = 0;
             let mut skip_count = Wrapping(0);
             let mut last_request_speed = 1.0;
+            let mut volume_adjustment = 1.0;
 
             loop {
                 let request = match rrx.recv() {
@@ -128,6 +129,8 @@ impl DecodingSong {
                         break;
                     }
                 };
+
+                volume_adjustment = request.volume_adjustment;
 
                 // adjust position based on seek
                 if let Some((new_pos, new_skip_count)) = request.frame {
