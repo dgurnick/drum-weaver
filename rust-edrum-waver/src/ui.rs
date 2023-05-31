@@ -16,7 +16,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{
-        Block, BorderType, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table,
+        Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table,
         TableState, Tabs, Wrap,
     },
     Frame, Terminal,
@@ -200,10 +200,7 @@ impl App {
                         MenuItem::Devices => {
                             let device_chunks = Layout::default()
                                 .direction(Direction::Horizontal)
-                                .constraints(
-                                    [Constraint::Percentage(50), Constraint::Percentage(100)]
-                                        .as_ref(),
-                                )
+                                .constraints([Constraint::Percentage(100)].as_ref())
                                 .split(chunks[1]);
                             let left =
                                 self.render_devices(selected_track_device, selected_click_device);

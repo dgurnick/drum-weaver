@@ -113,12 +113,15 @@ impl DecodingSong {
                     return;
                 }
             };
+
             let mut input_buffer = resampler.input_buffer_allocate();
             let mut output_buffer = resampler.output_buffer_allocate();
 
             let mut current_frame = 0;
             let mut skip_count = Wrapping(0);
             let mut last_request_speed = 1.0;
+
+            #[allow(unused_assignments)]
             let mut volume_adjustment = 1.0;
 
             loop {

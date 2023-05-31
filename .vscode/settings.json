@@ -26,5 +26,8 @@
         "songlist",
         "subsec",
         "thiserror"
+    ],
+    "rust-analyzer.linkedProjects": [
+        ".\\rust-edrum-waver\\Cargo.toml"
     ]
 }

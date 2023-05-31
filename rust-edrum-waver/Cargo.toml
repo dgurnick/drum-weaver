@@ -10,6 +10,7 @@ chrono = { version = "0.4.24", features = ["serde"] }
 clap = { version = "4.2.7", features = ["derive"] }
 color-eyre = "0.6.2"
 cpal = "0.15.2"
+crossbeam-channel = "0.5.8"
 crossterm = { version = "0.26.1", features = ["serde"] }
 csv = "1.2.1"
 dialog = "0.3.0"
