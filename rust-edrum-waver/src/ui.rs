@@ -180,9 +180,13 @@ impl App {
                         MenuItem::Songs => {
                             let songlist_chunks = Layout::default()
                                 .direction(Direction::Horizontal)
-                                .constraints([Constraint::Percentage(100)].as_ref())
+                                .constraints(
+                                    [Constraint::Percentage(70), Constraint::Percentage(30)]
+                                        .as_ref(),
+                                )
                                 .split(chunks[1]);
-                            let song_table =
+
+                            let (song_table, queue_table) =
                                 self.render_songs(&songlist_state, track_player.has_current_song());
 
                             rect.render_stateful_widget(
@@ -190,6 +194,8 @@ impl App {
                                 songlist_chunks[0],
                                 &mut songlist_state,
                             );
+
+                            rect.render_widget(queue_table, songlist_chunks[1]);
                         }
                         MenuItem::Devices => {
                             let device_chunks = Layout::default()
@@ -249,8 +255,16 @@ impl App {
                         footer_message.clone()
                     };
 
-                    let footer_widget =
-                        Paragraph::new(format!("{} | {}", footer_device_text, playing_footer_text));
+                    let paused_text = if track_player.is_playing() {
+                        "Playing"
+                    } else {
+                        "Paused"
+                    };
+
+                    let footer_widget = Paragraph::new(format!(
+                        "{} | {} | {}",
+                        paused_text, footer_device_text, playing_footer_text
+                    ));
                     rect.render_widget(footer_widget, chunks[2]);
                 })?;
             } // is quitting
@@ -431,6 +445,9 @@ impl App {
                         KeyCode::Char('n') => {
                             if is_quitting {
                                 is_quitting = false;
+                            } else {
+                                track_player.skip();
+                                click_player.skip();
                             }
                         }
                         KeyCode::Char('g') => {
@@ -601,6 +618,8 @@ impl App {
                     {
                         info!("Song ended, moving to the next song");
 
+                        footer_message = "Moving to next song in the queue".to_string();
+
                         #[allow(unused_assignments)]
                         let mut new_position: usize;
 
@@ -635,8 +654,6 @@ impl App {
 
                             songlist_state.select(Some(new_position));
 
-                            std::thread::sleep(std::time::Duration::from_secs(2));
-
                             let (track_file, click_file) = match get_file_paths(
                                 &self.music_folder.as_ref().unwrap(),
                                 new_position + 1,
@@ -669,7 +686,6 @@ impl App {
                                 .expect("Could not create click song"),
                             );
 
-                            std::thread::sleep(std::time::Duration::from_secs(2));
                             track_player
                                 .play_song_next(&self.track_song.as_ref().unwrap(), None)
                                 .expect("Could not play track song");
@@ -677,6 +693,8 @@ impl App {
                                 .play_song_next(&self.click_song.as_ref().unwrap(), None)
                                 .expect("Could not play click song");
                         }
+                    } else {
+                        footer_message = "".to_string();
                     }
                 }
             }
@@ -729,7 +747,11 @@ impl App {
     }
 
     // TODO: Add * if song is in the current playlist
-    fn render_songs<'a>(&mut self, songlist_state: &TableState, is_playing: bool) -> Table<'a> {
+    fn render_songs<'a>(
+        &mut self,
+        songlist_state: &TableState,
+        is_playing: bool,
+    ) -> (Table<'a>, Table<'a>) {
         let songlist_ui = Block::default()
             .borders(Borders::ALL)
             .style(Style::default().fg(Color::White))
@@ -855,56 +877,47 @@ impl App {
                 Constraint::Percentage(20),
             ]);
 
-        // let playlist_ui = Block::default()
-        //     .borders(Borders::ALL)
-        //     .style(Style::default().fg(Color::White))
-        //     .title("Queue")
-        //     .border_type(BorderType::Plain);
+        let queue_ui = Block::default()
+            .borders(Borders::ALL)
+            .style(Style::default().fg(Color::White))
+            .title("Queue")
+            .border_type(BorderType::Plain);
 
-        // let mut rows = vec![];
-        // for song in self.current_playlist.values() {
-        //     let row = Row::new(vec![
-        //         Cell::from(Span::styled(
-        //             song.artist.clone(),
-        //             Style::default().fg(Color::LightGreen),
-        //         )),
-        //         Cell::from(Span::styled(
-        //             song.title.clone(),
-        //             Style::default().fg(Color::LightGreen),
-        //         )),
-        //     ]);
-        //     rows.push(row);
-        // }
+        // Prepare the table data
+        let rows: Vec<Row> = self
+            .current_playlist
+            .iter()
+            .map(|(_, song)| Row::new(vec![song.artist.clone(), song.title.clone()]))
+            .collect();
 
-        // let playlist_table = Table::new(rows)
-        //     .block(playlist_ui)
-        //     .highlight_style(
-        //         Style::default()
-        //             .bg(Color::Yellow)
-        //             .fg(Color::Black)
-        //             .add_modifier(Modifier::BOLD),
-        //     )
-        //     .header(Row::new(vec![
-        //         Cell::from(Span::styled(
-        //             "Artist",
-        //             Style::default().add_modifier(Modifier::BOLD),
-        //         )),
-        //         Cell::from(Span::styled(
-        //             "Song",
-        //             Style::default().add_modifier(Modifier::BOLD),
-        //         )),
-        //     ]))
-        //     .block(
-        //         Block::default()
-        //             .borders(Borders::ALL)
-        //             .style(Style::default().fg(Color::White))
-        //             .title("Detail")
-        //             .border_type(BorderType::Plain),
-        //     )
-        //     .widths(&[Constraint::Percentage(50), Constraint::Percentage(50)]);
+        let queue_table = Table::new(rows)
+            .block(queue_ui)
+            .highlight_style(
+                Style::default()
+                    .bg(Color::Yellow)
+                    .fg(Color::Black)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .header(Row::new(vec![
+                Cell::from(Span::styled(
+                    "Artist",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )),
+                Cell::from(Span::styled(
+                    "Song",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )),
+            ]))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .style(Style::default().fg(Color::LightBlue))
+                    .title("Detail")
+                    .border_type(BorderType::Plain),
+            )
+            .widths(&[Constraint::Percentage(50), Constraint::Percentage(50)]);
 
-        // (song_table, playlist_table)
-        song_table
+        (song_table, queue_table)
     }
 
     fn handle_down_event(
