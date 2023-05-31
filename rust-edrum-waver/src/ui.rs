@@ -16,8 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 use std::{io, thread};
-use termimad::{MadView, TextView};
-use tui::{backend::Backend, text::Text};
+use tui::backend::Backend;
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -219,7 +218,9 @@ impl App {
                             self.render_devices(selected_track_device, selected_click_device);
                         rect.render_stateful_widget(left, device_chunks[0], &mut device_list_state);
                     }
-                    MenuItem::Help => {}
+                    MenuItem::Help => {
+                        rect.render_widget(self.render_help(), chunks[1]);
+                    }
                 }
 
                 let track_device_name = match available_devices[selected_track_device].name() {
@@ -232,13 +233,13 @@ impl App {
                     Err(_) => "Unknown".to_string(),
                 };
 
-                let track_volume = if let Some(song) = &self.track_song {
+                let track_volume = if let Some(_song) = &self.track_song {
                     self.track_volume
                 } else {
                     0
                 };
 
-                let click_volume = if let Some(song) = &self.click_song {
+                let click_volume = if let Some(_song) = &self.click_song {
                     self.click_volume
                 } else {
                     0
@@ -1147,5 +1148,83 @@ impl App {
             idx += 1;
             self.current_playlist.insert(idx, song_record);
         }
+    }
+
+    fn render_help<'a>(&self) -> Paragraph<'a> {
+        let header_style = Style::default()
+            .add_modifier(Modifier::BOLD)
+            .fg(Color::Yellow);
+
+        let help_content = vec![
+            Spans::from(Span::styled("General Commands", header_style)),
+            Spans::from(vec![
+                Span::styled("q", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Quit (boo!)."),
+            ]),
+            Spans::from(vec![
+                Span::styled("d", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Show device selection. You can pick output devices for tracks and clicks separately."),
+            ]),
+            Spans::from(vec![
+                Span::styled("s", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Show the song list."),
+            ]),
+            Spans::from(vec![
+                Span::styled("h", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Show this help screen."),
+            ]),
+            Spans::from("\n"),
+
+            Spans::from(Span::styled("Song list Commands", header_style)),
+            Spans::from(vec![
+                Span::styled("Left or Right Arrow", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Slow down or speed up playback."),
+            ]),
+            Spans::from(vec![
+                Span::styled("r", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Reset the playback speed."),
+            ]),
+            Spans::from(vec![
+                Span::styled("z", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Restart the song that is playing."),
+            ]),
+            Spans::from(vec![
+                Span::styled("SPACE", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Pause or continue the song that is playing"),
+            ]),
+            Spans::from(vec![
+                Span::styled("1 or 4", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Lower the track or click volume"),
+            ]),
+            Spans::from(vec![
+                Span::styled("2 or 5", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Reset the track or click volume"),
+            ]),
+            Spans::from(vec![
+                Span::styled("3 or 6", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Increase the track or click volume"),
+            ]),
+            Spans::from(vec![
+                Span::styled("g", Style::default().fg(Color::LightCyan)),
+                Span::raw(": start searching for a specific song or artist."),
+            ]),
+            Spans::from("\n"),
+            Spans::from("When searching, hit ESC to cancel the search. Enter confirms."),
+            Spans::from("\n"),
+            Spans::from(Span::styled("Queue Commands", header_style)),
+            Spans::from(vec![
+                Span::styled("+", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Adds the selected song to the queue"),
+            ]),
+            Spans::from(vec![
+                Span::styled("-", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Removes the selected song from the queue"),
+            ]),
+        ];
+
+        // Create a Paragraph with the help screen content
+        Paragraph::new(help_content.clone())
+            .style(Style::default())
+            .block(Block::default().borders(Borders::ALL).title("Help"))
     }
 }

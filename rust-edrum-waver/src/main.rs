@@ -16,7 +16,6 @@ mod playlist;
 mod ui;
 use ui::App;
 mod songlist;
-use songlist::play_song;
 
 use crate::songlist::import_songs;
 mod audio;
