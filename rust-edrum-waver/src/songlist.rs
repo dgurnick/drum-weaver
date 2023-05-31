@@ -1,4 +1,5 @@
 use cpal::traits::HostTrait;
+use cpal::Device;
 use lazy_static::lazy_static;
 use std::fs;
 use std::sync::Mutex;
@@ -27,12 +28,16 @@ pub fn import_songs() -> Result<Vec<SongRecord>, Error> {
     Ok(songs.clone())
 }
 
-pub fn play_song(arguments: PlayerArguments) -> Result<(Player, Player), String> {
-    let host = cpal::default_host();
-    let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
+pub fn play_song(
+    arguments: PlayerArguments,
+    track_device: &Device,
+    click_device: &Device,
+) -> Result<(Player, Player), String> {
+    //let host = cpal::default_host();
+    //let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
 
-    let track_device = &available_devices[arguments.track_device_position];
-    let click_device = &available_devices[arguments.click_device_position];
+    //let track_device = &available_devices[arguments.track_device_position];
+    //let click_device = &available_devices[arguments.click_device_position];
 
     let track_play = Player::new(None, track_device).expect("Could not create track player");
     let click_play = Player::new(None, click_device).expect("Could not create click player");

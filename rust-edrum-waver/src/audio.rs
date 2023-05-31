@@ -31,6 +31,7 @@ pub use symphonia::core::probe::Hint;
 struct SampleRequest {
     frame: Option<(Duration, Wrapping<u8>)>,
     speed: f64,
+    volume_adjustment: f32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -118,6 +119,8 @@ impl DecodingSong {
             let mut current_frame = 0;
             let mut skip_count = Wrapping(0);
             let mut last_request_speed = 1.0;
+            let mut volume_adjustment = 1.0;
+
             loop {
                 let request = match rrx.recv() {
                     Ok(request) => request,
@@ -126,6 +129,8 @@ impl DecodingSong {
                         break;
                     }
                 };
+
+                volume_adjustment = request.volume_adjustment;
 
                 // adjust position based on seek
                 if let Some((new_pos, new_skip_count)) = request.frame {
@@ -205,11 +210,15 @@ impl DecodingSong {
             }
         });
         erx.recv()??;
+
         let skip_count = Wrapping(0);
+
         rtx.send(SampleRequest {
             speed: initial_playback_speed,
             frame: Some((initial_pos, skip_count)),
+            volume_adjustment: volume_adjustment,
         })?;
+
         Ok(DecodingSong {
             song_length,
             channel_count: player_channel_count,
@@ -229,6 +238,7 @@ impl DecodingSong {
         pos: Duration,
         count: usize,
         playback_speed: f64,
+        volume_adjustment: f32,
     ) -> (Vec<f32>, Duration, bool) {
         // if they want another position, we're seeking, so reset the buffer
         if pos != self.expected_pos {
@@ -240,6 +250,7 @@ impl DecodingSong {
                 .send(SampleRequest {
                     speed: playback_speed,
                     frame: Some((pos, self.skip_count)),
+                    volume_adjustment: volume_adjustment,
                 })
                 .unwrap(); // This shouldn't be able to fail unless the thread stops which shouldn't be able to happen.
             self.pending_requests = 1;
@@ -254,6 +265,7 @@ impl DecodingSong {
                 .send(SampleRequest {
                     speed: playback_speed,
                     frame: None,
+                    volume_adjustment: volume_adjustment,
                 })
                 .is_err()
             {
@@ -335,7 +347,7 @@ struct PlayerState {
     channel_count: usize,
     sample_rate: usize,
     buffer_size: u32,
-    pub volume: f32,
+    volume_adjustment: Arc<RwLock<f32>>,
     playback_speed: Arc<RwLock<f64>>,
 }
 
@@ -348,7 +360,7 @@ impl PlayerState {
             channel_count: channel_count as usize,
             sample_rate: sample_rate as usize,
             buffer_size,
-            volume: 1.0,
+            volume_adjustment: Arc::new(RwLock::new(1.0)),
             playback_speed: Arc::new(RwLock::new(1.0)),
         })
     }
@@ -361,6 +373,7 @@ impl PlayerState {
         }
         if *self.playing.read().unwrap() {
             let playback_speed = *self.playback_speed.read().unwrap();
+            let volume_adjustment = *self.volume_adjustment.read().unwrap();
             let mut playback = self.playback.write().unwrap();
             if playback.is_none() {
                 if let Some((new_samples, new_pos)) = self.next_samples.write().unwrap().take() {
@@ -371,8 +384,12 @@ impl PlayerState {
             if let Some((decoding_song, sample_pos)) = playback.as_mut() {
                 let mut neg_offset = 0;
                 let data_len = data.len();
-                let (mut samples, mut new_pos, mut is_final) =
-                    decoding_song.read_samples(*sample_pos, data_len, playback_speed);
+                let (mut samples, mut new_pos, mut is_final) = decoding_song.read_samples(
+                    *sample_pos,
+                    data_len,
+                    playback_speed,
+                    volume_adjustment,
+                );
                 for (i, sample) in data.iter_mut().enumerate() {
                     if i >= samples.len() {
                         if let Some((next_samples, next_pos)) =
@@ -385,6 +402,7 @@ impl PlayerState {
                                 *sample_pos,
                                 data_len - neg_offset,
                                 playback_speed,
+                                volume_adjustment,
                             );
                         } else {
                             break;
@@ -413,6 +431,12 @@ impl PlayerState {
     fn set_playback_speed(&self, speed: f64) {
         *self.playback_speed.write().unwrap() =
             speed.clamp(MINIMUM_PLAYBACK_SPEED, MAXIMUM_PLAYBACK_SPEED);
+    }
+    fn set_volume_adjustment(&self, volume: f32) {
+        *self.volume_adjustment.write().unwrap() = volume;
+    }
+    fn get_volume_adjustment(&self) -> f32 {
+        *self.volume_adjustment.read().unwrap()
     }
     fn stop(&self) {
         *self.next_samples.write().unwrap() = None;
@@ -665,10 +689,14 @@ impl Player {
         self.player_state.seek(time)
     }
 
-    //TODO: Implement volume control
-    #[allow(dead_code, unused_variables)]
-    pub fn set_volume(&self, volume: f32) -> f32 {
-        self.player_state.volume
+    pub fn set_volume_adjustment(&self, volume: f32) {
+        if volume >= 0.1 && volume <= 2.0 {
+            self.player_state.set_volume_adjustment(volume);
+        }
+    }
+
+    pub fn get_volume_adjustment(&self) -> f32 {
+        self.player_state.get_volume_adjustment()
     }
 
     /// Sets whether playback is enabled or not, without touching the song queue.

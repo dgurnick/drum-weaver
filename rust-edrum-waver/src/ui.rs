@@ -16,7 +16,8 @@ use std::{
     time::{Duration, Instant},
 };
 use std::{io, thread};
-use tui::backend::Backend;
+use termimad::{MadView, TextView};
+use tui::{backend::Backend, text::Text};
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -36,8 +37,8 @@ pub struct App {
     click_file: Option<String>,
     track_song: Option<Song>,
     click_song: Option<Song>,
-    track_volume: Option<f32>,
-    click_volume: Option<f32>,
+    track_volume: usize,
+    click_volume: usize,
     track_device_idx: usize,
     click_device_idx: usize,
     playback_speed: f64,
@@ -53,8 +54,8 @@ impl App {
             click_file: None,
             track_song: None,
             click_song: None,
-            track_volume: Some(arguments.track_volume),
-            click_volume: Some(arguments.click_volume),
+            track_volume: 100,
+            click_volume: 100,
             track_device_idx: arguments.track_device_position,
             click_device_idx: arguments.click_device_position,
             playback_speed: arguments.playback_speed,
@@ -101,8 +102,8 @@ impl App {
         let mut terminal = Terminal::new(backend)?;
         terminal.clear()?;
 
-        let menu_titles = vec!["Songs", "Devices", "Quit"];
-        let mut active_menu_item = MenuItem::Songs;
+        let menu_titles = vec!["Songs", "Devices", "Help", "Quit"];
+        let mut active_menu_item = MenuItem::Help;
 
         let mut songlist_state = TableState::default();
         songlist_state.select(Some(0));
@@ -211,13 +212,14 @@ impl App {
                         let device_chunks = Layout::default()
                             .direction(Direction::Horizontal)
                             .constraints(
-                                [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
+                                [Constraint::Percentage(50), Constraint::Percentage(100)].as_ref(),
                             )
                             .split(chunks[1]);
                         let left =
                             self.render_devices(selected_track_device, selected_click_device);
                         rect.render_stateful_widget(left, device_chunks[0], &mut device_list_state);
                     }
+                    MenuItem::Help => {}
                 }
 
                 let track_device_name = match available_devices[selected_track_device].name() {
@@ -231,23 +233,20 @@ impl App {
                 };
 
                 let track_volume = if let Some(song) = &self.track_song {
-                    song.get_volume_adjustment()
+                    self.track_volume
                 } else {
-                    0.0
+                    0
                 };
 
                 let click_volume = if let Some(song) = &self.click_song {
-                    song.get_volume_adjustment()
+                    self.click_volume
                 } else {
-                    0.0
+                    0
                 };
 
-                let mut footer_device_text = format!(
+                let footer_device_text = format!(
                     "Track device: {} - {}% | Click device: {} - {}%",
-                    track_device_name,
-                    track_volume * 100.0 as f32,
-                    click_device_name,
-                    click_volume * 100.0 as f32
+                    track_device_name, track_volume, click_device_name, click_volume,
                 );
 
                 let playing_footer_text = if footer_message.is_empty() {
@@ -312,6 +311,46 @@ impl App {
                 }
                 Event::Input(event) if event.kind == KeyEventKind::Release && !is_going_to => {
                     match event.code {
+                        KeyCode::Char('1') => {
+                            if self.track_volume > 0 {
+                                self.track_volume = self.track_volume - 1;
+                            }
+
+                            track_player.set_volume_adjustment(self.track_volume as f32 / 100.0);
+                        }
+                        KeyCode::Char('2') => {
+                            self.track_volume = 100;
+                            track_player.set_volume_adjustment(1.0);
+                        }
+                        KeyCode::Char('3') => {
+                            self.track_volume = self.track_volume + 1;
+                            if self.track_volume > 200 {
+                                self.track_volume = 200;
+                            }
+
+                            track_player.set_volume_adjustment(self.track_volume as f32 / 100.0);
+                        }
+
+                        KeyCode::Char('4') => {
+                            if self.click_volume > 0 {
+                                self.click_volume = self.click_volume - 1;
+                            }
+
+                            click_player.set_volume_adjustment(self.click_volume as f32 / 100.0);
+                        }
+                        KeyCode::Char('5') => {
+                            self.click_volume = 100;
+                            click_player.set_volume_adjustment(1.0);
+                        }
+                        KeyCode::Char('6') => {
+                            self.click_volume = self.click_volume + 1;
+                            if self.click_volume > 200 {
+                                self.click_volume = 200;
+                            }
+
+                            click_player.set_volume_adjustment(self.click_volume as f32 / 100.0);
+                        }
+
                         KeyCode::Char('+') => {
                             if let Some(selected) = songlist_state.selected() {
                                 // add it to the queue. We can keep addint. No issue.
@@ -357,6 +396,7 @@ impl App {
                         }
                         KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
                         KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
+                        KeyCode::Char('h') => active_menu_item = MenuItem::Help,
                         KeyCode::Char('q') => {
                             self.handle_q_event(&mut track_player, &mut click_player, &mut terminal)
                         }
@@ -487,13 +527,19 @@ impl App {
                                     };
 
                                     self.track_song = Some(
-                                        Song::from_file(&track_file, self.track_volume)
-                                            .expect("Could not create track song"),
+                                        Song::from_file(
+                                            &track_file,
+                                            Some((self.track_volume / 100) as f32),
+                                        )
+                                        .expect("Could not create track song"),
                                     );
 
                                     self.click_song = Some(
-                                        Song::from_file(&click_file, self.click_volume.clone())
-                                            .expect("Could not create click song"),
+                                        Song::from_file(
+                                            &click_file,
+                                            Some((self.click_volume / 100) as f32),
+                                        )
+                                        .expect("Could not create click song"),
                                     );
 
                                     track_player
@@ -577,7 +623,7 @@ impl App {
                             self.track_song = Some(
                                 Song::from_file(
                                     &self.track_file.clone().unwrap(),
-                                    self.track_volume,
+                                    Some((self.track_volume / 100) as f32),
                                 )
                                 .expect("Could not create track song"),
                             );
@@ -585,7 +631,7 @@ impl App {
                             self.click_song = Some(
                                 Song::from_file(
                                     &self.click_file.clone().unwrap(),
-                                    self.click_volume,
+                                    Some((self.click_volume / 100) as f32),
                                 )
                                 .expect("Could not create click song"),
                             );
@@ -877,6 +923,7 @@ impl App {
                 }
                 info!("Set song to {}", songlist_state.selected().unwrap());
             }
+            _ => {}
         }
     }
 
@@ -912,6 +959,7 @@ impl App {
                 }
                 info!("Set song to {}", songlist_state.selected().unwrap());
             }
+            _ => {}
         }
     }
 

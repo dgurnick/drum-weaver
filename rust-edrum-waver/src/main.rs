@@ -204,46 +204,15 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
         playback_speed: playback_speed,
     };
 
-    if ui {
-        match import_songs() {
-            Ok(songs) => {
-                let mut app = App::new(arguments, songs);
-                match app.run_ui() {
-                    Ok(_) => {}
-                    Err(err) => return Err(format!("Could not start the ui. {}", err)),
-                }
+    match import_songs() {
+        Ok(songs) => {
+            let mut app = App::new(arguments, songs);
+            match app.run_ui() {
+                Ok(_) => {}
+                Err(err) => return Err(format!("Could not start the ui. {}", err)),
             }
-            Err(err) => return Err(format!("Could not import songs: {}", err)),
-        };
-    } else {
-        match run_cli(&arguments) {
-            Ok(_) => {}
-            Err(err) => return Err(format!("Could not run the cli: {}", err)),
         }
-    }
-
-    Ok(0)
-}
-
-fn run_cli(arguments: &PlayerArguments) -> Result<i32, String> {
-    info!("Playing song on console");
-
-    let (track_player, click_player) = play_song(arguments.clone())?;
-    while track_player.has_current_song() && click_player.has_current_song() {
-        std::thread::sleep(std::time::Duration::from_secs(1));
-
-        let (_track_samples, _track_position) = track_player
-            .get_playback_position()
-            .expect("Could not get track playback position");
-        let (_click_samples, _click_position) = click_player
-            .get_playback_position()
-            .expect("Could not get click playback position");
-
-        // println!("Track: {}/{} Click: {}/{}",
-        //     track_position.as_secs(),
-        //     track_samples.as_secs(),
-        //     click_position.as_secs(),
-        //     click_samples.as_secs());
-    }
+        Err(err) => return Err(format!("Could not import songs: {}", err)),
+    };
     Ok(0)
 }

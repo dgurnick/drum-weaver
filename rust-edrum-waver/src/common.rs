@@ -48,6 +48,7 @@ pub enum Error {
 pub enum MenuItem {
     Songs,
     Devices,
+    Help,
 }
 
 impl From<MenuItem> for usize {
@@ -55,6 +56,7 @@ impl From<MenuItem> for usize {
         match input {
             MenuItem::Songs => 1,
             MenuItem::Devices => 2,
+            MenuItem::Help => 3,
         }
     }
 }
