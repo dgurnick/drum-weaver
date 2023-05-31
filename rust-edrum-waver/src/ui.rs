@@ -159,7 +159,7 @@ impl App {
                                 Span::styled(
                                     first,
                                     Style::default()
-                                        .fg(Color::Yellow)
+                                        .fg(Color::LightBlue)
                                         .add_modifier(Modifier::UNDERLINED),
                                 ),
                                 Span::styled(rest, Style::default().fg(Color::White)),
@@ -170,7 +170,7 @@ impl App {
                     let menu = Tabs::new(menu)
                         .select(active_menu_item.into())
                         .block(Block::default().title("Menu").borders(Borders::ALL))
-                        .style(Style::default().fg(Color::White))
+                        .style(Style::default().fg(Color::LightBlue))
                         //.highlight_style(Style::default().fg(Color::Yellow))
                         .divider(Span::raw("|"));
 
@@ -1204,6 +1204,10 @@ impl App {
             Line::from("\n"),
 
             Line::from(Span::styled("Song list Commands", header_style)),
+            Line::from(vec![
+                Span::styled("n", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Move to the next song in the queue or song list."),
+            ]),
             Line::from(vec![
                 Span::styled("Left or Right Arrow", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Slow down or speed up playback."),
