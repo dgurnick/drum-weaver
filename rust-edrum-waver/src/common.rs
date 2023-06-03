@@ -61,32 +61,84 @@ impl From<MenuItem> for usize {
     }
 }
 
+pub fn needs_unzipping(
+    music_folder: &String,
+    song_title: &String,
+    artist_name: &String,
+    album_name: &String,
+) -> bool {
+    for song_record in read_song_file(music_folder).unwrap().iter() {
+        let song: SongRecord = song_record.clone();
+
+        if &song.album == album_name && &song.artist == artist_name && &song.title == song_title {
+            let (track_path, _) = get_track_and_click_path(music_folder, &song.folder, &song.title);
+
+            if !track_path.exists() {
+                return true;
+            } else {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+lazy_static! {
+    static ref SONGS: Mutex<Vec<SongRecord>> = Mutex::new(Vec::new());
+}
+fn read_song_file(music_folder: &String) -> Result<Vec<SongRecord>, Error> {
+    let mut songs = SONGS.lock().unwrap();
+
+    if songs.is_empty() {
+        let mut reader = csv::Reader::from_path("assets/song_list.csv").unwrap();
+        let _ = reader.headers();
+
+        for record in reader.deserialize() {
+            let song: SongRecord = record.unwrap();
+            songs.push(song);
+        }
+    }
+
+    Ok(songs.clone())
+}
+
+fn get_track_and_click_path(
+    music_folder: &String,
+    song_folder: &String,
+    song_name: &String,
+) -> (PathBuf, PathBuf) {
+    let mut track_path = PathBuf::new();
+    track_path.push(music_folder);
+    track_path.push(song_folder);
+    track_path.push(format!("{}.wav", song_name));
+
+    let mut click_path = PathBuf::new();
+    click_path.push(music_folder);
+    click_path.push(song_folder);
+    click_path.push(format!("{}_click.wav", song_name));
+
+    (track_path, click_path)
+}
+
 pub fn get_file_paths(
     music_folder: &String,
-    song_position: usize,
+    song_name: &String,
+    artist_name: &String,
+    album_name: &String,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
-    let mut reader = csv::Reader::from_path("assets/song_list.csv").unwrap();
-    let _ = reader.headers();
-
     let mut position = 1;
     #[allow(unused_assignments)]
     let mut track_path_str: String = String::new();
     #[allow(unused_assignments)]
     let mut click_path_str: String = String::new();
 
-    for record in reader.deserialize() {
-        let song: SongRecord = record.unwrap();
+    for record in read_song_file(music_folder)?.iter() {
+        let song: SongRecord = record.clone();
 
-        if position == song_position {
-            let mut track_path = PathBuf::new();
-            track_path.push(music_folder);
-            track_path.push(&song.folder);
-            track_path.push(format!("{}.wav", song.file_name));
-
-            let mut click_path = PathBuf::new();
-            click_path.push(music_folder);
-            click_path.push(&song.folder);
-            click_path.push(format!("{}_click.wav", song.file_name));
+        if &song.album == album_name && &song.artist == artist_name && &song.title == song_name {
+            let (track_path, click_path) =
+                get_track_and_click_path(music_folder, &song.folder, &song.file_name);
 
             if !track_path.exists() {
                 // if there's a 7z file with the same name, decompress it

@@ -15,31 +15,8 @@
 
 ## Running it
 1. Download all the files
-2. execute ```rust-edrum-waver --music_folder D:\drumless``` ... or point it to wherever you have the huge number of files saved.
+2. execute ```rust-edrum-waver```
 3. Note: the UI automatically moves to the next song. If you want to disable this, add ```--autoskip=0``` as a parameter when you run the app.
-
-## Using the UI
-The UI is a very basic terminal app. It's not meant to do anything fancy (doesn't have search/filter/playlists yet) other than plan a song you want.
-
-Shortcut "S": This brings up the list of songs found by the app.  You can use up/down arrow keys or pgup/pgdn to move up or down.
-Shortcut "Enter": Clicking the ENTER key on a song plays it. It might take a few seconds if the file has not yet been decompressed. Be patient.
-Shortcut "Space": Stops playing the current song.
-Shortcut "D": here you can choose what audio output to use for what channel. up/down moves across devices. "c" selects it for the click track. "t" for the master track. This is super useful for drum karaoke!
-Shortcut "left arrow": reduces playback speed if you're a shitty drummer
-Shortcut "right arrow": makes maximum chaos. 
-Shortcut "r": during playback resets the playback speed.
-
-## Parameters:
-1. **music_folder** is where you downloaded the massive amount of 7z files
-2. **track** is the position in the csv file (minus 1). Useful really in the cli version and ignored in the UI
-3. **track_volume** is the master volume.
-4. **click_volume** is the click volume. For live performances, this is useful --I hope.
-5. **track_device** is where to play the main file in the collection of devices iterated
-6. **click_device** is like the track_device
-7. **ui** If you just want to play the song, 0. If you want to navigate, 1.
-8. **playback_speed** is the startup speed of the player.
-9. **print_devices** will just print your audio devices and exit. You get the same thing in the UI by pressing "d"
-10. **auto_skip** automatically moves to the next song in sequence. It defaults to skip and will not skip if any other parameter is passed. I'm a shitty developer.
 
 ## Improvements
 1. [x] Basic player

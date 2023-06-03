@@ -1,10 +1,15 @@
+use rand::seq::SliceRandom;
+use rand::Rng;
+
 use cpal::traits::{DeviceTrait, HostTrait};
 use crossterm::{
     event::{self, Event as CEvent, KeyCode, KeyEventKind},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 
-use crate::common::{get_file_paths, read_devices, Event, MenuItem, PlayerArguments};
+use crate::common::{
+    get_file_paths, needs_unzipping, read_devices, Event, MenuItem, PlayerArguments,
+};
 use crate::{
     audio::{Player, Song},
     playlist::SongRecord,
@@ -21,15 +26,16 @@ use ratatui::{
     },
     Frame, Terminal,
 };
-use std::sync::mpsc;
 use std::{
     collections::BTreeMap,
     time::{Duration, Instant},
 };
+use std::{env, sync::mpsc};
 use std::{io, thread};
 
 pub struct App {
     songs: Vec<SongRecord>,
+    original_songs: Vec<SongRecord>,
     music_folder: Option<String>,
     track_file: Option<String>,
     click_file: Option<String>,
@@ -46,7 +52,8 @@ pub struct App {
 impl App {
     pub fn new(arguments: PlayerArguments, songs: Vec<SongRecord>) -> App {
         App {
-            songs: songs,
+            songs: songs.clone(),
+            original_songs: songs.clone(),
             music_folder: None,
             track_file: None,
             click_file: None,
@@ -102,6 +109,7 @@ impl App {
         let mut is_playing = false;
         let mut is_going_to = false;
         let mut is_quitting = false;
+        let mut is_random = false;
         let mut going_to = String::new();
         let mut footer_message = String::new();
 
@@ -243,7 +251,7 @@ impl App {
                     );
 
                     let playing_footer_text = if footer_message.is_empty() {
-                        if track_player.has_current_song() {
+                        if track_player.has_current_song() && click_player.has_current_song() {
                             format!("Playing: {}", self.track_file.as_ref().unwrap().clone())
                         } else {
                             "No song playing".to_string()
@@ -485,11 +493,8 @@ impl App {
                                         track_player.stop();
                                         click_player.stop();
 
-                                        track_device = &available_devices[selected_track_device];
                                         click_device = &available_devices[selected_click_device];
 
-                                        track_player = Player::new(None, track_device)
-                                            .expect("Could not create track player");
                                         click_player = Player::new(None, click_device)
                                             .expect("Could not create click player");
 
@@ -497,6 +502,10 @@ impl App {
                                         click_player.set_playback_speed(self.playback_speed);
 
                                         info!("Set click device to {}", selected_click_device);
+
+                                        let beep =
+                                            Song::from_file(self.get_beep_file(), None).unwrap();
+                                        click_player.play_song_now(&beep, None);
                                     }
                                     _ => {}
                                 }
@@ -519,17 +528,17 @@ impl App {
                                         click_player.stop();
 
                                         track_device = &available_devices[selected_track_device];
-                                        click_device = &available_devices[selected_click_device];
 
                                         track_player = Player::new(None, track_device)
                                             .expect("Could not create track player");
-                                        click_player = Player::new(None, click_device)
-                                            .expect("Could not create click player");
 
                                         track_player.set_playback_speed(self.playback_speed);
                                         click_player.set_playback_speed(self.playback_speed);
 
                                         info!("Set track device to {}", selected_track_device);
+                                        let beep =
+                                            Song::from_file(self.get_beep_file(), None).unwrap();
+                                        track_player.play_song_now(&beep, None);
                                     }
                                     _ => {}
                                 }
@@ -562,9 +571,23 @@ impl App {
                         KeyCode::Enter => match active_menu_item {
                             MenuItem::Songs => {
                                 if let Some(selected) = songlist_state.selected() {
+                                    // this is wrong when we are random
+                                    let selected_song = self.songs.get(selected).unwrap();
+
+                                    if needs_unzipping(
+                                        &self.music_folder.as_ref().unwrap(),
+                                        &selected_song.title,
+                                        &selected_song.artist,
+                                        &selected_song.album,
+                                    ) {
+                                        footer_message = "Unzipping song".to_string();
+                                    }
+
                                     let (track_file, click_file) = match get_file_paths(
                                         &self.music_folder.as_ref().unwrap(),
-                                        selected + 1,
+                                        &selected_song.title,
+                                        &selected_song.artist,
+                                        &selected_song.album,
                                     ) {
                                         Ok((track_file, click_file)) => (track_file, click_file),
                                         Err(e) => {
@@ -603,6 +626,14 @@ impl App {
                             }
                             _ => {}
                         },
+                        KeyCode::Char('x') => {
+                            if is_random {
+                                self.songs = self.original_songs.clone();
+                            } else {
+                                self.songs.shuffle(&mut rand::thread_rng());
+                            }
+                            is_random = !is_random;
+                        }
 
                         _ => {}
                     }
@@ -641,6 +672,7 @@ impl App {
                         if let Some(selected) = songlist_state.selected() {
                             info!("The current position is {}", selected);
                             let amount_songs = self.songs.len();
+
                             if selected > amount_songs - 1 {
                                 info!("Moving to position 1");
                                 new_position = 0;
@@ -650,10 +682,22 @@ impl App {
                             }
 
                             songlist_state.select(Some(new_position));
+                            let selected_song = self.songs.get(new_position).unwrap();
+
+                            if needs_unzipping(
+                                &self.music_folder.as_ref().unwrap(),
+                                &selected_song.title,
+                                &selected_song.artist,
+                                &selected_song.album,
+                            ) {
+                                footer_message = "Unzipping song".to_string();
+                            }
 
                             let (track_file, click_file) = match get_file_paths(
                                 &self.music_folder.as_ref().unwrap(),
-                                new_position + 1,
+                                &selected_song.title,
+                                &selected_song.artist,
+                                &selected_song.album,
                             ) {
                                 Ok((track_file, click_file)) => (track_file, click_file),
                                 Err(e) => {
@@ -795,6 +839,18 @@ impl App {
             ));
 
             let selected_cell = if is_selected {
+                Cell::from(Span::styled(
+                    "▶".to_string(),
+                    Style::default().fg(selected_fg),
+                ))
+            } else {
+                Cell::from(Span::styled(
+                    "".to_string(),
+                    Style::default().fg(selected_fg),
+                ))
+            };
+
+            let status_cell = if is_selected {
                 Cell::from(Span::styled(
                     "▶".to_string(),
                     Style::default().fg(selected_fg),
@@ -1222,6 +1278,10 @@ impl App {
                 Span::raw(": Pause or continue the song that is playing"),
             ]),
             Line::from(vec![
+                Span::styled("x", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Shuffle or unshuffle the playlist"),
+            ]),
+            Line::from(vec![
                 Span::styled("1 or 4", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Lower the track or click volume"),
             ]),
@@ -1327,5 +1387,15 @@ impl App {
                 .as_ref(),
             )
             .split(popup_layout[1])[1]
+    }
+
+    fn get_beep_file(&self) -> String {
+        let mut path = env::current_dir().expect("Failed to get current exe path");
+
+        // Append the relative path to your asset
+        path.push("assets");
+        path.push("beep.wav");
+
+        path.display().to_string()
     }
 }

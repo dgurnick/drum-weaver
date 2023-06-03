@@ -20,6 +20,7 @@ log4rs = "1.2.0"
 native-dialog = "0.6.3"
 pretty_env_logger = "0.4.0"
 pulldown-cmark = "0.9.3"
+rand = "0.8.5"
 ratatui = { version = "0.21.0", features = ["serde"] }
 rodio = "0.17.1"
 rubato = "0.12.0"
