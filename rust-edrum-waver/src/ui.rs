@@ -567,6 +567,12 @@ impl App {
                             &mut click_player,
                         ),
                         KeyCode::Esc => {}
+                        KeyCode::Home => {
+                            songlist_state.select(Some(0));
+                        }
+                        KeyCode::End => {
+                            songlist_state.select(Some(self.songs.len() - 1));
+                        }
 
                         KeyCode::Enter => match active_menu_item {
                             MenuItem::Songs => {
@@ -1276,6 +1282,10 @@ impl App {
             Line::from(vec![
                 Span::styled("SPACE", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Pause or continue the song that is playing"),
+            ]),
+            Line::from(vec![
+                Span::styled("HOME or END", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Move to the first or last song in the queue or song list."),
             ]),
             Line::from(vec![
                 Span::styled("x", Style::default().fg(Color::LightCyan)),
