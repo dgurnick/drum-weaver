@@ -8,8 +8,6 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use thiserror::Error;
 
-use cpal::traits::{DeviceTrait, HostTrait};
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct PlayerArguments {
     pub music_folder: Option<String>,
@@ -22,14 +20,7 @@ pub struct PlayerArguments {
     pub playback_speed: f64,
 }
 
-#[derive(Debug, Deserialize, Clone)]
-#[allow(unused_variables)]
-pub struct DeviceDetail {
-    pub name: String,
-    pub position: usize,
-}
-
-pub enum Event<I> {
+pub enum UiEvent<I> {
     Input(I),
     Tick,
 }
@@ -192,39 +183,4 @@ fn check_file_existence(folder_path: String, file_name: String) -> Result<(), St
         return Err(format!("File '{}' does not exist", path.display()));
     }
     Ok(())
-}
-
-lazy_static! {
-    static ref DEVICES: Mutex<Vec<DeviceDetail>> = Mutex::new(Vec::new());
-}
-
-pub fn read_devices() -> Result<Vec<DeviceDetail>, Error> {
-    let mut devices = DEVICES.lock().unwrap();
-
-    if devices.is_empty() {
-        let host = cpal::default_host();
-        let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
-
-        for (position, device) in available_devices.iter().enumerate() {
-            let detail = DeviceDetail {
-                name: device.name().unwrap(),
-                position: position,
-            };
-            devices.push(detail);
-        }
-    }
-
-    Ok(devices.clone())
-}
-
-pub fn dump_devices() {
-    let devices = read_devices().unwrap();
-
-    println!("Available devices:");
-    for device in devices.iter() {
-        println!(
-            "Position: {} | Description: {}",
-            device.position, device.name
-        );
-    }
 }

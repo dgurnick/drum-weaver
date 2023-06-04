@@ -10,7 +10,10 @@ use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
 
 mod common;
-use common::{dump_devices, PlayerArguments};
+use common::PlayerArguments;
+
+mod device;
+use device::dump_devices;
 mod playlist;
 
 mod ui;
