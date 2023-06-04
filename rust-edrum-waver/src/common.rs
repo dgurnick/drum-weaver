@@ -67,7 +67,7 @@ pub fn needs_unzipping(
     artist_name: &String,
     album_name: &String,
 ) -> bool {
-    for song_record in read_song_file(music_folder).unwrap().iter() {
+    for song_record in read_song_file().unwrap().iter() {
         let song: SongRecord = song_record.clone();
 
         if &song.album == album_name && &song.artist == artist_name && &song.title == song_title {
@@ -87,7 +87,8 @@ pub fn needs_unzipping(
 lazy_static! {
     static ref SONGS: Mutex<Vec<SongRecord>> = Mutex::new(Vec::new());
 }
-fn read_song_file(music_folder: &String) -> Result<Vec<SongRecord>, Error> {
+
+fn read_song_file() -> Result<Vec<SongRecord>, Error> {
     let mut songs = SONGS.lock().unwrap();
 
     if songs.is_empty() {
@@ -127,13 +128,12 @@ pub fn get_file_paths(
     artist_name: &String,
     album_name: &String,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
-    let mut position = 1;
     #[allow(unused_assignments)]
     let mut track_path_str: String = String::new();
     #[allow(unused_assignments)]
     let mut click_path_str: String = String::new();
 
-    for record in read_song_file(music_folder)?.iter() {
+    for record in read_song_file()?.iter() {
         let song: SongRecord = record.clone();
 
         if &song.album == album_name && &song.artist == artist_name && &song.title == song_name {
@@ -169,8 +169,6 @@ pub fn get_file_paths(
             info!("Will play click from file: {}", click_path_str);
 
             break;
-        } else {
-            position += 1;
         }
     }
 

@@ -1,5 +1,4 @@
 use rand::seq::SliceRandom;
-use rand::Rng;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use crossterm::{
@@ -505,7 +504,7 @@ impl App {
 
                                         let beep =
                                             Song::from_file(self.get_beep_file(), None).unwrap();
-                                        click_player.play_song_now(&beep, None);
+                                        click_player.play_song_now(&beep, None)?;
                                     }
                                     _ => {}
                                 }
@@ -538,7 +537,7 @@ impl App {
                                         info!("Set track device to {}", selected_track_device);
                                         let beep =
                                             Song::from_file(self.get_beep_file(), None).unwrap();
-                                        track_player.play_song_now(&beep, None);
+                                        track_player.play_song_now(&beep, None)?;
                                     }
                                     _ => {}
                                 }
@@ -640,6 +639,14 @@ impl App {
                             }
                             is_random = !is_random;
                         }
+                        KeyCode::Delete => {
+                            if let Some(selected) = songlist_state.selected() {
+                                track_player.stop();
+                                click_player.stop();
+
+                                self.songs.remove(selected);
+                            }
+                        }
 
                         _ => {}
                     }
@@ -685,6 +692,11 @@ impl App {
                             } else {
                                 new_position = selected + 1;
                                 info!("Moving to the next song: {}", new_position);
+                            }
+
+                            // we need to wrap around
+                            if new_position > amount_songs - 1 {
+                                new_position = 0;
                             }
 
                             songlist_state.select(Some(new_position));
@@ -812,7 +824,6 @@ impl App {
                     .selected()
                     .expect("there is always a selected song"),
             )
-            .expect("exists")
             .clone();
 
         let mut rows = vec![];
@@ -845,18 +856,6 @@ impl App {
             ));
 
             let selected_cell = if is_selected {
-                Cell::from(Span::styled(
-                    "▶".to_string(),
-                    Style::default().fg(selected_fg),
-                ))
-            } else {
-                Cell::from(Span::styled(
-                    "".to_string(),
-                    Style::default().fg(selected_fg),
-                ))
-            };
-
-            let status_cell = if is_selected {
                 Cell::from(Span::styled(
                     "▶".to_string(),
                     Style::default().fg(selected_fg),
@@ -1289,7 +1288,7 @@ impl App {
             ]),
             Line::from(vec![
                 Span::styled("x", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Shuffle or unshuffle the playlist"),
+                Span::raw(": Shuffle or un-shuffle the playlist"),
             ]),
             Line::from(vec![
                 Span::styled("1 or 4", Style::default().fg(Color::LightCyan)),
