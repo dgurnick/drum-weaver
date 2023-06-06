@@ -79,11 +79,14 @@ lazy_static! {
     static ref SONGS: Mutex<Vec<SongRecord>> = Mutex::new(Vec::new());
 }
 
+// To have global immutable access to the file.
+const CSV_CONTENT: &'static [u8] = include_bytes!("../assets/song_list.csv");
+
 fn read_song_file() -> Result<Vec<SongRecord>, Error> {
     let mut songs = SONGS.lock().unwrap();
 
     if songs.is_empty() {
-        let mut reader = csv::Reader::from_path("assets/song_list.csv").unwrap();
+        let mut reader = csv::Reader::from_reader(CSV_CONTENT);
         let _ = reader.headers();
 
         for record in reader.deserialize() {
