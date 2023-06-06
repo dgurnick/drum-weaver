@@ -28,10 +28,33 @@ use ratatui::{
 };
 use std::{
     collections::BTreeMap,
-    time::{Duration, Instant},
+    time::{Duration, Instant}, fmt::Display,
 };
 use std::{env, sync::mpsc};
 use std::{io, thread};
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+struct AppConfig {
+    track_device_name: Option<String>,
+    click_device_name: Option<String>,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        AppConfig {
+            track_device_name: None,
+            click_device_name: None,
+        }
+    }
+}
+
+impl Display for AppConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let track_device_name = self.track_device_name.as_ref().map(|name| name.clone()).unwrap_or_else(|| "None".to_string());
+        let click_device_name = self.click_device_name.as_ref().map(|name| name.clone()).unwrap_or_else(|| "None".to_string());
+        write!(f, "Track Device: {}\nClick Device: {}", track_device_name, click_device_name)
+    }
+}
 
 pub struct App {
     songs: Vec<SongRecord>,
@@ -54,7 +77,31 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(arguments: PlayerArguments, songs: Vec<SongRecord>) -> Self {
+    pub fn new(arguments: &mut PlayerArguments, songs: Vec<SongRecord>) -> Self {
+        let config: AppConfig = confy::load("drum-weaver", None).expect("Able to read configuration");
+        
+        let mut device_position = arguments.track_device_position;
+        let mut click_position = arguments.click_device_position;
+
+        if let Some(click_device_name) = config.click_device_name.as_ref() {
+            click_position = read_devices()
+                .iter()
+                .position(|d| d.name == *click_device_name)
+                .unwrap();
+
+            println!("Found click device: {} as position {}", click_device_name, device_position);
+        } 
+        if let Some(track_device_name) = config.track_device_name.as_ref() {
+            device_position = read_devices()
+                .iter()
+                .position(|d| d.name == *track_device_name)
+                .unwrap();
+            println!("Found track device: {} as position {}", track_device_name, device_position);
+        } 
+
+        arguments.click_device_position = click_position;
+        arguments.track_device_position = device_position;
+
         App {
             songs: songs.clone(),
             original_songs: songs.clone(),
@@ -79,14 +126,10 @@ impl App {
     #[rustfmt::skip]
     pub fn run_ui(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Starting UI");
-
-        let mut has_music_folder = self.music_folder.is_some();
-
         enable_raw_mode().expect("Can not run in raw mode");
 
-        let mut selected_track_device = self.track_device_idx;
-        let mut selected_click_device = self.click_device_idx;
-
+        let mut has_music_folder = self.music_folder.is_some();
+        
         let stdout = io::stdout();
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
@@ -219,7 +262,7 @@ impl App {
                                 .constraints([Constraint::Percentage(100)].as_ref())
                                 .split(chunks[1]);
                             let left =
-                                self.render_devices(selected_track_device, selected_click_device);
+                                self.render_devices(self.track_device_idx, self.click_device_idx);
                             rect.render_stateful_widget(
                                 left,
                                 device_chunks[0],
@@ -231,12 +274,12 @@ impl App {
                         }
                     }
 
-                    let track_device_name = match available_devices[selected_track_device].name() {
+                    let track_device_name = match available_devices[self.track_device_idx].name() {
                         Ok(name) => name,
                         Err(_) => "Unknown".to_string(),
                     };
 
-                    let click_device_name = match available_devices[selected_click_device].name() {
+                    let click_device_name = match available_devices[self.click_device_idx].name() {
                         Ok(name) => name,
                         Err(_) => "Unknown".to_string(),
                     };
@@ -402,7 +445,7 @@ impl App {
                                 match active_menu_item {
                                     MenuItem::Devices => {
                                         if let Some(selected) = device_list_state.selected() {
-                                            selected_click_device = selected;
+                                            self.click_device_idx = selected;
                                         }
 
                                         track_player.force_remove_next_song()?;
@@ -410,7 +453,7 @@ impl App {
                                         track_player.stop();
                                         click_player.stop();
 
-                                        click_device = &available_devices[selected_click_device];
+                                        click_device = &available_devices[self.click_device_idx];
 
                                         click_player = Player::new(None, click_device)
                                             .expect("Could not create click player");
@@ -418,7 +461,7 @@ impl App {
                                         track_player.set_playback_speed(self.playback_speed);
                                         click_player.set_playback_speed(self.playback_speed);
 
-                                        info!("Set click device to {}", selected_click_device);
+                                        info!("Set click device to {}", self.click_device_idx);
 
                                         let beep =
                                             Song::from_file(self.get_beep_file(), None).unwrap();
@@ -435,7 +478,7 @@ impl App {
                                 match active_menu_item {
                                     MenuItem::Devices => {
                                         if let Some(selected) = device_list_state.selected() {
-                                            selected_track_device = selected;
+                                            self.track_device_idx = selected;
                                         }
 
                                         is_playing = false;
@@ -444,7 +487,7 @@ impl App {
                                         track_player.stop();
                                         click_player.stop();
 
-                                        track_device = &available_devices[selected_track_device];
+                                        track_device = &available_devices[self.track_device_idx];
 
                                         track_player = Player::new(None, track_device)
                                             .expect("Could not create track player");
@@ -452,7 +495,7 @@ impl App {
                                         track_player.set_playback_speed(self.playback_speed);
                                         click_player.set_playback_speed(self.playback_speed);
 
-                                        info!("Set track device to {}", selected_track_device);
+                                        info!("Set track device to {}", self.track_device_idx);
                                         let beep =
                                             Song::from_file(self.get_beep_file(), None).unwrap();
                                         track_player.play_song_now(&beep, None)?;

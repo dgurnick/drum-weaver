@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use crate::device::read_devices;
 use crate::ui::App;
+use crate::ui::AppConfig;
 use crate::ui::MenuItem;
 use crate::ui::Player;
 use crossterm::terminal::disable_raw_mode;
@@ -346,6 +347,19 @@ impl KeyHandler for App {
             disable_raw_mode().expect("Can not disable raw mode");
             terminal.clear().expect("Failed to clear the terminal");
             terminal.show_cursor().expect("Failed to show cursor");
+
+            let track_device_name = read_devices()[self.track_device_idx].name.clone();
+            let click_device_name = read_devices()[self.click_device_idx].name.clone();
+
+            let config = AppConfig {
+                track_device_name: Some(track_device_name),
+                click_device_name: Some(click_device_name),
+                ..Default::default()
+            };
+            confy::store("drum-weaver", None, config.clone())
+                .expect("Unable to save configuration");
+            println!("Stored config {}", config.clone());
+
             std::process::exit(0);
         }
     }

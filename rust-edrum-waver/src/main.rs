@@ -196,7 +196,7 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     // make sure the file exists. If it doesn't try to find the compressed version and decompress it.
     //let (track_file, click_file) = get_file_paths(music_folder, track_position);
 
-    let arguments = PlayerArguments {
+    let mut arguments = PlayerArguments {
         music_folder: music_folder,
         track_song: None,
         click_song: None,
@@ -209,7 +209,7 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
 
     match import_songs() {
         Ok(songs) => {
-            let mut app = App::new(arguments, songs);
+            let mut app = App::new(&mut arguments, songs);
             match app.run_ui() {
                 Ok(_) => {}
                 Err(err) => return Err(format!("Could not start the ui. {}", err)),
