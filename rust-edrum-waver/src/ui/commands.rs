@@ -4,26 +4,43 @@ use crate::device::read_devices;
 use crate::ui::App;
 use crate::ui::MenuItem;
 use crate::ui::Player;
+use crossterm::terminal::disable_raw_mode;
 use log::info;
+use rand::seq::SliceRandom;
+use ratatui::backend::CrosstermBackend;
 use ratatui::widgets::ListState;
 use ratatui::widgets::TableState;
+use ratatui::Terminal;
 
 #[rustfmt::skip]
 pub trait KeyHandler {
-    fn handle_r_event( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
-    fn handle_down_event( &mut self, active_menu_item: &mut MenuItem, device_list_state: &mut ListState, songlist_state: &mut TableState, );
-    fn handle_up_event( &mut self, active_menu_item: &mut MenuItem, device_list_state: &mut ListState, songlist_state: &mut TableState, );
-    fn handle_space_event( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
-    fn handle_z_event( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
-    fn handle_page_down_event( &mut self, active_menu_item: &mut MenuItem, songlist_state: &mut TableState, );
-    fn handle_page_up_event( &mut self, active_menu_item: &mut MenuItem, songlist_state: &mut TableState, );
-    fn handle_left_arrow_event( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
-    fn handle_right_arrow_event( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
+    fn do_reset_playback_speed( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
+    fn do_select_next_item( &mut self, active_menu_item: &mut MenuItem, device_list_state: &mut ListState, songlist_state: &mut TableState, );
+    fn do_select_previous_item( &mut self, active_menu_item: &mut MenuItem, device_list_state: &mut ListState, songlist_state: &mut TableState, );
+    fn do_pause_playback( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
+    fn do_restart_song( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
+    fn do_select_next_page( &mut self, active_menu_item: &mut MenuItem, songlist_state: &mut TableState, );
+    fn do_select_previous_page( &mut self, active_menu_item: &mut MenuItem, songlist_state: &mut TableState, );
+    fn do_reduce_playback_speed( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
+    fn do_increase_playback_speed( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
+    fn do_reduce_track_volume( &mut self, track_player: &mut Player);
+    fn do_reset_track_volume( &mut self, track_player: &mut Player);
+    fn do_increase_track_volume( &mut self, track_player: &mut Player);
+    fn do_reduce_click_volume( &mut self, click_player: &mut Player);
+    fn do_reset_click_volume( &mut self, click_player: &mut Player);
+    fn do_increase_click_volume( &mut self, click_player: &mut Player);
+    fn do_add_song_to_playlist( &mut self, songlist_state: &mut TableState);
+    fn do_remove_song_from_playlist( &mut self, songlist_state: &mut TableState);
+    fn do_check_quit( &mut self, track_player: &mut Player, click_player: &mut Player, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>);
+    fn do_check_stay_or_next( &mut self, track_player: &mut Player, click_player: &mut Player);
+    fn do_start_search( &mut self );
+    fn do_shuffle_songs( &mut self );
+    fn do_delete_track( &mut self, songlist_state: &mut TableState, track_player: &mut Player, click_player: &mut Player);
 }
 
 #[rustfmt::enable]
 impl KeyHandler for App {
-    fn handle_r_event(
+    fn do_reset_playback_speed(
         &mut self,
         active_menu_item: &mut MenuItem,
         track_player: &mut Player,
@@ -39,7 +56,7 @@ impl KeyHandler for App {
         }
     }
 
-    fn handle_down_event(
+    fn do_select_next_item(
         &mut self,
         active_menu_item: &mut MenuItem,
         device_list_state: &mut ListState,
@@ -75,7 +92,7 @@ impl KeyHandler for App {
         }
     }
 
-    fn handle_up_event(
+    fn do_select_previous_item(
         &mut self,
         active_menu_item: &mut MenuItem,
         device_list_state: &mut ListState,
@@ -111,7 +128,7 @@ impl KeyHandler for App {
         }
     }
 
-    fn handle_space_event(
+    fn do_pause_playback(
         &mut self,
         active_menu_item: &mut MenuItem,
         track_player: &mut Player,
@@ -128,7 +145,7 @@ impl KeyHandler for App {
         }
     }
 
-    fn handle_z_event(
+    fn do_restart_song(
         &mut self,
         active_menu_item: &mut MenuItem,
         track_player: &mut Player,
@@ -146,7 +163,7 @@ impl KeyHandler for App {
         }
     }
 
-    fn handle_page_down_event(
+    fn do_select_next_page(
         &mut self,
         active_menu_item: &mut MenuItem,
         songlist_state: &mut TableState,
@@ -167,7 +184,7 @@ impl KeyHandler for App {
         }
     }
 
-    fn handle_page_up_event(
+    fn do_select_previous_page(
         &mut self,
         active_menu_item: &mut MenuItem,
         songlist_state: &mut TableState,
@@ -188,7 +205,7 @@ impl KeyHandler for App {
         }
     }
 
-    fn handle_left_arrow_event(
+    fn do_reduce_playback_speed(
         &mut self,
         active_menu_item: &mut MenuItem,
         track_player: &mut Player,
@@ -211,7 +228,7 @@ impl KeyHandler for App {
         }
     }
 
-    fn handle_right_arrow_event(
+    fn do_increase_playback_speed(
         &mut self,
         active_menu_item: &mut MenuItem,
         track_player: &mut Player,
@@ -231,6 +248,141 @@ impl KeyHandler for App {
                 );
             }
             _ => {}
+        }
+    }
+
+    fn do_reduce_track_volume(&mut self, track_player: &mut Player) {
+        if self.track_volume > 0 {
+            self.track_volume = self.track_volume - 1;
+        }
+
+        track_player.set_volume_adjustment(self.track_volume as f32 / 100.0);
+    }
+
+    fn do_reset_track_volume(&mut self, track_player: &mut Player) {
+        self.track_volume = 100;
+        track_player.set_volume_adjustment(1.0);
+    }
+
+    fn do_increase_track_volume(&mut self, track_player: &mut Player) {
+        self.track_volume = self.track_volume + 1;
+        if self.track_volume > 200 {
+            self.track_volume = 200;
+        }
+
+        track_player.set_volume_adjustment(self.track_volume as f32 / 100.0);
+    }
+
+    fn do_reduce_click_volume(&mut self, click_player: &mut Player) {
+        if self.click_volume > 0 {
+            self.click_volume = self.click_volume - 1;
+        }
+
+        click_player.set_volume_adjustment(self.click_volume as f32 / 100.0);
+    }
+
+    fn do_reset_click_volume(&mut self, click_player: &mut Player) {
+        self.click_volume = 100;
+        click_player.set_volume_adjustment(1.0);
+    }
+
+    fn do_increase_click_volume(&mut self, click_player: &mut Player) {
+        self.click_volume = self.click_volume + 1;
+        if self.click_volume > 200 {
+            self.click_volume = 200;
+        }
+
+        click_player.set_volume_adjustment(self.click_volume as f32 / 100.0);
+    }
+
+    fn do_add_song_to_playlist(&mut self, songlist_state: &mut TableState) {
+        if let Some(selected) = songlist_state.selected() {
+            // add it to the queue. We can keep adding. No issue.
+            let song = self.songs[selected].clone();
+            let position = self
+                .current_playlist
+                .values()
+                .position(|song_record| song_record.title == song.title);
+
+            if position.is_none() {
+                self.current_playlist
+                    .insert(self.current_playlist.len() + 1, song.clone());
+                info!("Added song to queue: {}", &song.title);
+            }
+
+            self.reindex_playlist();
+        }
+    }
+
+    fn do_remove_song_from_playlist(&mut self, songlist_state: &mut TableState) {
+        if let Some(selected) = songlist_state.selected() {
+            // add it to the queue. We can keep adding. No issue.
+            let song = self.songs[selected].clone();
+            let position = self
+                .current_playlist
+                .values()
+                .position(|song_record| song_record.title == song.title);
+
+            if let Some(pos) = position {
+                self.current_playlist.remove(&(&pos + 1));
+                info!("Removed song from queue: {}", song.title);
+            }
+
+            self.reindex_playlist();
+        }
+    }
+
+    fn do_check_quit(
+        &mut self,
+        track_player: &mut Player,
+        click_player: &mut Player,
+        terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
+    ) {
+        if self.is_quitting {
+            info!("Quitting");
+            track_player.stop();
+            click_player.stop();
+            disable_raw_mode().expect("Can not disable raw mode");
+            terminal.clear().expect("Failed to clear the terminal");
+            terminal.show_cursor().expect("Failed to show cursor");
+            std::process::exit(0);
+        }
+    }
+
+    fn do_check_stay_or_next(&mut self, track_player: &mut Player, click_player: &mut Player) {
+        if self.is_quitting {
+            self.is_quitting = false;
+        } else {
+            track_player.skip();
+            click_player.skip();
+        }
+    }
+
+    fn do_start_search(&mut self) {
+        self.searching_for = String::new();
+        self.is_searching = true;
+    }
+
+    fn do_shuffle_songs(&mut self) {
+        if self.is_playing_random {
+            self.songs = self.original_songs.clone();
+        } else {
+            self.songs.shuffle(&mut rand::thread_rng());
+        }
+        self.is_playing_random = !self.is_playing_random;
+    }
+
+    fn do_delete_track(
+        &mut self,
+        songlist_state: &mut TableState,
+        track_player: &mut Player,
+        click_player: &mut Player,
+    ) {
+        if let Some(selected) = songlist_state.selected() {
+            track_player.stop();
+            click_player.stop();
+
+            self.songs.remove(selected);
         }
     }
 }

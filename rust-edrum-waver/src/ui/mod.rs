@@ -1,11 +1,10 @@
 pub mod handler;
 use crate::ui::handler::KeyHandler;
-use rand::seq::SliceRandom;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use crossterm::{
     event::{self, Event as CEvent, KeyCode, KeyEventKind},
-    terminal::{disable_raw_mode, enable_raw_mode},
+    terminal::enable_raw_mode,
 };
 
 use crate::device::read_devices;
@@ -48,6 +47,10 @@ pub struct App {
     click_device_idx: usize,
     playback_speed: f64,
     current_playlist: BTreeMap<usize, SongRecord>,
+    is_quitting: bool,
+    is_searching: bool,
+    searching_for: String,
+    is_playing_random: bool,
 }
 
 impl App {
@@ -66,9 +69,14 @@ impl App {
             click_device_idx: arguments.click_device_position,
             playback_speed: arguments.playback_speed,
             current_playlist: BTreeMap::new(),
+            is_quitting: false,
+            is_searching: false,
+            searching_for: String::new(),
+            is_playing_random: false,
         }
     }
 
+    #[rustfmt::skip]
     pub fn run_ui(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Starting UI");
 
@@ -108,10 +116,6 @@ impl App {
         click_player.set_playback_speed(self.playback_speed);
 
         let mut is_playing = false;
-        let mut is_going_to = false;
-        let mut is_quitting = false;
-        let mut is_random = false;
-        let mut going_to = String::new();
         let mut footer_message = String::new();
 
         let (tx, rx) = mpsc::channel();
@@ -140,7 +144,7 @@ impl App {
         });
 
         loop {
-            if is_quitting {
+            if self.is_quitting {
                 terminal.draw(|f| self.confirm_exit(f))?;
             } else if !has_music_folder {
                 terminal.draw(|f| self.prepare_for_folder(f))?;
@@ -276,7 +280,7 @@ impl App {
             } // is quitting
             match rx.recv()? {
                 UiEvent::Input(event)
-                    if event.kind == KeyEventKind::Release && !has_music_folder =>
+                    if event.kind == KeyEventKind::Release && ! has_music_folder =>
                 {
                     match event.code {
                         KeyCode::Enter => {
@@ -304,184 +308,89 @@ impl App {
                         _ => {}
                     }
                 }
-                UiEvent::Input(event) if event.kind == KeyEventKind::Release && is_going_to => {
+                UiEvent::Input(event) if event.kind == KeyEventKind::Release && self.is_searching => {
                     match event.code {
                         KeyCode::Enter => {
-                            // going to has stopped
-                            is_going_to = false;
-                            going_to.clear();
+                            // searching has stopped
+                            self.is_searching = false;
+                            self.searching_for.clear();
                             footer_message.clear();
                         }
                         KeyCode::Backspace =>
                         // remove last character
                         {
-                            going_to.pop();
-                            if going_to.is_empty() {
-                                // going to has stopped
-                                is_going_to = false;
+                            self.searching_for.pop();
+                            if self.searching_for.is_empty() {
+                                // searching has stopped
+                                self.is_searching = false;
                                 footer_message.clear();
                             } else {
                                 self.find_song(
                                     &mut songlist_state,
-                                    going_to.clone(),
+                                    self.searching_for.clone(),
                                     &mut footer_message,
                                 );
                             }
                         }
                         KeyCode::Esc => {
-                            // going to has stopped
-                            is_going_to = false;
-                            going_to.clear();
+                            // searching has stopped
+                            self.is_searching = false;
+                            self.searching_for.clear();
                             footer_message.clear();
                         }
                         KeyCode::Char(c) => {
-                            going_to.push(c);
+                            self.searching_for.push(c);
 
                             self.find_song(
                                 &mut songlist_state,
-                                going_to.clone(),
+                                self.searching_for.clone(),
                                 &mut footer_message,
                             );
                         }
                         _ => {
-                            footer_message = format!("Current search: [{}]", going_to);
+                            footer_message = format!("Current search: [{}]", self.searching_for);
                         }
                     }
                 }
-                UiEvent::Input(event) if event.kind == KeyEventKind::Release && !is_going_to => {
+                UiEvent::Input(event) if event.kind == KeyEventKind::Release && ! self.is_searching => {
+                    
                     match event.code {
-                        KeyCode::Char('1') => {
-                            if self.track_volume > 0 {
-                                self.track_volume = self.track_volume - 1;
-                            }
+                        KeyCode::Char('1') => self.do_reduce_track_volume(&mut track_player),
+                        KeyCode::Char('2') => self.do_reset_track_volume(&mut track_player),
+                        KeyCode::Char('3') => self.do_increase_track_volume(&mut track_player),
+                        KeyCode::Char('4') => self.do_reduce_click_volume(&mut click_player),
+                        KeyCode::Char('5') => self.do_reset_click_volume(&mut click_player),
+                        KeyCode::Char('6') => self.do_increase_click_volume(&mut click_player),
 
-                            track_player.set_volume_adjustment(self.track_volume as f32 / 100.0);
-                        }
-                        KeyCode::Char('2') => {
-                            self.track_volume = 100;
-                            track_player.set_volume_adjustment(1.0);
-                        }
-                        KeyCode::Char('3') => {
-                            self.track_volume = self.track_volume + 1;
-                            if self.track_volume > 200 {
-                                self.track_volume = 200;
-                            }
-
-                            track_player.set_volume_adjustment(self.track_volume as f32 / 100.0);
-                        }
-
-                        KeyCode::Char('4') => {
-                            if self.click_volume > 0 {
-                                self.click_volume = self.click_volume - 1;
-                            }
-
-                            click_player.set_volume_adjustment(self.click_volume as f32 / 100.0);
-                        }
-                        KeyCode::Char('5') => {
-                            self.click_volume = 100;
-                            click_player.set_volume_adjustment(1.0);
-                        }
-                        KeyCode::Char('6') => {
-                            self.click_volume = self.click_volume + 1;
-                            if self.click_volume > 200 {
-                                self.click_volume = 200;
-                            }
-
-                            click_player.set_volume_adjustment(self.click_volume as f32 / 100.0);
-                        }
-
-                        KeyCode::Char('+') => {
-                            if let Some(selected) = songlist_state.selected() {
-                                // add it to the queue. We can keep addint. No issue.
-                                let song = self.songs[selected].clone();
-                                let position = self
-                                    .current_playlist
-                                    .values()
-                                    .position(|song_record| song_record.title == song.title);
-
-                                if position.is_none() {
-                                    self.current_playlist
-                                        .insert(self.current_playlist.len() + 1, song.clone());
-                                    info!("Added song to queue: {}", &song.title);
-                                }
-
-                                for (i, song) in self.current_playlist.values().enumerate() {
-                                    info!("{}: {}", i, song.title);
-                                }
-
-                                self.reindex_playlist();
-                            }
-                        }
-                        KeyCode::Char('-') => {
-                            if let Some(selected) = songlist_state.selected() {
-                                // add it to the queue. We can keep addint. No issue.
-                                let song = self.songs[selected].clone();
-                                let position = self
-                                    .current_playlist
-                                    .values()
-                                    .position(|song_record| song_record.title == song.title);
-
-                                if let Some(pos) = position {
-                                    self.current_playlist.remove(&(&pos + 1));
-                                    info!("Removed song from queue: {}", song.title);
-                                }
-
-                                for (i, song) in self.current_playlist.values().enumerate() {
-                                    info!("{}: {}", i, song.title);
-                                }
-
-                                self.reindex_playlist();
-                            }
-                        }
-                        KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
+                        KeyCode::Char('+') => self.do_add_song_to_playlist(&mut songlist_state),
+                        KeyCode::Char('-') => self.do_remove_song_from_playlist(&mut songlist_state),
+                        
+                        KeyCode::Char(' ') => self.do_pause_playback( &mut active_menu_item, &mut track_player, &mut click_player, ),
                         KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
+                        KeyCode::Char('g') => self.do_start_search(),
                         KeyCode::Char('h') => active_menu_item = MenuItem::Help,
-                        KeyCode::Char('q') => {
-                            is_quitting = true;
-                        }
-                        KeyCode::Char('y') => {
-                            if is_quitting {
-                                info!("Quitting");
-                                track_player.stop();
-                                click_player.stop();
-                                disable_raw_mode().expect("Can not disable raw mode");
-                                terminal.clear().expect("Failed to clear the terminal");
-                                terminal.show_cursor().expect("Failed to show cursor");
-                                std::process::exit(0);
-                            }
-                        }
-                        KeyCode::Char('n') => {
-                            if is_quitting {
-                                is_quitting = false;
-                            } else {
-                                track_player.skip();
-                                click_player.skip();
-                            }
-                        }
-                        KeyCode::Char('g') => {
-                            going_to = String::new();
-                            is_going_to = true;
-                        }
-                        KeyCode::Down => self.handle_down_event(
-                            &mut active_menu_item,
-                            &mut device_list_state,
-                            &mut songlist_state,
-                        ),
-                        KeyCode::Up => self.handle_up_event(
-                            &mut active_menu_item,
-                            &mut device_list_state,
-                            &mut songlist_state,
-                        ),
-                        KeyCode::Char(' ') => self.handle_space_event(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
-                        KeyCode::Char('z') => self.handle_z_event(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
+                        KeyCode::Char('r') => self.do_reset_playback_speed( &mut active_menu_item, &mut track_player, &mut click_player, ),
+                        KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
+                        KeyCode::Char('n') => self.do_check_stay_or_next(&mut track_player, &mut click_player),
+                        KeyCode::Char('q') => { self.is_quitting = true; }
+                        KeyCode::Char('x') => self.do_shuffle_songs(),
+                        KeyCode::Char('y') => self.do_check_quit(&mut track_player, &mut click_player, &mut terminal),
+                        KeyCode::Char('z') => self.do_restart_song( &mut active_menu_item, &mut track_player, &mut click_player, ),
+                        
+                        KeyCode::Down => self.do_select_next_item( &mut active_menu_item, &mut device_list_state, &mut songlist_state, ),
+                        KeyCode::Up => self.do_select_previous_item( &mut active_menu_item, &mut device_list_state, &mut songlist_state, ),
+                        KeyCode::PageDown => self.do_select_next_page(&mut active_menu_item, &mut songlist_state),
+                        KeyCode::PageUp => self.do_select_previous_page(&mut active_menu_item, &mut songlist_state),
+
+                        KeyCode::Left => self.do_reduce_playback_speed( &mut active_menu_item, &mut track_player, &mut click_player,),
+                        KeyCode::Right => self.do_increase_playback_speed( &mut active_menu_item, &mut track_player, &mut click_player, ),
+                        KeyCode::Home => songlist_state.select(Some(0)),
+                        KeyCode::End => songlist_state.select(Some(self.songs.len() - 1)),
+                        KeyCode::Delete => self.do_delete_track(&mut songlist_state, &mut track_player, &mut click_player),
+
+                        KeyCode::Esc => {}
+                        
+                        
                         KeyCode::Char('c') => {
                             // I won't refactor this into another function because it uses everything and I'm dumb
                             if event.kind == KeyEventKind::Release {
@@ -548,37 +457,6 @@ impl App {
                             }
                         }
 
-                        KeyCode::PageDown => {
-                            self.handle_page_down_event(&mut active_menu_item, &mut songlist_state)
-                        }
-                        KeyCode::PageUp => {
-                            self.handle_page_up_event(&mut active_menu_item, &mut songlist_state)
-                        }
-                        KeyCode::Left => self.handle_left_arrow_event(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
-                        KeyCode::Right => self.handle_right_arrow_event(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
-
-                        KeyCode::Char('r') => self.handle_r_event(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
-
-                        KeyCode::Esc => {}
-                        KeyCode::Home => {
-                            songlist_state.select(Some(0));
-                        }
-                        KeyCode::End => {
-                            songlist_state.select(Some(self.songs.len() - 1));
-                        }
-
                         KeyCode::Enter => match active_menu_item {
                             MenuItem::Songs => {
                                 if let Some(selected) = songlist_state.selected() {
@@ -637,22 +515,7 @@ impl App {
                             }
                             _ => {}
                         },
-                        KeyCode::Char('x') => {
-                            if is_random {
-                                self.songs = self.original_songs.clone();
-                            } else {
-                                self.songs.shuffle(&mut rand::thread_rng());
-                            }
-                            is_random = !is_random;
-                        }
-                        KeyCode::Delete => {
-                            if let Some(selected) = songlist_state.selected() {
-                                track_player.stop();
-                                click_player.stop();
-
-                                self.songs.remove(selected);
-                            }
-                        }
+                        
 
                         _ => {}
                     }
@@ -982,7 +845,6 @@ impl App {
 
         (song_table, queue_table)
     }
-
 
     fn find_song(
         &self,
