@@ -1,5 +1,5 @@
-pub mod handler;
-use crate::ui::handler::KeyHandler;
+pub mod commands;
+use crate::ui::commands::KeyHandler;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use crossterm::{
@@ -54,7 +54,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(arguments: PlayerArguments, songs: Vec<SongRecord>) -> App {
+    pub fn new(arguments: PlayerArguments, songs: Vec<SongRecord>) -> Self {
         App {
             songs: songs.clone(),
             original_songs: songs.clone(),
@@ -117,9 +117,12 @@ impl App {
 
         let mut is_playing = false;
         let mut footer_message = String::new();
+        let mut filter_message = String::new();
 
-        let (tx, rx) = mpsc::channel();
         let tick_rate = Duration::from_millis(200);
+
+        let (sender, receiver) = mpsc::channel();
+
 
         // create our transmit-receive loop
         thread::spawn(move || {
@@ -131,12 +134,12 @@ impl App {
 
                 if event::poll(timeout).expect("Polling works") {
                     if let CEvent::Key(key) = event::read().expect("can read events") {
-                        tx.send(UiEvent::Input(key)).expect("can send events");
+                        sender.send(UiEvent::Input(key)).expect("can send events");
                     }
                 }
 
                 if last_tick.elapsed() >= tick_rate {
-                    if let Ok(_) = tx.send(UiEvent::Tick) {
+                    if let Ok(_) = sender.send(UiEvent::Tick) {
                         last_tick = Instant::now();
                     }
                 }
@@ -250,20 +253,20 @@ impl App {
                         0
                     };
 
-                    let footer_device_text = format!(
-                        "Track device: {} - {}% | Click device: {} - {}%",
-                        track_device_name, track_volume, click_device_name, click_volume,
-                    );
-
-                    let playing_footer_text = if footer_message.is_empty() {
+                    let footer_message = if self.is_searching {
+                        filter_message.clone()
+                    } else {
                         if track_player.has_current_song() && click_player.has_current_song() {
                             format!("Playing: {}", self.track_file.as_ref().unwrap().clone())
                         } else {
                             "No song playing".to_string()
                         }
-                    } else {
-                        footer_message.clone()
                     };
+
+                    let footer_device_text = format!(
+                        "Track device: {} - {}% | Click device: {} - {}%",
+                        track_device_name, track_volume, click_device_name, click_volume,
+                    );
 
                     let paused_text = if track_player.is_playing() {
                         "Playing"
@@ -273,12 +276,13 @@ impl App {
 
                     let footer_widget = Paragraph::new(format!(
                         "{} | {} | {}",
-                        paused_text, footer_device_text, playing_footer_text
+                        paused_text, footer_device_text, footer_message
                     ));
                     rect.render_widget(footer_widget, chunks[2]);
                 })?;
             } // is quitting
-            match rx.recv()? {
+
+            match receiver.recv()? {
                 UiEvent::Input(event)
                     if event.kind == KeyEventKind::Release && ! has_music_folder =>
                 {
@@ -314,21 +318,21 @@ impl App {
                             // searching has stopped
                             self.is_searching = false;
                             self.searching_for.clear();
+                            filter_message.clear();
                             footer_message.clear();
                         }
                         KeyCode::Backspace =>
                         // remove last character
                         {
                             self.searching_for.pop();
-                            if self.searching_for.is_empty() {
+                            if 1==0 && self.searching_for.is_empty() {
                                 // searching has stopped
                                 self.is_searching = false;
                                 footer_message.clear();
                             } else {
-                                self.find_song(
-                                    &mut songlist_state,
+                                self.filter_songs(
                                     self.searching_for.clone(),
-                                    &mut footer_message,
+                                    &mut filter_message,
                                 );
                             }
                         }
@@ -336,15 +340,15 @@ impl App {
                             // searching has stopped
                             self.is_searching = false;
                             self.searching_for.clear();
+                            filter_message.clear();
                             footer_message.clear();
                         }
                         KeyCode::Char(c) => {
                             self.searching_for.push(c);
 
-                            self.find_song(
-                                &mut songlist_state,
+                            self.filter_songs(
                                 self.searching_for.clone(),
-                                &mut footer_message,
+                                &mut filter_message,
                             );
                         }
                         _ => {
@@ -368,6 +372,7 @@ impl App {
                         KeyCode::Char(' ') => self.do_pause_playback( &mut active_menu_item, &mut track_player, &mut click_player, ),
                         KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
                         KeyCode::Char('g') => self.do_start_search(),
+                        KeyCode::Char('G') => self.do_cancel_search(),
                         KeyCode::Char('h') => active_menu_item = MenuItem::Help,
                         KeyCode::Char('r') => self.do_reset_playback_speed( &mut active_menu_item, &mut track_player, &mut click_player, ),
                         KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
@@ -673,7 +678,6 @@ impl App {
         list
     }
 
-    // TODO: Add * if song is in the current playlist
     fn render_songs<'a>(
         &mut self,
         songlist_state: &TableState,
@@ -837,8 +841,8 @@ impl App {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .style(Style::default().fg(Color::LightBlue))
-                    .title("Detail")
+                    .style(Style::default().fg(Color::White))
+                    .title("Queue")
                     .border_type(BorderType::Plain),
             )
             .widths(&[Constraint::Percentage(50), Constraint::Percentage(50)]);
@@ -846,39 +850,54 @@ impl App {
         (song_table, queue_table)
     }
 
-    fn find_song(
-        &self,
-        songlist_state: &mut TableState,
-        going_to: String,
-        footer_message: &mut String,
+    #[rustfmt::enable]
+    fn filter_songs(
+        &mut self,
+        search_term: String,
+        filter_message: &mut String,
     ) {
-        if let Some(position) = self.songs.clone().iter().position(|record| {
-            record
-                .artist
-                .to_lowercase()
-                .starts_with(&going_to.clone().to_lowercase())
-        }) {
-            // Found a matching artist at position
-            songlist_state.select(Some(position));
-            *footer_message = format!(
-                "Search for {} found artist '{}'",
-                going_to, self.songs[position].artist
-            );
-        } else if let Some(position) = self.songs.clone().iter().position(|record| {
-            record
-                .title
-                .to_lowercase()
-                .starts_with(&going_to.clone().to_lowercase())
-        }) {
-            songlist_state.select(Some(position));
-            *footer_message = format!(
-                "Search for {} found song '{}'",
-                going_to, self.songs[position].title
-            );
-        } else {
-            // No match found
-            *footer_message = format!("No song or artist starting with '{}'", going_to);
+        // Filter the songs vector based on the search term
+        self.songs = self.original_songs.clone();
+
+        self.songs.retain(|song| {
+            song.title.to_lowercase().contains(&search_term.clone().to_lowercase()) || song.artist.to_lowercase().contains(&search_term.clone().to_lowercase())
+        });
+
+        *filter_message = format!(
+            "Search for [{}] found {} songs",
+            search_term, self.songs.len());
+            
+        if self.songs.is_empty() {
+            self.songs = self.original_songs.clone();
         }
+
+        // if let Some(position) = self.songs.clone().iter().position(|record| {
+        //     record
+        //         .artist
+        //         .to_lowercase()
+        //         .starts_with(&search_string.clone().to_lowercase())
+        // }) {
+        //     // Found a matching artist at position
+        //     songlist_state.select(Some(position));
+        //     *footer_message = format!(
+        //         "Search for {} found artist '{}'",
+        //         search_string, self.songs[position].artist
+        //     );
+        // } else if let Some(position) = self.songs.clone().iter().position(|record| {
+        //     record
+        //         .title
+        //         .to_lowercase()
+        //         .starts_with(&search_string.clone().to_lowercase())
+        // }) {
+        //     songlist_state.select(Some(position));
+        //     *footer_message = format!(
+        //         "Search for {} found song '{}'",
+        //         search_string, self.songs[position].title
+        //     );
+        // } else {
+        //     // No match found
+        //     *footer_message = format!("No song or artist starting with '{}'", search_string);
+        // }
     }
 
     fn reindex_playlist(&mut self) {
@@ -1064,4 +1083,5 @@ impl App {
 
         path.display().to_string()
     }
+
 }

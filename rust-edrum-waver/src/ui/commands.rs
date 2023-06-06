@@ -36,6 +36,7 @@ pub trait KeyHandler {
     fn do_start_search( &mut self );
     fn do_shuffle_songs( &mut self );
     fn do_delete_track( &mut self, songlist_state: &mut TableState, track_player: &mut Player, click_player: &mut Player);
+    fn do_cancel_search( &mut self);
 }
 
 #[rustfmt::enable]
@@ -384,5 +385,9 @@ impl KeyHandler for App {
 
             self.songs.remove(selected);
         }
+    }
+
+    fn do_cancel_search(&mut self) {
+        self.songs = self.original_songs.clone();
     }
 }
