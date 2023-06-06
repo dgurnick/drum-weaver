@@ -980,7 +980,11 @@ impl App {
             ]),
             Line::from(vec![
                 Span::styled("g", Style::default().fg(Color::LightCyan)),
-                Span::raw(": start searching for a specific song or artist."),
+                Span::raw(": start filtering for a specific song or artist."),
+            ]),
+            Line::from(vec![
+                Span::styled("G", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Remove any filters and restores the entire list."),
             ]),
             Line::from("\n"),
             Line::from("When searching, hit ESC to cancel the search. Enter confirms."),
