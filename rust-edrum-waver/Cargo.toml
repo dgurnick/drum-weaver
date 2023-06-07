@@ -9,7 +9,9 @@ edition = "2021"
 chrono = { version = "0.4.24", features = ["serde"] }
 clap = { version = "4.2.7", features = ["derive"] }
 color-eyre = "0.6.2"
+confy = "0.5.1"
 cpal = "0.15.2"
+crossbeam-channel = "0.5.8"
 crossterm = { version = "0.26.1", features = ["serde"] }
 csv = "1.2.1"
 dialog = "0.3.0"
@@ -19,6 +21,8 @@ log4rs = "1.2.0"
 native-dialog = "0.6.3"
 pretty_env_logger = "0.4.0"
 pulldown-cmark = "0.9.3"
+rand = "0.8.5"
+ratatui = { version = "0.21.0", features = ["serde"] }
 rodio = "0.17.1"
 rubato = "0.12.0"
 serde = { version = "1.0.163", features = ["derive"] }
@@ -27,10 +31,13 @@ sevenz-rust = "0.2.10"
 symphonia = "0.5.2"
 termimad = "0.23.0"
 thiserror = "1.0.40"
-tui = { version = "0.19.0", default-features = false, features = [
-    "crossterm",
-    "serde",
-] }
 
 [dev-dependencies]
 simplelog = "0.12"
+
+#[profile.release]
+#debug = 1
+#opt-level = 0
+
+#[rust]
+#debuginfo-level = 1
