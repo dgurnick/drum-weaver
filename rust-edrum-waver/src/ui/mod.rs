@@ -145,6 +145,9 @@ impl App {
         let mut songlist_state = TableState::default();
         songlist_state.select(Some(0));
 
+        let mut playlist_state = TableState::default();
+        playlist_state.select(Some(0));
+
         let mut device_list_state = ListState::default();
         device_list_state.select(Some(0));
 
@@ -257,7 +260,7 @@ impl App {
                                 &mut songlist_state,
                             );
 
-                            rect.render_widget(queue_table, songlist_chunks[1]);
+                            rect.render_stateful_widget(queue_table, songlist_chunks[1], &mut playlist_state);
                         }
                         MenuItem::Devices => {
                             let device_chunks = Layout::default()
@@ -430,7 +433,7 @@ impl App {
                         KeyCode::Char('+') => self.do_add_song_to_playlist(&mut songlist_state),
                         KeyCode::Char('-') => self.do_remove_song_from_playlist(&mut songlist_state),
                         KeyCode::Char('/') => self.do_clear_playlist(),
-                        KeyCode::Char('*') => self.do_shuffle_playlist(),
+                        KeyCode::Char('*') => self.do_shuffle_playlist(&mut playlist_state),
                         KeyCode::Char('p') => self.do_start_playlist(),
                         
                         KeyCode::Char(' ') => self.do_pause_playback( &mut active_menu_item, &mut track_player, &mut click_player, ),
@@ -607,6 +610,7 @@ impl App {
                             if self.current_playlist_idx > self.current_playlist.len() - 1 {
                                 self.current_playlist_idx = 0;
                             }
+                            playlist_state.select(Some(self.current_playlist_idx));
                             let (_, song_record) = self.current_playlist.get_key_value(&self.current_playlist_idx).unwrap();
 
                             // find the position of the song_title in our song list
@@ -759,6 +763,8 @@ impl App {
             )
             .clone();
 
+        let _selected_playlist_song = self.current_playlist.get(&self.current_playlist_idx).cloned();
+
         let mut rows = vec![];
         for song in self.songs.clone() {
             let mut is_selected = false;
@@ -871,7 +877,7 @@ impl App {
         let queue_ui = Block::default()
             .borders(Borders::ALL)
             .style(Style::default().fg(Color::White))
-            .title("Queue")
+            .title(format!("Queue ({} songs)", self.current_playlist.len()))
             .border_type(BorderType::Plain);
 
         let mut rows = vec![];
@@ -925,7 +931,7 @@ impl App {
             .block(queue_ui)
             .highlight_style(
                 Style::default()
-                    .bg(Color::Yellow)
+                    .bg(Color::LightBlue)
                     .fg(Color::Black)
                     .add_modifier(Modifier::BOLD),
             )
@@ -947,7 +953,7 @@ impl App {
                 Block::default()
                     .borders(Borders::ALL)
                     .style(Style::default().fg(Color::White))
-                    .title("Queue")
+                    .title(format!("Queue ({} songs)", self.current_playlist.len()))
                     .border_type(BorderType::Plain),
             )
             .widths(&[

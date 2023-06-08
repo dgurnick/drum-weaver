@@ -40,7 +40,7 @@ pub trait KeyHandler {
     fn do_delete_track( &mut self, songlist_state: &mut TableState, track_player: &mut Player, click_player: &mut Player);
     fn do_cancel_search( &mut self );
     fn do_clear_playlist( &mut self );
-    fn do_shuffle_playlist( &mut self );
+    fn do_shuffle_playlist( &mut self, table_state: &mut TableState );
     fn do_start_playlist( &mut self );
 }
 
@@ -414,7 +414,7 @@ impl KeyHandler for App {
         self.current_playlist_idx = 0;
     }
 
-    fn do_shuffle_playlist(&mut self) {
+    fn do_shuffle_playlist(&mut self, playlist_state: &mut TableState) {
         // Convert the BTreeMap into a vector of key-value pairs
         let mut playlist_vec: Vec<(usize, SongRecord)> =
             self.current_playlist.clone().into_iter().collect();
@@ -425,6 +425,12 @@ impl KeyHandler for App {
         playlist_vec.shuffle(&mut rng);
 
         for (idx, song) in playlist_vec.into_iter().enumerate() {
+            if let Some(track_file) = self.track_file.clone() {
+                if track_file.contains(song.1.file_name.as_str()) {
+                    self.current_playlist_idx = idx;
+                    playlist_state.select(Some(idx));
+                }
+            }
             self.current_playlist.insert(idx, song.1);
         }
     }
