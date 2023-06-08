@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use crate::device::read_devices;
@@ -42,6 +41,7 @@ pub trait KeyHandler {
     fn do_cancel_search( &mut self );
     fn do_clear_playlist( &mut self );
     fn do_shuffle_playlist( &mut self );
+    fn do_start_playlist( &mut self );
 }
 
 #[rustfmt::enable]
@@ -411,6 +411,7 @@ impl KeyHandler for App {
 
     fn do_clear_playlist(&mut self) {
         self.current_playlist.clear();
+        self.current_playlist_idx = 0;
     }
 
     fn do_shuffle_playlist(&mut self) {
@@ -426,5 +427,9 @@ impl KeyHandler for App {
         for (idx, song) in playlist_vec.into_iter().enumerate() {
             self.current_playlist.insert(idx, song.1);
         }
+    }
+
+    fn do_start_playlist(&mut self) {
+        self.is_playing = true;
     }
 }

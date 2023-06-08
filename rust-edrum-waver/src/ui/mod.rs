@@ -74,6 +74,8 @@ pub struct App {
     is_searching: bool,
     searching_for: String,
     is_playing_random: bool,
+    is_playing: bool,
+    current_playlist_idx: usize,
 }
 
 impl App {
@@ -120,6 +122,8 @@ impl App {
             is_searching: false,
             searching_for: String::new(),
             is_playing_random: false,
+            is_playing: false,
+            current_playlist_idx: 0,
         }
     }
 
@@ -158,7 +162,6 @@ impl App {
         track_player.set_playback_speed(self.playback_speed);
         click_player.set_playback_speed(self.playback_speed);
 
-        let mut is_playing = false;
         let mut footer_message = String::new();
         let mut filter_message = String::new();
 
@@ -428,6 +431,7 @@ impl App {
                         KeyCode::Char('-') => self.do_remove_song_from_playlist(&mut songlist_state),
                         KeyCode::Char('/') => self.do_clear_playlist(),
                         KeyCode::Char('*') => self.do_shuffle_playlist(),
+                        KeyCode::Char('p') => self.do_start_playlist(),
                         
                         KeyCode::Char(' ') => self.do_pause_playback( &mut active_menu_item, &mut track_player, &mut click_player, ),
                         KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
@@ -498,7 +502,7 @@ impl App {
                                             self.track_device_idx = selected;
                                         }
 
-                                        is_playing = false;
+                                        self.is_playing = false;
                                         track_player.force_remove_next_song()?;
                                         click_player.force_remove_next_song()?;
                                         track_player.stop();
@@ -573,7 +577,7 @@ impl App {
                                         .play_song_now(&self.click_song.as_ref().unwrap(), None)
                                         .expect("Could not play click song");
 
-                                    is_playing = true;
+                                    self.is_playing = true;
                                     self.track_file = Some(track_file);
                                     self.click_file = Some(click_file);
                                 }
@@ -589,34 +593,39 @@ impl App {
                 UiEvent::Tick => {
                     if !track_player.has_current_song()
                         && !click_player.has_current_song()
-                        && is_playing
+                        && self.is_playing
                     {
                         info!("Song ended, moving to the next song");
 
                         footer_message = "Moving to next song in the queue".to_string();
 
                         #[allow(unused_assignments)]
-                        let mut new_position: usize;
+                        let mut new_position = 0;
 
                         // move to first in playlist if it's there
                         if !self.current_playlist.is_empty() {
-                            let (_, song_record) = self.current_playlist.pop_first().unwrap();
+                            if self.current_playlist_idx > self.current_playlist.len() - 1 {
+                                self.current_playlist_idx = 0;
+                            }
+                            let (_, song_record) = self.current_playlist.get_key_value(&self.current_playlist_idx).unwrap();
 
                             // find the position of the song_title in our song list
                             if let Some(index) = self
                                 .songs
                                 .iter()
-                                .position(|song| song.title == song_record.title)
+                                .position(|song| song.file_name == song_record.file_name)
                             {
                                 // THIS IS A TERRIBLE HACK. I'm sorry.
                                 new_position = index;
                                 songlist_state.select(Some(new_position));
                             }
 
-                            self.reindex_playlist();
-                        }
+                            self.current_playlist_idx += 1;
+                            if self.current_playlist_idx > self.current_playlist.len() - 1 {
+                                self.current_playlist_idx = 0;
+                            }
 
-                        if let Some(selected) = songlist_state.selected() {
+                        } else if let Some(selected) = songlist_state.selected() {
                             info!("The current position is {}", selected);
                             let amount_songs = self.songs.len();
 
@@ -632,18 +641,10 @@ impl App {
                             if new_position > amount_songs - 1 {
                                 new_position = 0;
                             }
+                        }
 
                             songlist_state.select(Some(new_position));
                             let selected_song = self.songs.get(new_position).unwrap();
-
-                            if needs_unzipping(
-                                &self.music_folder.as_ref().unwrap(),
-                                &selected_song.title,
-                                &selected_song.artist,
-                                &selected_song.album,
-                            ) {
-                                footer_message = "Unzipping song".to_string();
-                            }
 
                             let (track_file, click_file) = match get_file_paths(
                                 &self.music_folder.as_ref().unwrap(),
@@ -685,7 +686,7 @@ impl App {
                             click_player
                                 .play_song_next(&self.click_song.as_ref().unwrap(), None)
                                 .expect("Could not play click song");
-                        }
+                        
                     } else {
                         footer_message = "".to_string();
                     }
@@ -873,12 +874,52 @@ impl App {
             .title("Queue")
             .border_type(BorderType::Plain);
 
-        // Prepare the table data
-        let rows: Vec<Row> = self
-            .current_playlist
-            .iter()
-            .map(|(_, song)| Row::new(vec![song.artist.clone(), song.title.clone()]))
-            .collect();
+        let mut rows = vec![];
+        let mut idx = 1;
+        for song in self.current_playlist.values() {
+            let mut is_selected = false;
+            if is_playing {
+                if let Some(track_file) = self.track_file.clone() {
+                    if track_file.contains(&song.file_name) {
+                        is_selected = true;
+                        self.current_playlist_idx = idx;
+                    }
+                }
+            }
+            idx += 1;
+            let selected_fg = if is_selected {
+                Color::LightBlue
+            } else {
+                Color::White
+            };
+
+            let selected_cell = if is_selected {
+                Cell::from(Span::styled(
+                    "▶".to_string(),
+                    Style::default().fg(selected_fg),
+                ))
+            } else {
+                Cell::from(Span::styled(
+                    "".to_string(),
+                    Style::default().fg(selected_fg),
+                ))
+            };
+
+            let row = Row::new(vec![
+                selected_cell,
+                Cell::from(Span::styled(
+                    song.title.clone(),
+                    Style::default().fg(selected_fg),
+                )),
+                Cell::from(Span::styled(
+                    song.artist.clone(),
+                    Style::default().fg(selected_fg),
+                )),
+            ]);
+
+            rows.push(row);
+
+        }
 
         let queue_table = Table::new(rows)
             .block(queue_ui)
@@ -890,11 +931,15 @@ impl App {
             )
             .header(Row::new(vec![
                 Cell::from(Span::styled(
-                    "Artist",
+                    "",
                     Style::default().add_modifier(Modifier::BOLD),
                 )),
                 Cell::from(Span::styled(
                     "Song",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )),
+                Cell::from(Span::styled(
+                    "Artist",
                     Style::default().add_modifier(Modifier::BOLD),
                 )),
             ]))
@@ -905,7 +950,11 @@ impl App {
                     .title("Queue")
                     .border_type(BorderType::Plain),
             )
-            .widths(&[Constraint::Percentage(50), Constraint::Percentage(50)]);
+            .widths(&[
+                Constraint::Length(1),
+                Constraint::Percentage(45), 
+                Constraint::Percentage(45)
+                ]);
 
         (song_table, queue_table)
     }
@@ -963,14 +1012,11 @@ impl App {
     }
 
     fn reindex_playlist(&mut self) {
-        let mut idx = 0;
-
-        let values: Vec<SongRecord> = self.current_playlist.values().cloned().collect();
+        let song_records: Vec<(usize, SongRecord)> = self.current_playlist.clone().into_iter().collect();
         self.current_playlist.clear();
 
-        for song_record in values {
-            idx += 1;
-            self.current_playlist.insert(idx, song_record);
+        for (idx, song) in song_records.into_iter().enumerate() {
+            self.current_playlist.insert(idx + 1, song.1);
         }
     }
 
@@ -1067,6 +1113,10 @@ impl App {
             Line::from(vec![
                 Span::styled("*", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Randomize the current playlist"),
+            ]),
+            Line::from(vec![
+                Span::styled("p", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Start playing (useful when you create a playlist)."),
             ]),
         ];
 
