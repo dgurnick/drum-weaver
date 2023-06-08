@@ -28,11 +28,11 @@ pub enum UiEvent<I> {
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("error reading the DB file: {0}")]
-    ReadDBError(#[from] io::Error),
+    ReadDB(#[from] io::Error),
     #[error("error parsing the DB file: {0}")]
-    ParseDBError(#[from] serde_json::Error),
+    ParseDB(#[from] serde_json::Error),
     #[error("error parsing the CsV file: {0}")]
-    CsvError(#[from] csv::Error),
+    Csv(#[from] csv::Error),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -64,15 +64,11 @@ pub fn needs_unzipping(
         if &song.album == album_name && &song.artist == artist_name && &song.title == song_title {
             let (track_path, _) = get_track_and_click_path(music_folder, &song.folder, &song.title);
 
-            if !track_path.exists() {
-                return true;
-            } else {
-                return true;
-            }
+            return !track_path.exists();
         }
     }
 
-    return false;
+    false
 }
 
 lazy_static! {
@@ -80,7 +76,7 @@ lazy_static! {
 }
 
 // To have global immutable access to the file.
-const CSV_CONTENT: &'static [u8] = include_bytes!("../assets/song_list.csv");
+const CSV_CONTENT: &[u8] = include_bytes!("../assets/song_list.csv");
 
 fn read_song_file() -> Result<Vec<SongRecord>, Error> {
     let mut songs = SONGS.lock().unwrap();
@@ -167,9 +163,9 @@ pub fn get_file_paths(
     }
 
     // throw an error if the file does not exist
-    if !std::fs::metadata(track_path_str.clone()).is_ok() {
+    if std::fs::metadata(track_path_str.clone()).is_err() {
         Err(format!("Track file does not exist: {}", track_path_str).into())
-    } else if !std::fs::metadata(click_path_str.clone()).is_ok() {
+    } else if std::fs::metadata(click_path_str.clone()).is_err() {
         Err(format!("Click file does not exist: {}", click_path_str).into())
     } else {
         Ok((track_path_str, click_path_str))
@@ -182,7 +178,7 @@ fn check_file_existence(folder_path: String, file_name: String) -> Result<(), St
     path.push(folder_path);
     path.push(file_name);
 
-    if let Err(_) = metadata(&path) {
+    if metadata(&path).is_err() {
         return Err(format!("File '{}' does not exist", path.display()));
     }
     Ok(())

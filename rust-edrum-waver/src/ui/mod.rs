@@ -1,5 +1,6 @@
 pub mod commands;
-use crate::ui::commands::KeyHandler;
+use confy;
+use crate::{ui::commands::KeyHandler};
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use crossterm::{
@@ -33,19 +34,10 @@ use std::{
 use std::{env, sync::mpsc};
 use std::{io, thread};
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
 struct AppConfig {
     track_device_name: Option<String>,
     click_device_name: Option<String>,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        AppConfig {
-            track_device_name: None,
-            click_device_name: None,
-        }
-    }
 }
 
 impl Display for AppConfig {
@@ -78,7 +70,27 @@ pub struct App {
     current_playlist_idx: usize,
 }
 
+fn load_playlist() -> Result<BTreeMap<usize, SongRecord>, Box<dyn std::error::Error>> {
+    let loaded_playlist: Result<BTreeMap<String, SongRecord>, confy::ConfyError> =
+        confy::load("drum-weaver", "playlist");
+
+    let playlist = match loaded_playlist {
+        Ok(playlist) => playlist,
+        Err(_) => BTreeMap::new(), // Provide a default playlist if loading fails
+    };
+        
+    let result: BTreeMap<usize, SongRecord> = playlist
+        .into_iter()
+        .map(|(k, v)| (k.parse().unwrap(), v))
+        .collect();
+
+    Ok(result)
+    
+
+}
+
 impl App {
+
     pub fn new(arguments: &mut PlayerArguments, songs: Vec<SongRecord>) -> Self {
         let config: AppConfig = confy::load("drum-weaver", None).expect("Able to read configuration");
         
@@ -104,9 +116,17 @@ impl App {
         arguments.click_device_position = click_position;
         arguments.track_device_position = device_position;
 
+        let playlist = match load_playlist() {
+            Ok(playlist) => playlist,
+            Err(e) => {
+                error!("Unable to load playlist: {}", e);
+                BTreeMap::new()
+            }
+        };
+
         App {
             songs: songs.clone(),
-            original_songs: songs.clone(),
+            original_songs: songs,
             music_folder: None,
             track_file: None,
             click_file: None,
@@ -117,7 +137,7 @@ impl App {
             track_device_idx: arguments.track_device_position,
             click_device_idx: arguments.click_device_position,
             playback_speed: arguments.playback_speed,
-            current_playlist: BTreeMap::new(),
+            current_playlist: playlist,
             is_quitting: false,
             is_searching: false,
             searching_for: String::new(),
@@ -187,10 +207,9 @@ impl App {
                     }
                 }
 
-                if last_tick.elapsed() >= tick_rate {
-                    if let Ok(_) = sender.send(UiEvent::Tick) {
-                        last_tick = Instant::now();
-                    }
+                if last_tick.elapsed() >= tick_rate && sender.send(UiEvent::Tick).is_ok() {
+                    last_tick = Instant::now();
+
                 }
             }
         });
@@ -304,13 +323,12 @@ impl App {
 
                     let footer_message = if self.is_searching {
                         filter_message.clone()
+                    } else if track_player.has_current_song() && click_player.has_current_song() {
+                        format!("Playing: {}", self.track_file.as_ref().unwrap().clone())
                     } else {
-                        if track_player.has_current_song() && click_player.has_current_song() {
-                            format!("Playing: {}", self.track_file.as_ref().unwrap().clone())
-                        } else {
-                            "No song playing".to_string()
-                        }
+                        "No song playing".to_string()
                     };
+                    
 
                     let footer_device_text = format!(
                         "Track device: {} - {}% | Click device: {} - {}%",
@@ -536,7 +554,7 @@ impl App {
                                     let selected_song = self.songs.get(selected).unwrap();
 
                                     if needs_unzipping(
-                                        &self.music_folder.as_ref().unwrap(),
+                                        self.music_folder.as_ref().unwrap(),
                                         &selected_song.title,
                                         &selected_song.artist,
                                         &selected_song.album,
@@ -545,7 +563,7 @@ impl App {
                                     }
 
                                     let (track_file, click_file) = match get_file_paths(
-                                        &self.music_folder.as_ref().unwrap(),
+                                        self.music_folder.as_ref().unwrap(),
                                         &selected_song.title,
                                         &selected_song.artist,
                                         &selected_song.album,
@@ -574,10 +592,10 @@ impl App {
                                     );
 
                                     track_player
-                                        .play_song_now(&self.track_song.as_ref().unwrap(), None)
+                                        .play_song_now(self.track_song.as_ref().unwrap(), None)
                                         .expect("Could not play track song");
                                     click_player
-                                        .play_song_now(&self.click_song.as_ref().unwrap(), None)
+                                        .play_song_now(self.click_song.as_ref().unwrap(), None)
                                         .expect("Could not play click song");
 
                                     self.is_playing = true;
@@ -651,7 +669,7 @@ impl App {
                             let selected_song = self.songs.get(new_position).unwrap();
 
                             let (track_file, click_file) = match get_file_paths(
-                                &self.music_folder.as_ref().unwrap(),
+                                self.music_folder.as_ref().unwrap(),
                                 &selected_song.title,
                                 &selected_song.artist,
                                 &selected_song.album,
@@ -685,10 +703,10 @@ impl App {
                             );
 
                             track_player
-                                .play_song_next(&self.track_song.as_ref().unwrap(), None)
+                                .play_song_next(self.track_song.as_ref().unwrap(), None)
                                 .expect("Could not play track song");
                             click_player
-                                .play_song_next(&self.click_song.as_ref().unwrap(), None)
+                                .play_song_next(self.click_song.as_ref().unwrap(), None)
                                 .expect("Could not play click song");
                         
                     } else {
@@ -760,8 +778,7 @@ impl App {
                 songlist_state
                     .selected()
                     .expect("there is always a selected song"),
-            )
-            .clone();
+            );
 
         let _selected_playlist_song = self.current_playlist.get(&self.current_playlist_idx).cloned();
 

@@ -126,7 +126,7 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     if music_folder.is_none() {
         info!("No music folder specified, will prompt for one");
     } else if !Path::new(&music_folder.as_ref().unwrap()).exists() {
-        return Err(format!("Music folder does not exist."));
+        return Err("Music folder does not exist.".to_string());
     }
 
     let track_position = matches
@@ -197,14 +197,14 @@ fn run(matches: &ArgMatches) -> Result<i32, String> {
     //let (track_file, click_file) = get_file_paths(music_folder, track_position);
 
     let mut arguments = PlayerArguments {
-        music_folder: music_folder,
+        music_folder,
         track_song: None,
         click_song: None,
-        track_volume: track_volume,
-        click_volume: click_volume,
+        track_volume,
+        click_volume,
         track_device_position: track_device,
         click_device_position: click_device,
-        playback_speed: playback_speed,
+        playback_speed,
     };
 
     match import_songs() {

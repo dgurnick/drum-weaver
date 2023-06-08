@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use crate::device::read_devices;
@@ -259,7 +260,7 @@ impl KeyHandler for App {
 
     fn do_reduce_track_volume(&mut self, track_player: &mut Player) {
         if self.track_volume > 0 {
-            self.track_volume = self.track_volume - 1;
+            self.track_volume -= 1;
         }
 
         track_player.set_volume_adjustment(self.track_volume as f32 / 100.0);
@@ -271,7 +272,7 @@ impl KeyHandler for App {
     }
 
     fn do_increase_track_volume(&mut self, track_player: &mut Player) {
-        self.track_volume = self.track_volume + 1;
+        self.track_volume += 1;
         if self.track_volume > 200 {
             self.track_volume = 200;
         }
@@ -281,7 +282,7 @@ impl KeyHandler for App {
 
     fn do_reduce_click_volume(&mut self, click_player: &mut Player) {
         if self.click_volume > 0 {
-            self.click_volume = self.click_volume - 1;
+            self.click_volume -= 1;
         }
 
         click_player.set_volume_adjustment(self.click_volume as f32 / 100.0);
@@ -293,7 +294,7 @@ impl KeyHandler for App {
     }
 
     fn do_increase_click_volume(&mut self, click_player: &mut Player) {
-        self.click_volume = self.click_volume + 1;
+        self.click_volume += 1;
         if self.click_volume > 200 {
             self.click_volume = 200;
         }
@@ -358,11 +359,21 @@ impl KeyHandler for App {
             let config = AppConfig {
                 track_device_name: Some(track_device_name),
                 click_device_name: Some(click_device_name),
-                ..Default::default()
             };
             confy::store("drum-weaver", None, config.clone())
                 .expect("Unable to save configuration");
-            println!("Stored config {}", config.clone());
+            println!("Stored config {}", config);
+
+            let playlist_str: BTreeMap<String, SongRecord> = self
+                .current_playlist
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect();
+
+            // Save playlist using confy
+            confy::store("drum-weaver", "playlist", &playlist_str)
+                .expect("Failed to save playlist");
 
             std::process::exit(0);
         }
