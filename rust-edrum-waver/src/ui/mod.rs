@@ -363,6 +363,21 @@ impl App {
                             self.searching_for.clear();
                             filter_message.clear();
                             footer_message.clear();
+
+                            // let's take the search results and add them all to the playlist
+                            let mut idx = self.current_playlist.len();
+                            for song in self.songs.clone() {
+                                for existing in self.current_playlist.values() {
+                                    if existing.file_name == song.file_name {
+                                        continue;
+                                    }
+                                }
+                                self.current_playlist.insert(idx, song.clone());
+                                idx += 1;
+
+                            }
+
+                            self.songs = self.original_songs.clone();
                         }
                         KeyCode::Backspace =>
                         // remove last character
@@ -411,6 +426,8 @@ impl App {
 
                         KeyCode::Char('+') => self.do_add_song_to_playlist(&mut songlist_state),
                         KeyCode::Char('-') => self.do_remove_song_from_playlist(&mut songlist_state),
+                        KeyCode::Char('/') => self.do_clear_playlist(),
+                        KeyCode::Char('*') => self.do_shuffle_playlist(),
                         
                         KeyCode::Char(' ') => self.do_pause_playback( &mut active_menu_item, &mut track_player, &mut click_player, ),
                         KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
@@ -903,7 +920,9 @@ impl App {
         self.songs = self.original_songs.clone();
 
         self.songs.retain(|song| {
-            song.title.to_lowercase().contains(&search_term.clone().to_lowercase()) || song.artist.to_lowercase().contains(&search_term.clone().to_lowercase())
+               song.title.to_lowercase().contains(&search_term.clone().to_lowercase()) 
+            || song.artist.to_lowercase().contains(&search_term.clone().to_lowercase())
+            || song.genre.to_lowercase().contains(&search_term.clone().to_lowercase())
         });
 
         *filter_message = format!(
@@ -1040,6 +1059,14 @@ impl App {
             Line::from(vec![
                 Span::styled("-", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Removes the selected song from the queue"),
+            ]),
+            Line::from(vec![
+                Span::styled("/", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Clears the current playlist"),
+            ]),
+            Line::from(vec![
+                Span::styled("*", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Randomize the current playlist"),
             ]),
         ];
 

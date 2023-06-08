@@ -1,6 +1,8 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use crate::device::read_devices;
+use crate::playlist::SongRecord;
 use crate::ui::App;
 use crate::ui::AppConfig;
 use crate::ui::MenuItem;
@@ -37,7 +39,9 @@ pub trait KeyHandler {
     fn do_start_search( &mut self );
     fn do_shuffle_songs( &mut self );
     fn do_delete_track( &mut self, songlist_state: &mut TableState, track_player: &mut Player, click_player: &mut Player);
-    fn do_cancel_search( &mut self);
+    fn do_cancel_search( &mut self );
+    fn do_clear_playlist( &mut self );
+    fn do_shuffle_playlist( &mut self );
 }
 
 #[rustfmt::enable]
@@ -403,5 +407,24 @@ impl KeyHandler for App {
 
     fn do_cancel_search(&mut self) {
         self.songs = self.original_songs.clone();
+    }
+
+    fn do_clear_playlist(&mut self) {
+        self.current_playlist.clear();
+    }
+
+    fn do_shuffle_playlist(&mut self) {
+        // Convert the BTreeMap into a vector of key-value pairs
+        let mut playlist_vec: Vec<(usize, SongRecord)> =
+            self.current_playlist.clone().into_iter().collect();
+        self.current_playlist.clear();
+
+        // Shuffle the vector using the Fisher-Yates algorithm
+        let mut rng = rand::thread_rng();
+        playlist_vec.shuffle(&mut rng);
+
+        for (idx, song) in playlist_vec.into_iter().enumerate() {
+            self.current_playlist.insert(idx, song.1);
+        }
     }
 }
