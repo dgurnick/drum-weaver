@@ -23,9 +23,7 @@ jobs:
 
       - name: Get version
         id: version
-        run: |
-          version=$(grep -oP '(?<=version = ")[^"]*' Cargo.toml | tail -1)
-          echo "::set-output name=VERSION::$version"
+        run: echo ::set-output name=VERSION::$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "drum_weaver").version')
 
       - name: Create release
         id: create_release

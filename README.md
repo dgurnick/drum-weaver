@@ -1,26 +1,22 @@
-# Click & Main track player for drumming karaoke things (that I can't explain better)
-> Written in Rust because why not?
+# Drum Weaver.
+> A simple windows console application that plays drumless audio with a click track on separate channels.
+> Useful for practicing with the click in your ear and audio on speakers/PA systems.
 
-## Overview
-1. Based on files and spreadsheet first listed on [reddit](https://www.reddit.com/r/edrums/comments/1162lyh/sharing_my_library_of_5000_drumless_songs_with/)
-   1. Files: ```aHR0cHM6Ly9tZWdhLm56L2ZvbGRlci9mVjEzbFR6SyNwWndtTV82YzI2U3hWMjdIa3VVRjZB```
-   2. Spreadsheet : ```aHR0cHM6Ly9kb2NzLmdvb2dsZS5jb20vc3ByZWFkc2hlZXRzL2QvMXY2N3dUNDJBNGxSanM3al9nbVJmdUV6ZkZDMUVnUk1leUtfeEt0YVBUMW8vZWRpdD91c3A9c2hhcmluZw==```
-2. Allows you to indicate which sound device you want the main and click tracks played out of
-   1. Typical use-case: click in the headphones, main for the audience.
-3. Tested on Windows (my music workstation; sorry) but probably works on other platforms.
-4. The spreadsheet is included here as a CSV in the assets folder. 
-5. Automatically extracts the 7z file if not already done. (Who wants to do that manually?)
-6. Is peasant-level Rust. ymmv
-7. Some songs will have clicks out of sync. This is because the dude who made all of these made some mistakes. Blame him and his AI bot. In all their glory.
+# Getting started
+1. For background on why this was created, check out this [original reddit thread.](https://www.reddit.com/r/edrums/comments/1162lyh/sharing_my_library_of_5000_drumless_songs_with/)
+2. Decode this for the download link: ```aHR0cHM6Ly9tZWdhLm56L2ZvbGRlci9mVjEzbFR6SyNwWndtTV82YzI2U3hWMjdIa3VVRjZB```
+3. Download all the files
+4. Download and execute ```drum_weaver```
 
-## Running it
-1. Download all the files
-2. execute ```rust-edrum-waver```
-3. Note: the UI automatically moves to the next song. If you want to disable this, add ```--autoskip=0``` as a parameter when you run the app.
+![Drum Weaver](assets/drum-weaver.png)
+# Notes
+1. There are many shortcuts to help set things up. There's a help page with details.
+2. Sometimes the click track will fall out of sync. This is typically due to the original translation and not CPU usage.
+3. The list of songs is embedded in the application directly. At some point, I will add some management capabilities on the master list.
+4. Playlists are stored and loaded automatically.
+5. You can search by artist, album, or genre.
 
-## Improvements
-1. [x] Basic player
-2. [x] Basic UI
-3. [c] search and filter option
-4. [ ] playlists
-5. [ ] midi controller. something basic with a synth will do. For restart, skip song, skip forward and backward, etc
+# Improvements
+1. Master playlist management (Adding songs to an ignore list, etc)
+2. Playing main track at lower volume on click device. (Useful if using pro headsets that have sound cancellation)
+3. Consider egui for the frontend. (I tried and failed a couple of times. #rookie)
