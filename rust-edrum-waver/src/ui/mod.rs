@@ -1,6 +1,6 @@
+#[rustfmt::enable]
 pub mod commands;
-use confy;
-use crate::{ui::commands::KeyHandler};
+use crate::ui::commands::KeyHandler;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use crossterm::{
@@ -29,7 +29,8 @@ use ratatui::{
 };
 use std::{
     collections::BTreeMap,
-    time::{Duration, Instant}, fmt::Display,
+    fmt::Display,
+    time::{Duration, Instant},
 };
 use std::{env, sync::mpsc};
 use std::{io, thread};
@@ -42,9 +43,22 @@ struct AppConfig {
 
 impl Display for AppConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let track_device_name = self.track_device_name.as_ref().map(|name| name.clone()).unwrap_or_else(|| "None".to_string());
-        let click_device_name = self.click_device_name.as_ref().map(|name| name.clone()).unwrap_or_else(|| "None".to_string());
-        write!(f, "Track Device: {}\nClick Device: {}", track_device_name, click_device_name)
+        let track_device_name = self
+            .track_device_name
+            .as_ref()
+            .cloned()
+            .unwrap();
+        let click_device_name = self
+            .click_device_name
+            .as_ref()
+            .cloned()
+            .unwrap();
+
+        write!(
+            f,
+            "Track Device: {}\nClick Device: {}",
+            track_device_name, click_device_name
+        )
     }
 }
 
@@ -78,22 +92,20 @@ fn load_playlist() -> Result<BTreeMap<usize, SongRecord>, Box<dyn std::error::Er
         Ok(playlist) => playlist,
         Err(_) => BTreeMap::new(), // Provide a default playlist if loading fails
     };
-        
+
     let result: BTreeMap<usize, SongRecord> = playlist
         .into_iter()
         .map(|(k, v)| (k.parse().unwrap(), v))
         .collect();
 
     Ok(result)
-    
-
 }
 
 impl App {
-
     pub fn new(arguments: &mut PlayerArguments, songs: Vec<SongRecord>) -> Self {
-        let config: AppConfig = confy::load("drum-weaver", None).expect("Able to read configuration");
-        
+        let config: AppConfig =
+            confy::load("drum-weaver", None).expect("Able to read configuration");
+
         let mut device_position = arguments.track_device_position;
         let mut click_position = arguments.click_device_position;
 
@@ -103,15 +115,21 @@ impl App {
                 .position(|d| d.name == *click_device_name)
                 .unwrap();
 
-            println!("Found click device: {} as position {}", click_device_name, device_position);
-        } 
+            println!(
+                "Found click device: {} as position {}",
+                click_device_name, device_position
+            );
+        }
         if let Some(track_device_name) = config.track_device_name.as_ref() {
             device_position = read_devices()
                 .iter()
                 .position(|d| d.name == *track_device_name)
                 .unwrap();
-            println!("Found track device: {} as position {}", track_device_name, device_position);
-        } 
+            println!(
+                "Found track device: {} as position {}",
+                track_device_name, device_position
+            );
+        }
 
         arguments.click_device_position = click_position;
         arguments.track_device_position = device_position;
@@ -484,8 +502,7 @@ impl App {
                         KeyCode::Char('c') => {
                             // I won't refactor this into another function because it uses everything and I'm dumb
                             if event.kind == KeyEventKind::Release {
-                                match active_menu_item {
-                                    MenuItem::Devices => {
+                                if let MenuItem::Devices = active_menu_item {
                                         if let Some(selected) = device_list_state.selected() {
                                             self.click_device_idx = selected;
                                         }
@@ -509,16 +526,13 @@ impl App {
                                             Song::from_file(self.get_beep_file(), None).unwrap();
                                         click_player.play_song_now(&beep, None)?;
                                     }
-                                    _ => {}
-                                }
                             }
                         }
 
                         KeyCode::Char('t') => {
                             // I won't refactor this into another function because it uses everything and I'm dumb
                             if event.kind == KeyEventKind::Release {
-                                match active_menu_item {
-                                    MenuItem::Devices => {
+                                if let MenuItem::Devices = active_menu_item {
                                         if let Some(selected) = device_list_state.selected() {
                                             self.track_device_idx = selected;
                                         }
@@ -542,13 +556,10 @@ impl App {
                                             Song::from_file(self.get_beep_file(), None).unwrap();
                                         track_player.play_song_now(&beep, None)?;
                                     }
-                                    _ => {}
-                                }
                             }
                         }
 
-                        KeyCode::Enter => match active_menu_item {
-                            MenuItem::Songs => {
+                        KeyCode::Enter => if let MenuItem::Songs = active_menu_item {
                                 if let Some(selected) = songlist_state.selected() {
                                     // this is wrong when we are random
                                     let selected_song = self.songs.get(selected).unwrap();
@@ -602,8 +613,6 @@ impl App {
                                     self.track_file = Some(track_file);
                                     self.click_file = Some(click_file);
                                 }
-                            }
-                            _ => {}
                         },
                         
 
@@ -772,15 +781,16 @@ impl App {
             .title("Songs")
             .border_type(BorderType::Plain);
 
-        let _selected_song = self
-            .songs
-            .get(
-                songlist_state
-                    .selected()
-                    .expect("there is always a selected song"),
-            );
+        let _selected_song = self.songs.get(
+            songlist_state
+                .selected()
+                .expect("there is always a selected song"),
+        );
 
-        let _selected_playlist_song = self.current_playlist.get(&self.current_playlist_idx).cloned();
+        let _selected_playlist_song = self
+            .current_playlist
+            .get(&self.current_playlist_idx)
+            .cloned();
 
         let mut rows = vec![];
         for song in self.songs.clone() {
@@ -941,7 +951,6 @@ impl App {
             ]);
 
             rows.push(row);
-
         }
 
         let queue_table = Table::new(rows)
@@ -975,32 +984,38 @@ impl App {
             )
             .widths(&[
                 Constraint::Length(1),
-                Constraint::Percentage(45), 
-                Constraint::Percentage(45)
-                ]);
+                Constraint::Percentage(45),
+                Constraint::Percentage(45),
+            ]);
 
         (song_table, queue_table)
     }
 
     #[rustfmt::enable]
-    fn filter_songs(
-        &mut self,
-        search_term: String,
-        filter_message: &mut String,
-    ) {
+    fn filter_songs(&mut self, search_term: String, filter_message: &mut String) {
         // Filter the songs vector based on the search term
         self.songs = self.original_songs.clone();
 
         self.songs.retain(|song| {
-               song.title.to_lowercase().contains(&search_term.clone().to_lowercase()) 
-            || song.artist.to_lowercase().contains(&search_term.clone().to_lowercase())
-            || song.genre.to_lowercase().contains(&search_term.clone().to_lowercase())
+            song.title
+                .to_lowercase()
+                .contains(&search_term.clone().to_lowercase())
+                || song
+                    .artist
+                    .to_lowercase()
+                    .contains(&search_term.clone().to_lowercase())
+                || song
+                    .genre
+                    .to_lowercase()
+                    .contains(&search_term.clone().to_lowercase())
         });
 
         *filter_message = format!(
             "Search for [{}] found {} songs",
-            search_term, self.songs.len());
-            
+            search_term,
+            self.songs.len()
+        );
+
         if self.songs.is_empty() {
             self.songs = self.original_songs.clone();
         }
@@ -1035,7 +1050,8 @@ impl App {
     }
 
     fn reindex_playlist(&mut self) {
-        let song_records: Vec<(usize, SongRecord)> = self.current_playlist.clone().into_iter().collect();
+        let song_records: Vec<(usize, SongRecord)> =
+            self.current_playlist.clone().into_iter().collect();
         self.current_playlist.clear();
 
         for (idx, song) in song_records.into_iter().enumerate() {
@@ -1230,5 +1246,4 @@ impl App {
 
         path.display().to_string()
     }
-
 }

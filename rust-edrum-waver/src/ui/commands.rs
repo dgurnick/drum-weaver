@@ -53,13 +53,10 @@ impl KeyHandler for App {
         track_player: &mut Player,
         click_player: &mut Player,
     ) {
-        match active_menu_item {
-            MenuItem::Songs => {
-                track_player.set_playback_speed(1.0);
-                click_player.set_playback_speed(1.0);
-                info!("Reset playback speed to 1x ");
-            }
-            _ => {}
+        if let MenuItem::Songs = active_menu_item {
+            track_player.set_playback_speed(1.0);
+            click_player.set_playback_speed(1.0);
+            info!("Reset playback speed to 1x ");
         }
     }
 
@@ -141,14 +138,11 @@ impl KeyHandler for App {
         track_player: &mut Player,
         click_player: &mut Player,
     ) {
-        match active_menu_item {
-            MenuItem::Songs => {
-                track_player.set_playing(!track_player.is_playing());
-                click_player.set_playing(!click_player.is_playing());
+        if let MenuItem::Songs = active_menu_item {
+            track_player.set_playing(!track_player.is_playing());
+            click_player.set_playing(!click_player.is_playing());
 
-                info!("Stopped playback of song");
-            }
-            _ => {}
+            info!("Stopped playback of song");
         }
     }
 
@@ -158,15 +152,12 @@ impl KeyHandler for App {
         track_player: &mut Player,
         click_player: &mut Player,
     ) {
-        match active_menu_item {
-            MenuItem::Songs => {
-                if track_player.is_playing() {
-                    track_player.seek(Duration::from_secs(0));
-                    click_player.seek(Duration::from_secs(0));
-                }
-                info!("Restarted song");
+        if let MenuItem::Songs = active_menu_item {
+            if track_player.is_playing() {
+                track_player.seek(Duration::from_secs(0));
+                click_player.seek(Duration::from_secs(0));
             }
-            _ => {}
+            info!("Restarted song");
         }
     }
 
@@ -175,19 +166,16 @@ impl KeyHandler for App {
         active_menu_item: &mut MenuItem,
         songlist_state: &mut TableState,
     ) {
-        match active_menu_item {
-            MenuItem::Songs => {
-                if let Some(selected) = songlist_state.selected() {
-                    let amount_songs = self.songs.len();
-                    if selected + 10 > amount_songs {
-                        songlist_state.select(Some(0));
-                    } else {
-                        songlist_state.select(Some(selected + 10));
-                    }
+        if let MenuItem::Songs = active_menu_item {
+            if let Some(selected) = songlist_state.selected() {
+                let amount_songs = self.songs.len();
+                if selected + 10 > amount_songs {
+                    songlist_state.select(Some(0));
+                } else {
+                    songlist_state.select(Some(selected + 10));
                 }
-                info!("Set song to {}", songlist_state.selected().unwrap());
             }
-            _ => {}
+            info!("Set song to {}", songlist_state.selected().unwrap());
         }
     }
 
@@ -196,19 +184,16 @@ impl KeyHandler for App {
         active_menu_item: &mut MenuItem,
         songlist_state: &mut TableState,
     ) {
-        match active_menu_item {
-            MenuItem::Songs => {
-                if let Some(selected) = songlist_state.selected() {
-                    let amount_songs = self.songs.len();
-                    if selected > 10 {
-                        songlist_state.select(Some(selected - 10));
-                    } else {
-                        songlist_state.select(Some(amount_songs - 1));
-                    }
+        if let MenuItem::Songs = active_menu_item {
+            if let Some(selected) = songlist_state.selected() {
+                let amount_songs = self.songs.len();
+                if selected > 10 {
+                    songlist_state.select(Some(selected - 10));
+                } else {
+                    songlist_state.select(Some(amount_songs - 1));
                 }
-                info!("Set song to {}", songlist_state.selected().unwrap());
             }
-            _ => {}
+            info!("Set song to {}", songlist_state.selected().unwrap());
         }
     }
 
@@ -218,20 +203,17 @@ impl KeyHandler for App {
         track_player: &mut Player,
         click_player: &mut Player,
     ) {
-        match active_menu_item {
-            MenuItem::Songs => {
-                let current_speed = track_player.get_playback_speed();
-                if current_speed > 0.1 {
-                    track_player.set_playback_speed(current_speed - 0.01);
-                    click_player.set_playback_speed(current_speed - 0.01);
-                }
-
-                info!(
-                    "Set playback speed to {}",
-                    track_player.get_playback_speed()
-                );
+        if let MenuItem::Songs = active_menu_item {
+            let current_speed = track_player.get_playback_speed();
+            if current_speed > 0.1 {
+                track_player.set_playback_speed(current_speed - 0.01);
+                click_player.set_playback_speed(current_speed - 0.01);
             }
-            _ => {}
+
+            info!(
+                "Set playback speed to {}",
+                track_player.get_playback_speed()
+            );
         }
     }
 
@@ -241,20 +223,17 @@ impl KeyHandler for App {
         track_player: &mut Player,
         click_player: &mut Player,
     ) {
-        match active_menu_item {
-            MenuItem::Songs => {
-                let current_speed = track_player.get_playback_speed();
-                if current_speed > 0.1 {
-                    track_player.set_playback_speed(current_speed + 0.01);
-                    click_player.set_playback_speed(current_speed + 0.01);
-                }
-
-                info!(
-                    "Set playback speed to {}",
-                    track_player.get_playback_speed()
-                );
+        if let MenuItem::Songs = active_menu_item {
+            let current_speed = track_player.get_playback_speed();
+            if current_speed > 0.1 {
+                track_player.set_playback_speed(current_speed + 0.01);
+                click_player.set_playback_speed(current_speed + 0.01);
             }
-            _ => {}
+
+            info!(
+                "Set playback speed to {}",
+                track_player.get_playback_speed()
+            );
         }
     }
 
@@ -372,8 +351,7 @@ impl KeyHandler for App {
                 .collect();
 
             // Save playlist using confy
-            confy::store("drum-weaver", "playlist", &playlist_str)
-                .expect("Failed to save playlist");
+            confy::store("drum-weaver", "playlist", playlist_str).expect("Failed to save playlist");
 
             std::process::exit(0);
         }

@@ -6,10 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cargo-watch = "8.4.0"
 chrono = { version = "0.4.24", features = ["serde"] }
 clap = { version = "4.2.7", features = ["derive"] }
-clippy = "0.0.302"
 color-eyre = "0.6.2"
 confy = "0.5.1"
 cpal = "0.15.2"
