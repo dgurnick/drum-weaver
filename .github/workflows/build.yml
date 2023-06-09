@@ -17,7 +17,7 @@ jobs:
         id: version
         run: echo "::set-output name=VERSION::$(cat VERSION)"
 
-      - name: Delete existging release
+      - name: Delete existing release
         uses: dev-drprasad/delete-tag-and-release@v1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
