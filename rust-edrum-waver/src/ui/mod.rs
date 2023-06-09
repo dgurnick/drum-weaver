@@ -1,3 +1,4 @@
+#[rustfmt::enable]
 pub mod commands;
 use crate::ui::commands::KeyHandler;
 
@@ -28,31 +29,36 @@ use ratatui::{
 };
 use std::{
     collections::BTreeMap,
-    time::{Duration, Instant}, fmt::Display,
+    fmt::Display,
+    time::{Duration, Instant},
 };
 use std::{env, sync::mpsc};
 use std::{io, thread};
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
 struct AppConfig {
     track_device_name: Option<String>,
     click_device_name: Option<String>,
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        AppConfig {
-            track_device_name: None,
-            click_device_name: None,
-        }
-    }
-}
-
 impl Display for AppConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let track_device_name = self.track_device_name.as_ref().map(|name| name.clone()).unwrap_or_else(|| "None".to_string());
-        let click_device_name = self.click_device_name.as_ref().map(|name| name.clone()).unwrap_or_else(|| "None".to_string());
-        write!(f, "Track Device: {}\nClick Device: {}", track_device_name, click_device_name)
+        let track_device_name = self
+            .track_device_name
+            .as_ref()
+            .cloned()
+            .unwrap();
+        let click_device_name = self
+            .click_device_name
+            .as_ref()
+            .cloned()
+            .unwrap();
+
+        write!(
+            f,
+            "Track Device: {}\nClick Device: {}",
+            track_device_name, click_device_name
+        )
     }
 }
 
@@ -74,12 +80,32 @@ pub struct App {
     is_searching: bool,
     searching_for: String,
     is_playing_random: bool,
+    is_playing: bool,
+    current_playlist_idx: usize,
+}
+
+fn load_playlist() -> Result<BTreeMap<usize, SongRecord>, Box<dyn std::error::Error>> {
+    let loaded_playlist: Result<BTreeMap<String, SongRecord>, confy::ConfyError> =
+        confy::load("drum-weaver", "playlist");
+
+    let playlist = match loaded_playlist {
+        Ok(playlist) => playlist,
+        Err(_) => BTreeMap::new(), // Provide a default playlist if loading fails
+    };
+
+    let result: BTreeMap<usize, SongRecord> = playlist
+        .into_iter()
+        .map(|(k, v)| (k.parse().unwrap(), v))
+        .collect();
+
+    Ok(result)
 }
 
 impl App {
     pub fn new(arguments: &mut PlayerArguments, songs: Vec<SongRecord>) -> Self {
-        let config: AppConfig = confy::load("drum-weaver", None).expect("Able to read configuration");
-        
+        let config: AppConfig =
+            confy::load("drum-weaver", None).expect("Able to read configuration");
+
         let mut device_position = arguments.track_device_position;
         let mut click_position = arguments.click_device_position;
 
@@ -89,22 +115,36 @@ impl App {
                 .position(|d| d.name == *click_device_name)
                 .unwrap();
 
-            println!("Found click device: {} as position {}", click_device_name, device_position);
-        } 
+            println!(
+                "Found click device: {} as position {}",
+                click_device_name, device_position
+            );
+        }
         if let Some(track_device_name) = config.track_device_name.as_ref() {
             device_position = read_devices()
                 .iter()
                 .position(|d| d.name == *track_device_name)
                 .unwrap();
-            println!("Found track device: {} as position {}", track_device_name, device_position);
-        } 
+            println!(
+                "Found track device: {} as position {}",
+                track_device_name, device_position
+            );
+        }
 
         arguments.click_device_position = click_position;
         arguments.track_device_position = device_position;
 
+        let playlist = match load_playlist() {
+            Ok(playlist) => playlist,
+            Err(e) => {
+                error!("Unable to load playlist: {}", e);
+                BTreeMap::new()
+            }
+        };
+
         App {
             songs: songs.clone(),
-            original_songs: songs.clone(),
+            original_songs: songs,
             music_folder: None,
             track_file: None,
             click_file: None,
@@ -115,11 +155,13 @@ impl App {
             track_device_idx: arguments.track_device_position,
             click_device_idx: arguments.click_device_position,
             playback_speed: arguments.playback_speed,
-            current_playlist: BTreeMap::new(),
+            current_playlist: playlist,
             is_quitting: false,
             is_searching: false,
             searching_for: String::new(),
             is_playing_random: false,
+            is_playing: false,
+            current_playlist_idx: 0,
         }
     }
 
@@ -141,6 +183,9 @@ impl App {
         let mut songlist_state = TableState::default();
         songlist_state.select(Some(0));
 
+        let mut playlist_state = TableState::default();
+        playlist_state.select(Some(0));
+
         let mut device_list_state = ListState::default();
         device_list_state.select(Some(0));
 
@@ -158,7 +203,6 @@ impl App {
         track_player.set_playback_speed(self.playback_speed);
         click_player.set_playback_speed(self.playback_speed);
 
-        let mut is_playing = false;
         let mut footer_message = String::new();
         let mut filter_message = String::new();
 
@@ -181,10 +225,9 @@ impl App {
                     }
                 }
 
-                if last_tick.elapsed() >= tick_rate {
-                    if let Ok(_) = sender.send(UiEvent::Tick) {
-                        last_tick = Instant::now();
-                    }
+                if last_tick.elapsed() >= tick_rate && sender.send(UiEvent::Tick).is_ok() {
+                    last_tick = Instant::now();
+
                 }
             }
         });
@@ -254,7 +297,7 @@ impl App {
                                 &mut songlist_state,
                             );
 
-                            rect.render_widget(queue_table, songlist_chunks[1]);
+                            rect.render_stateful_widget(queue_table, songlist_chunks[1], &mut playlist_state);
                         }
                         MenuItem::Devices => {
                             let device_chunks = Layout::default()
@@ -298,13 +341,12 @@ impl App {
 
                     let footer_message = if self.is_searching {
                         filter_message.clone()
+                    } else if track_player.has_current_song() && click_player.has_current_song() {
+                        format!("Playing: {}", self.track_file.as_ref().unwrap().clone())
                     } else {
-                        if track_player.has_current_song() && click_player.has_current_song() {
-                            format!("Playing: {}", self.track_file.as_ref().unwrap().clone())
-                        } else {
-                            "No song playing".to_string()
-                        }
+                        "No song playing".to_string()
                     };
+                    
 
                     let footer_device_text = format!(
                         "Track device: {} - {}% | Click device: {} - {}%",
@@ -363,6 +405,21 @@ impl App {
                             self.searching_for.clear();
                             filter_message.clear();
                             footer_message.clear();
+
+                            // let's take the search results and add them all to the playlist
+                            let mut idx = self.current_playlist.len();
+                            for song in self.songs.clone() {
+                                for existing in self.current_playlist.values() {
+                                    if existing.file_name == song.file_name {
+                                        continue;
+                                    }
+                                }
+                                self.current_playlist.insert(idx, song.clone());
+                                idx += 1;
+
+                            }
+
+                            self.songs = self.original_songs.clone();
                         }
                         KeyCode::Backspace =>
                         // remove last character
@@ -411,6 +468,9 @@ impl App {
 
                         KeyCode::Char('+') => self.do_add_song_to_playlist(&mut songlist_state),
                         KeyCode::Char('-') => self.do_remove_song_from_playlist(&mut songlist_state),
+                        KeyCode::Char('/') => self.do_clear_playlist(),
+                        KeyCode::Char('*') => self.do_shuffle_playlist(&mut playlist_state),
+                        KeyCode::Char('p') => self.do_start_playlist(),
                         
                         KeyCode::Char(' ') => self.do_pause_playback( &mut active_menu_item, &mut track_player, &mut click_player, ),
                         KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
@@ -442,8 +502,7 @@ impl App {
                         KeyCode::Char('c') => {
                             // I won't refactor this into another function because it uses everything and I'm dumb
                             if event.kind == KeyEventKind::Release {
-                                match active_menu_item {
-                                    MenuItem::Devices => {
+                                if let MenuItem::Devices = active_menu_item {
                                         if let Some(selected) = device_list_state.selected() {
                                             self.click_device_idx = selected;
                                         }
@@ -467,21 +526,18 @@ impl App {
                                             Song::from_file(self.get_beep_file(), None).unwrap();
                                         click_player.play_song_now(&beep, None)?;
                                     }
-                                    _ => {}
-                                }
                             }
                         }
 
                         KeyCode::Char('t') => {
                             // I won't refactor this into another function because it uses everything and I'm dumb
                             if event.kind == KeyEventKind::Release {
-                                match active_menu_item {
-                                    MenuItem::Devices => {
+                                if let MenuItem::Devices = active_menu_item {
                                         if let Some(selected) = device_list_state.selected() {
                                             self.track_device_idx = selected;
                                         }
 
-                                        is_playing = false;
+                                        self.is_playing = false;
                                         track_player.force_remove_next_song()?;
                                         click_player.force_remove_next_song()?;
                                         track_player.stop();
@@ -500,19 +556,16 @@ impl App {
                                             Song::from_file(self.get_beep_file(), None).unwrap();
                                         track_player.play_song_now(&beep, None)?;
                                     }
-                                    _ => {}
-                                }
                             }
                         }
 
-                        KeyCode::Enter => match active_menu_item {
-                            MenuItem::Songs => {
+                        KeyCode::Enter => if let MenuItem::Songs = active_menu_item {
                                 if let Some(selected) = songlist_state.selected() {
                                     // this is wrong when we are random
                                     let selected_song = self.songs.get(selected).unwrap();
 
                                     if needs_unzipping(
-                                        &self.music_folder.as_ref().unwrap(),
+                                        self.music_folder.as_ref().unwrap(),
                                         &selected_song.title,
                                         &selected_song.artist,
                                         &selected_song.album,
@@ -521,7 +574,7 @@ impl App {
                                     }
 
                                     let (track_file, click_file) = match get_file_paths(
-                                        &self.music_folder.as_ref().unwrap(),
+                                        self.music_folder.as_ref().unwrap(),
                                         &selected_song.title,
                                         &selected_song.artist,
                                         &selected_song.album,
@@ -550,18 +603,16 @@ impl App {
                                     );
 
                                     track_player
-                                        .play_song_now(&self.track_song.as_ref().unwrap(), None)
+                                        .play_song_now(self.track_song.as_ref().unwrap(), None)
                                         .expect("Could not play track song");
                                     click_player
-                                        .play_song_now(&self.click_song.as_ref().unwrap(), None)
+                                        .play_song_now(self.click_song.as_ref().unwrap(), None)
                                         .expect("Could not play click song");
 
-                                    is_playing = true;
+                                    self.is_playing = true;
                                     self.track_file = Some(track_file);
                                     self.click_file = Some(click_file);
                                 }
-                            }
-                            _ => {}
                         },
                         
 
@@ -572,34 +623,40 @@ impl App {
                 UiEvent::Tick => {
                     if !track_player.has_current_song()
                         && !click_player.has_current_song()
-                        && is_playing
+                        && self.is_playing
                     {
                         info!("Song ended, moving to the next song");
 
                         footer_message = "Moving to next song in the queue".to_string();
 
                         #[allow(unused_assignments)]
-                        let mut new_position: usize;
+                        let mut new_position = 0;
 
                         // move to first in playlist if it's there
                         if !self.current_playlist.is_empty() {
-                            let (_, song_record) = self.current_playlist.pop_first().unwrap();
+                            if self.current_playlist_idx > self.current_playlist.len() - 1 {
+                                self.current_playlist_idx = 0;
+                            }
+                            playlist_state.select(Some(self.current_playlist_idx));
+                            let (_, song_record) = self.current_playlist.get_key_value(&self.current_playlist_idx).unwrap();
 
                             // find the position of the song_title in our song list
                             if let Some(index) = self
                                 .songs
                                 .iter()
-                                .position(|song| song.title == song_record.title)
+                                .position(|song| song.file_name == song_record.file_name)
                             {
                                 // THIS IS A TERRIBLE HACK. I'm sorry.
                                 new_position = index;
                                 songlist_state.select(Some(new_position));
                             }
 
-                            self.reindex_playlist();
-                        }
+                            self.current_playlist_idx += 1;
+                            if self.current_playlist_idx > self.current_playlist.len() - 1 {
+                                self.current_playlist_idx = 0;
+                            }
 
-                        if let Some(selected) = songlist_state.selected() {
+                        } else if let Some(selected) = songlist_state.selected() {
                             info!("The current position is {}", selected);
                             let amount_songs = self.songs.len();
 
@@ -615,21 +672,13 @@ impl App {
                             if new_position > amount_songs - 1 {
                                 new_position = 0;
                             }
+                        }
 
                             songlist_state.select(Some(new_position));
                             let selected_song = self.songs.get(new_position).unwrap();
 
-                            if needs_unzipping(
-                                &self.music_folder.as_ref().unwrap(),
-                                &selected_song.title,
-                                &selected_song.artist,
-                                &selected_song.album,
-                            ) {
-                                footer_message = "Unzipping song".to_string();
-                            }
-
                             let (track_file, click_file) = match get_file_paths(
-                                &self.music_folder.as_ref().unwrap(),
+                                self.music_folder.as_ref().unwrap(),
                                 &selected_song.title,
                                 &selected_song.artist,
                                 &selected_song.album,
@@ -663,12 +712,12 @@ impl App {
                             );
 
                             track_player
-                                .play_song_next(&self.track_song.as_ref().unwrap(), None)
+                                .play_song_next(self.track_song.as_ref().unwrap(), None)
                                 .expect("Could not play track song");
                             click_player
-                                .play_song_next(&self.click_song.as_ref().unwrap(), None)
+                                .play_song_next(self.click_song.as_ref().unwrap(), None)
                                 .expect("Could not play click song");
-                        }
+                        
                     } else {
                         footer_message = "".to_string();
                     }
@@ -732,14 +781,16 @@ impl App {
             .title("Songs")
             .border_type(BorderType::Plain);
 
-        let _selected_song = self
-            .songs
-            .get(
-                songlist_state
-                    .selected()
-                    .expect("there is always a selected song"),
-            )
-            .clone();
+        let _selected_song = self.songs.get(
+            songlist_state
+                .selected()
+                .expect("there is always a selected song"),
+        );
+
+        let _selected_playlist_song = self
+            .current_playlist
+            .get(&self.current_playlist_idx)
+            .cloned();
 
         let mut rows = vec![];
         for song in self.songs.clone() {
@@ -853,31 +904,74 @@ impl App {
         let queue_ui = Block::default()
             .borders(Borders::ALL)
             .style(Style::default().fg(Color::White))
-            .title("Queue")
+            .title(format!("Queue ({} songs)", self.current_playlist.len()))
             .border_type(BorderType::Plain);
 
-        // Prepare the table data
-        let rows: Vec<Row> = self
-            .current_playlist
-            .iter()
-            .map(|(_, song)| Row::new(vec![song.artist.clone(), song.title.clone()]))
-            .collect();
+        let mut rows = vec![];
+        let mut idx = 1;
+        for song in self.current_playlist.values() {
+            let mut is_selected = false;
+            if is_playing {
+                if let Some(track_file) = self.track_file.clone() {
+                    if track_file.contains(&song.file_name) {
+                        is_selected = true;
+                        self.current_playlist_idx = idx;
+                    }
+                }
+            }
+            idx += 1;
+            let selected_fg = if is_selected {
+                Color::LightBlue
+            } else {
+                Color::White
+            };
+
+            let selected_cell = if is_selected {
+                Cell::from(Span::styled(
+                    "▶".to_string(),
+                    Style::default().fg(selected_fg),
+                ))
+            } else {
+                Cell::from(Span::styled(
+                    "".to_string(),
+                    Style::default().fg(selected_fg),
+                ))
+            };
+
+            let row = Row::new(vec![
+                selected_cell,
+                Cell::from(Span::styled(
+                    song.title.clone(),
+                    Style::default().fg(selected_fg),
+                )),
+                Cell::from(Span::styled(
+                    song.artist.clone(),
+                    Style::default().fg(selected_fg),
+                )),
+            ]);
+
+            rows.push(row);
+        }
 
         let queue_table = Table::new(rows)
             .block(queue_ui)
             .highlight_style(
                 Style::default()
-                    .bg(Color::Yellow)
+                    .bg(Color::LightBlue)
                     .fg(Color::Black)
                     .add_modifier(Modifier::BOLD),
             )
             .header(Row::new(vec![
                 Cell::from(Span::styled(
-                    "Artist",
+                    "",
                     Style::default().add_modifier(Modifier::BOLD),
                 )),
                 Cell::from(Span::styled(
                     "Song",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )),
+                Cell::from(Span::styled(
+                    "Artist",
                     Style::default().add_modifier(Modifier::BOLD),
                 )),
             ]))
@@ -885,31 +979,43 @@ impl App {
                 Block::default()
                     .borders(Borders::ALL)
                     .style(Style::default().fg(Color::White))
-                    .title("Queue")
+                    .title(format!("Queue ({} songs)", self.current_playlist.len()))
                     .border_type(BorderType::Plain),
             )
-            .widths(&[Constraint::Percentage(50), Constraint::Percentage(50)]);
+            .widths(&[
+                Constraint::Length(1),
+                Constraint::Percentage(45),
+                Constraint::Percentage(45),
+            ]);
 
         (song_table, queue_table)
     }
 
     #[rustfmt::enable]
-    fn filter_songs(
-        &mut self,
-        search_term: String,
-        filter_message: &mut String,
-    ) {
+    fn filter_songs(&mut self, search_term: String, filter_message: &mut String) {
         // Filter the songs vector based on the search term
         self.songs = self.original_songs.clone();
 
         self.songs.retain(|song| {
-            song.title.to_lowercase().contains(&search_term.clone().to_lowercase()) || song.artist.to_lowercase().contains(&search_term.clone().to_lowercase())
+            song.title
+                .to_lowercase()
+                .contains(&search_term.clone().to_lowercase())
+                || song
+                    .artist
+                    .to_lowercase()
+                    .contains(&search_term.clone().to_lowercase())
+                || song
+                    .genre
+                    .to_lowercase()
+                    .contains(&search_term.clone().to_lowercase())
         });
 
         *filter_message = format!(
             "Search for [{}] found {} songs",
-            search_term, self.songs.len());
-            
+            search_term,
+            self.songs.len()
+        );
+
         if self.songs.is_empty() {
             self.songs = self.original_songs.clone();
         }
@@ -944,14 +1050,12 @@ impl App {
     }
 
     fn reindex_playlist(&mut self) {
-        let mut idx = 0;
-
-        let values: Vec<SongRecord> = self.current_playlist.values().cloned().collect();
+        let song_records: Vec<(usize, SongRecord)> =
+            self.current_playlist.clone().into_iter().collect();
         self.current_playlist.clear();
 
-        for song_record in values {
-            idx += 1;
-            self.current_playlist.insert(idx, song_record);
+        for (idx, song) in song_records.into_iter().enumerate() {
+            self.current_playlist.insert(idx + 1, song.1);
         }
     }
 
@@ -1040,6 +1144,18 @@ impl App {
             Line::from(vec![
                 Span::styled("-", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Removes the selected song from the queue"),
+            ]),
+            Line::from(vec![
+                Span::styled("/", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Clears the current playlist"),
+            ]),
+            Line::from(vec![
+                Span::styled("*", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Randomize the current playlist"),
+            ]),
+            Line::from(vec![
+                Span::styled("p", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Start playing (useful when you create a playlist)."),
             ]),
         ];
 
@@ -1130,5 +1246,4 @@ impl App {
 
         path.display().to_string()
     }
-
 }

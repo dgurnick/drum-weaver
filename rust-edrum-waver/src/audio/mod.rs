@@ -219,7 +219,7 @@ impl DecodingSong {
         rtx.send(SampleRequest {
             speed: initial_playback_speed,
             frame: Some((initial_pos, skip_count)),
-            volume_adjustment: volume_adjustment,
+            volume_adjustment,
         })?;
 
         Ok(DecodingSong {
@@ -253,7 +253,7 @@ impl DecodingSong {
                 .send(SampleRequest {
                     speed: playback_speed,
                     frame: Some((pos, self.skip_count)),
-                    volume_adjustment: volume_adjustment,
+                    volume_adjustment,
                 })
                 .unwrap(); // This shouldn't be able to fail unless the thread stops which shouldn't be able to happen.
             self.pending_requests = 1;
@@ -268,7 +268,7 @@ impl DecodingSong {
                 .send(SampleRequest {
                     speed: playback_speed,
                     frame: None,
-                    volume_adjustment: volume_adjustment,
+                    volume_adjustment,
                 })
                 .is_err()
             {
@@ -604,16 +604,16 @@ impl Player {
         let stream = {
             let player_state = player_state.clone();
             match sample_format {
-                SampleFormat::I8 => build_stream::<i8>(&device, &config, player_state)?,
-                SampleFormat::I16 => build_stream::<i16>(&device, &config, player_state)?,
-                SampleFormat::I32 => build_stream::<i32>(&device, &config, player_state)?,
-                SampleFormat::I64 => build_stream::<i64>(&device, &config, player_state)?,
-                SampleFormat::U8 => build_stream::<u8>(&device, &config, player_state)?,
-                SampleFormat::U16 => build_stream::<u16>(&device, &config, player_state)?,
-                SampleFormat::U32 => build_stream::<u32>(&device, &config, player_state)?,
-                SampleFormat::U64 => build_stream::<u64>(&device, &config, player_state)?,
-                SampleFormat::F32 => build_stream::<f32>(&device, &config, player_state)?,
-                SampleFormat::F64 => build_stream::<f64>(&device, &config, player_state)?,
+                SampleFormat::I8 => build_stream::<i8>(device, &config, player_state)?,
+                SampleFormat::I16 => build_stream::<i16>(device, &config, player_state)?,
+                SampleFormat::I32 => build_stream::<i32>(device, &config, player_state)?,
+                SampleFormat::I64 => build_stream::<i64>(device, &config, player_state)?,
+                SampleFormat::U8 => build_stream::<u8>(device, &config, player_state)?,
+                SampleFormat::U16 => build_stream::<u16>(device, &config, player_state)?,
+                SampleFormat::U32 => build_stream::<u32>(device, &config, player_state)?,
+                SampleFormat::U64 => build_stream::<u64>(device, &config, player_state)?,
+                SampleFormat::F32 => build_stream::<f32>(device, &config, player_state)?,
+                SampleFormat::F64 => build_stream::<f64>(device, &config, player_state)?,
                 sample_format => Err(Report::msg(format!(
                     "Unsupported sample format '{sample_format}'"
                 )))?,
@@ -693,7 +693,7 @@ impl Player {
     }
 
     pub fn set_volume_adjustment(&self, volume: f32) {
-        if volume >= 0.1 && volume <= 2.0 {
+        if (0.1..=2.0).contains(&volume) {
             self.player_state.set_volume_adjustment(volume);
         }
     }

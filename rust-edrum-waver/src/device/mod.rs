@@ -24,7 +24,7 @@ pub fn read_devices() -> Vec<DeviceDetail> {
         for (position, device) in available_devices.iter().enumerate() {
             let detail = DeviceDetail {
                 name: device.name().unwrap(),
-                position: position,
+                position,
             };
             devices.push(detail);
         }

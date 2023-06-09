@@ -72,7 +72,7 @@ pub fn create_default_playlist() -> String {
 
     let serialized = serde_json::to_string(&playlists).unwrap();
     fs::write("assets/playlists.json", serialized.clone()).unwrap();
-    return serialized;
+    serialized
 }
 
 #[allow(dead_code)]
