@@ -5,11 +5,11 @@
         "name": "Debug",
         "type": "lldb",
         "request": "launch",
-        "program": "${workspaceFolder}/rust-edrum-waver/target/debug/rust-edrum-waver.exe",
+        "program": "${workspaceFolder}/target/debug/rust-edrum-waver.exe",
         "args": [
             "--music_folder", "D:\\drumless",
         ],
-        "cwd": "${workspaceFolder}/rust-edrum-waver/"
+        "cwd": "${workspaceFolder}/"
       }
     ]
   }

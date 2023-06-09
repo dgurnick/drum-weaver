@@ -28,21 +28,6 @@
         "thiserror"
     ],
     "rust-analyzer.linkedProjects": [
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml",
-        ".\\rust-edrum-waver\\Cargo.toml"
+        ".\\Cargo.toml",
     ]
 }
