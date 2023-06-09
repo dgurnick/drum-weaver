@@ -1,14 +1,14 @@
 name: Build and Release
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Check"]
+    types:
+      - completed
 
 jobs:
   build:
     runs-on: windows-latest
-    needs: check
 
     steps:
       - name: Check out repository
