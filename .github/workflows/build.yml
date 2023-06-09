@@ -13,6 +13,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v2
 
+      - name: Get version
+        id: version
+        run: echo "::set-output name=VERSION::$(cat VERSION)"
+
       - name: Delete existging release
         uses: actions/delete-release@v1
         env:
@@ -30,10 +34,6 @@ jobs:
 
       - name: Build application
         run: cargo build --release
-
-      - name: Get version
-        id: version
-        run: echo "::set-output name=VERSION::$(cat VERSION)"
 
       - name: Create release
         id: create_release
