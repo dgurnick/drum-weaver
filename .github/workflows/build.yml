@@ -10,20 +10,22 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-
       - name: Check out repository
         uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v2
+        with:
+          toolchain: stable
 
       - name: Build application
         run: cargo build --release
 
       - name: Get version
         id: version
-        run: echo ::set-output name=VERSION::$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "drum_weaver").version')
+        run: |
+          version=$(grep -oP '(?<=version = ")[^"]*' Cargo.toml | tail -1)
+          echo "::set-output name=VERSION::$version"
 
       - name: Create release
         id: create_release
@@ -39,5 +41,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
-          name: Drum Weaver
-          path: target/release/drum_weaver.exe
+          name: MyApp
+          path: target/release/my_app.exe
