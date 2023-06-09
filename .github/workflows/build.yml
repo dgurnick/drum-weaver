@@ -24,7 +24,7 @@ jobs:
 
       - name: Get version
         id: version
-        run: echo ::set-output name=VERSION::$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "drum_weaver").version')
+        run: echo "::set-output name=VERSION::$(cat VERSION)"
 
       - name: Create release
         id: create_release
