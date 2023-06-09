@@ -1,40 +1,10 @@
-name: Check 
+name: Check
 
 on:
-    workflow_call:
-      inputs:
-        image:
-          type: string
-          required: true
-        platforms:
-          type: string
-          required: false
-          default: windows-latest
-        license:
-          type: string
-          required: false
-          default: BSD-2-Clause-Patent
-        vendor:
-          type: string
-          required: false
-          default: ectobit.com
-        hadolint-dockerfile:
-          type: string
-          required: false
-          default: Dockerfile
-        hadolint-ignore:
-          type: string
-          required: false
-          default: ''
-        build-args:
-          type: string
-          required: false
-          default: ''
-      secrets:
-        container-registry-username:
-          required: true
-        container-registry-password:
-          required: true
+  push:
+    branches:
+      - main
+
   jobs:
     build:
       runs-on: windows-latest
@@ -63,7 +33,7 @@ on:
             images: ${{ inputs.image }}
             labels: |
               org.opencontainers.image.licenses=${{ inputs.license }}
-              org.opencontainers.image.vendor=${{ inputs.vendor }}            
+              org.opencontainers.image.vendor=${{ inputs.vendor }}
             tags: |
               type=schedule
               type=ref,event=branch
@@ -72,7 +42,7 @@ on:
               type=semver,pattern={{major}}.{{minor}}
               type=semver,pattern={{major}}
               type=edge
-              type=sha            
+              type=sha
         - name: Login to container registry
           uses: docker/login-action@v2.0.0
           with:
@@ -99,4 +69,3 @@ on:
             labels: ${{ steps.meta.outputs.labels }}
             cache-from: type=registry,ref=${{ inputs.image }}:buildcache
             cache-to: type=registry,ref=${{ inputs.image }}:buildcache,mode=max
-  
