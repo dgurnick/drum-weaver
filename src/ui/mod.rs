@@ -1,4 +1,3 @@
-#[rustfmt::enable]
 pub mod commands;
 use crate::ui::commands::KeyHandler;
 
@@ -43,16 +42,8 @@ struct AppConfig {
 
 impl Display for AppConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let track_device_name = self
-            .track_device_name
-            .as_ref()
-            .cloned()
-            .unwrap();
-        let click_device_name = self
-            .click_device_name
-            .as_ref()
-            .cloned()
-            .unwrap();
+        let track_device_name = self.track_device_name.as_ref().cloned().unwrap();
+        let click_device_name = self.click_device_name.as_ref().cloned().unwrap();
 
         write!(
             f,
@@ -165,13 +156,12 @@ impl App {
         }
     }
 
-    #[rustfmt::skip]
     pub fn run_ui(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Starting UI");
         enable_raw_mode().expect("Can not run in raw mode");
 
         let mut has_music_folder = self.music_folder.is_some();
-        
+
         let stdout = io::stdout();
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
@@ -210,7 +200,6 @@ impl App {
 
         let (sender, receiver) = mpsc::channel();
 
-
         // create our transmit-receive loop
         thread::spawn(move || {
             let mut last_tick = Instant::now();
@@ -227,7 +216,6 @@ impl App {
 
                 if last_tick.elapsed() >= tick_rate && sender.send(UiEvent::Tick).is_ok() {
                     last_tick = Instant::now();
-
                 }
             }
         });
@@ -297,7 +285,11 @@ impl App {
                                 &mut songlist_state,
                             );
 
-                            rect.render_stateful_widget(queue_table, songlist_chunks[1], &mut playlist_state);
+                            rect.render_stateful_widget(
+                                queue_table,
+                                songlist_chunks[1],
+                                &mut playlist_state,
+                            );
                         }
                         MenuItem::Devices => {
                             let device_chunks = Layout::default()
@@ -346,7 +338,6 @@ impl App {
                     } else {
                         "No song playing".to_string()
                     };
-                    
 
                     let footer_device_text = format!(
                         "Track device: {} - {}% | Click device: {} - {}%",
@@ -369,7 +360,7 @@ impl App {
 
             match receiver.recv()? {
                 UiEvent::Input(event)
-                    if event.kind == KeyEventKind::Release && ! has_music_folder =>
+                    if event.kind == KeyEventKind::Release && !has_music_folder =>
                 {
                     match event.code {
                         KeyCode::Enter => {
@@ -397,7 +388,9 @@ impl App {
                         _ => {}
                     }
                 }
-                UiEvent::Input(event) if event.kind == KeyEventKind::Release && self.is_searching => {
+                UiEvent::Input(event)
+                    if event.kind == KeyEventKind::Release && self.is_searching =>
+                {
                     match event.code {
                         KeyCode::Enter => {
                             // searching has stopped
@@ -416,7 +409,6 @@ impl App {
                                 }
                                 self.current_playlist.insert(idx, song.clone());
                                 idx += 1;
-
                             }
 
                             self.songs = self.original_songs.clone();
@@ -425,15 +417,12 @@ impl App {
                         // remove last character
                         {
                             self.searching_for.pop();
-                            if 1==0 && self.searching_for.is_empty() {
+                            if 1 == 0 && self.searching_for.is_empty() {
                                 // searching has stopped
                                 self.is_searching = false;
                                 footer_message.clear();
                             } else {
-                                self.filter_songs(
-                                    self.searching_for.clone(),
-                                    &mut filter_message,
-                                );
+                                self.filter_songs(self.searching_for.clone(), &mut filter_message);
                             }
                         }
                         KeyCode::Esc => {
@@ -446,18 +435,16 @@ impl App {
                         KeyCode::Char(c) => {
                             self.searching_for.push(c);
 
-                            self.filter_songs(
-                                self.searching_for.clone(),
-                                &mut filter_message,
-                            );
+                            self.filter_songs(self.searching_for.clone(), &mut filter_message);
                         }
                         _ => {
                             footer_message = format!("Current search: [{}]", self.searching_for);
                         }
                     }
                 }
-                UiEvent::Input(event) if event.kind == KeyEventKind::Release && ! self.is_searching => {
-                    
+                UiEvent::Input(event)
+                    if event.kind == KeyEventKind::Release && !self.is_searching =>
+                {
                     match event.code {
                         KeyCode::Char('1') => self.do_reduce_track_volume(&mut track_player),
                         KeyCode::Char('2') => self.do_reset_track_volume(&mut track_player),
@@ -467,65 +454,107 @@ impl App {
                         KeyCode::Char('6') => self.do_increase_click_volume(&mut click_player),
 
                         KeyCode::Char('+') => self.do_add_song_to_playlist(&mut songlist_state),
-                        KeyCode::Char('-') => self.do_remove_song_from_playlist(&mut songlist_state),
+                        KeyCode::Char('-') => {
+                            self.do_remove_song_from_playlist(&mut songlist_state)
+                        }
                         KeyCode::Char('/') => self.do_clear_playlist(),
                         KeyCode::Char('*') => self.do_shuffle_playlist(&mut playlist_state),
                         KeyCode::Char('p') => self.do_start_playlist(),
-                        
-                        KeyCode::Char(' ') => self.do_pause_playback( &mut active_menu_item, &mut track_player, &mut click_player, ),
+
+                        KeyCode::Char(' ') => self.do_pause_playback(
+                            &mut active_menu_item,
+                            &mut track_player,
+                            &mut click_player,
+                        ),
                         KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
                         KeyCode::Char('g') => self.do_start_search(),
                         KeyCode::Char('G') => self.do_cancel_search(),
                         KeyCode::Char('h') => active_menu_item = MenuItem::Help,
-                        KeyCode::Char('r') => self.do_reset_playback_speed( &mut active_menu_item, &mut track_player, &mut click_player, ),
+                        KeyCode::Char('r') => self.do_reset_playback_speed(
+                            &mut active_menu_item,
+                            &mut track_player,
+                            &mut click_player,
+                        ),
                         KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
-                        KeyCode::Char('n') => self.do_check_stay_or_next(&mut track_player, &mut click_player),
-                        KeyCode::Char('q') => { self.is_quitting = true; }
+                        KeyCode::Char('n') => {
+                            self.do_check_stay_or_next(&mut track_player, &mut click_player)
+                        }
+                        KeyCode::Char('q') => {
+                            self.is_quitting = true;
+                        }
                         KeyCode::Char('x') => self.do_shuffle_songs(),
-                        KeyCode::Char('y') => self.do_check_quit(&mut track_player, &mut click_player, &mut terminal),
-                        KeyCode::Char('z') => self.do_restart_song( &mut active_menu_item, &mut track_player, &mut click_player, ),
-                        
-                        KeyCode::Down => self.do_select_next_item( &mut active_menu_item, &mut device_list_state, &mut songlist_state, ),
-                        KeyCode::Up => self.do_select_previous_item( &mut active_menu_item, &mut device_list_state, &mut songlist_state, ),
-                        KeyCode::PageDown => self.do_select_next_page(&mut active_menu_item, &mut songlist_state),
-                        KeyCode::PageUp => self.do_select_previous_page(&mut active_menu_item, &mut songlist_state),
+                        KeyCode::Char('y') => {
+                            self.do_check_quit(&mut track_player, &mut click_player, &mut terminal)
+                        }
+                        KeyCode::Char('z') => self.do_restart_song(
+                            &mut active_menu_item,
+                            &mut track_player,
+                            &mut click_player,
+                        ),
 
-                        KeyCode::Left => self.do_reduce_playback_speed( &mut active_menu_item, &mut track_player, &mut click_player,),
-                        KeyCode::Right => self.do_increase_playback_speed( &mut active_menu_item, &mut track_player, &mut click_player, ),
+                        KeyCode::Down => self.do_select_next_item(
+                            &mut active_menu_item,
+                            &mut device_list_state,
+                            &mut songlist_state,
+                        ),
+                        KeyCode::Up => self.do_select_previous_item(
+                            &mut active_menu_item,
+                            &mut device_list_state,
+                            &mut songlist_state,
+                        ),
+                        KeyCode::PageDown => {
+                            self.do_select_next_page(&mut active_menu_item, &mut songlist_state)
+                        }
+                        KeyCode::PageUp => {
+                            self.do_select_previous_page(&mut active_menu_item, &mut songlist_state)
+                        }
+
+                        KeyCode::Left => self.do_reduce_playback_speed(
+                            &mut active_menu_item,
+                            &mut track_player,
+                            &mut click_player,
+                        ),
+                        KeyCode::Right => self.do_increase_playback_speed(
+                            &mut active_menu_item,
+                            &mut track_player,
+                            &mut click_player,
+                        ),
                         KeyCode::Home => songlist_state.select(Some(0)),
                         KeyCode::End => songlist_state.select(Some(self.songs.len() - 1)),
-                        KeyCode::Delete => self.do_delete_track(&mut songlist_state, &mut track_player, &mut click_player),
+                        KeyCode::Delete => self.do_delete_track(
+                            &mut songlist_state,
+                            &mut track_player,
+                            &mut click_player,
+                        ),
 
                         KeyCode::Esc => {}
-                        
-                        
+
                         KeyCode::Char('c') => {
                             // I won't refactor this into another function because it uses everything and I'm dumb
                             if event.kind == KeyEventKind::Release {
                                 if let MenuItem::Devices = active_menu_item {
-                                        if let Some(selected) = device_list_state.selected() {
-                                            self.click_device_idx = selected;
-                                        }
-
-                                        track_player.force_remove_next_song()?;
-                                        click_player.force_remove_next_song()?;
-                                        track_player.stop();
-                                        click_player.stop();
-
-                                        click_device = &available_devices[self.click_device_idx];
-
-                                        click_player = Player::new(None, click_device)
-                                            .expect("Could not create click player");
-
-                                        track_player.set_playback_speed(self.playback_speed);
-                                        click_player.set_playback_speed(self.playback_speed);
-
-                                        info!("Set click device to {}", self.click_device_idx);
-
-                                        let beep =
-                                            Song::from_file(self.get_beep_file(), None).unwrap();
-                                        click_player.play_song_now(&beep, None)?;
+                                    if let Some(selected) = device_list_state.selected() {
+                                        self.click_device_idx = selected;
                                     }
+
+                                    track_player.force_remove_next_song()?;
+                                    click_player.force_remove_next_song()?;
+                                    track_player.stop();
+                                    click_player.stop();
+
+                                    click_device = &available_devices[self.click_device_idx];
+
+                                    click_player = Player::new(None, click_device)
+                                        .expect("Could not create click player");
+
+                                    track_player.set_playback_speed(self.playback_speed);
+                                    click_player.set_playback_speed(self.playback_speed);
+
+                                    info!("Set click device to {}", self.click_device_idx);
+
+                                    let beep = Song::from_file(self.get_beep_file(), None).unwrap();
+                                    click_player.play_song_now(&beep, None)?;
+                                }
                             }
                         }
 
@@ -533,33 +562,33 @@ impl App {
                             // I won't refactor this into another function because it uses everything and I'm dumb
                             if event.kind == KeyEventKind::Release {
                                 if let MenuItem::Devices = active_menu_item {
-                                        if let Some(selected) = device_list_state.selected() {
-                                            self.track_device_idx = selected;
-                                        }
-
-                                        self.is_playing = false;
-                                        track_player.force_remove_next_song()?;
-                                        click_player.force_remove_next_song()?;
-                                        track_player.stop();
-                                        click_player.stop();
-
-                                        track_device = &available_devices[self.track_device_idx];
-
-                                        track_player = Player::new(None, track_device)
-                                            .expect("Could not create track player");
-
-                                        track_player.set_playback_speed(self.playback_speed);
-                                        click_player.set_playback_speed(self.playback_speed);
-
-                                        info!("Set track device to {}", self.track_device_idx);
-                                        let beep =
-                                            Song::from_file(self.get_beep_file(), None).unwrap();
-                                        track_player.play_song_now(&beep, None)?;
+                                    if let Some(selected) = device_list_state.selected() {
+                                        self.track_device_idx = selected;
                                     }
+
+                                    self.is_playing = false;
+                                    track_player.force_remove_next_song()?;
+                                    click_player.force_remove_next_song()?;
+                                    track_player.stop();
+                                    click_player.stop();
+
+                                    track_device = &available_devices[self.track_device_idx];
+
+                                    track_player = Player::new(None, track_device)
+                                        .expect("Could not create track player");
+
+                                    track_player.set_playback_speed(self.playback_speed);
+                                    click_player.set_playback_speed(self.playback_speed);
+
+                                    info!("Set track device to {}", self.track_device_idx);
+                                    let beep = Song::from_file(self.get_beep_file(), None).unwrap();
+                                    track_player.play_song_now(&beep, None)?;
+                                }
                             }
                         }
 
-                        KeyCode::Enter => if let MenuItem::Songs = active_menu_item {
+                        KeyCode::Enter => {
+                            if let MenuItem::Songs = active_menu_item {
                                 if let Some(selected) = songlist_state.selected() {
                                     // this is wrong when we are random
                                     let selected_song = self.songs.get(selected).unwrap();
@@ -613,8 +642,8 @@ impl App {
                                     self.track_file = Some(track_file);
                                     self.click_file = Some(click_file);
                                 }
-                        },
-                        
+                            }
+                        }
 
                         _ => {}
                     }
@@ -638,7 +667,10 @@ impl App {
                                 self.current_playlist_idx = 0;
                             }
                             playlist_state.select(Some(self.current_playlist_idx));
-                            let (_, song_record) = self.current_playlist.get_key_value(&self.current_playlist_idx).unwrap();
+                            let (_, song_record) = self
+                                .current_playlist
+                                .get_key_value(&self.current_playlist_idx)
+                                .unwrap();
 
                             // find the position of the song_title in our song list
                             if let Some(index) = self
@@ -655,7 +687,6 @@ impl App {
                             if self.current_playlist_idx > self.current_playlist.len() - 1 {
                                 self.current_playlist_idx = 0;
                             }
-
                         } else if let Some(selected) = songlist_state.selected() {
                             info!("The current position is {}", selected);
                             let amount_songs = self.songs.len();
@@ -674,50 +705,49 @@ impl App {
                             }
                         }
 
-                            songlist_state.select(Some(new_position));
-                            let selected_song = self.songs.get(new_position).unwrap();
+                        songlist_state.select(Some(new_position));
+                        let selected_song = self.songs.get(new_position).unwrap();
 
-                            let (track_file, click_file) = match get_file_paths(
-                                self.music_folder.as_ref().unwrap(),
-                                &selected_song.title,
-                                &selected_song.artist,
-                                &selected_song.album,
-                            ) {
-                                Ok((track_file, click_file)) => (track_file, click_file),
-                                Err(e) => {
-                                    error!("Could not get file paths: {}", e);
-                                    continue;
-                                }
-                            };
+                        let (track_file, click_file) = match get_file_paths(
+                            self.music_folder.as_ref().unwrap(),
+                            &selected_song.title,
+                            &selected_song.artist,
+                            &selected_song.album,
+                        ) {
+                            Ok((track_file, click_file)) => (track_file, click_file),
+                            Err(e) => {
+                                error!("Could not get file paths: {}", e);
+                                continue;
+                            }
+                        };
 
-                            info!("The new track file is {}", track_file);
+                        info!("The new track file is {}", track_file);
 
-                            self.track_file = Some(track_file);
-                            self.click_file = Some(click_file);
+                        self.track_file = Some(track_file);
+                        self.click_file = Some(click_file);
 
-                            self.track_song = Some(
-                                Song::from_file(
-                                    &self.track_file.clone().unwrap(),
-                                    Some((self.track_volume / 100) as f32),
-                                )
-                                .expect("Could not create track song"),
-                            );
+                        self.track_song = Some(
+                            Song::from_file(
+                                &self.track_file.clone().unwrap(),
+                                Some((self.track_volume / 100) as f32),
+                            )
+                            .expect("Could not create track song"),
+                        );
 
-                            self.click_song = Some(
-                                Song::from_file(
-                                    &self.click_file.clone().unwrap(),
-                                    Some((self.click_volume / 100) as f32),
-                                )
-                                .expect("Could not create click song"),
-                            );
+                        self.click_song = Some(
+                            Song::from_file(
+                                &self.click_file.clone().unwrap(),
+                                Some((self.click_volume / 100) as f32),
+                            )
+                            .expect("Could not create click song"),
+                        );
 
-                            track_player
-                                .play_song_next(self.track_song.as_ref().unwrap(), None)
-                                .expect("Could not play track song");
-                            click_player
-                                .play_song_next(self.click_song.as_ref().unwrap(), None)
-                                .expect("Could not play click song");
-                        
+                        track_player
+                            .play_song_next(self.track_song.as_ref().unwrap(), None)
+                            .expect("Could not play track song");
+                        click_player
+                            .play_song_next(self.click_song.as_ref().unwrap(), None)
+                            .expect("Could not play click song");
                     } else {
                         footer_message = "".to_string();
                     }
@@ -991,7 +1021,6 @@ impl App {
         (song_table, queue_table)
     }
 
-    #[rustfmt::enable]
     fn filter_songs(&mut self, search_term: String, filter_message: &mut String) {
         // Filter the songs vector based on the search term
         self.songs = self.original_songs.clone();

@@ -45,7 +45,6 @@ pub trait KeyHandler {
     fn do_start_playlist( &mut self );
 }
 
-#[rustfmt::enable]
 impl KeyHandler for App {
     fn do_reset_playback_speed(
         &mut self,
