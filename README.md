@@ -15,8 +15,11 @@
 3. The list of songs is embedded in the application directly. At some point, I will add some management capabilities on the master list.
 4. Playlists are stored and loaded automatically.
 5. You can search by artist, album, or genre.
+6. The app decompresses files automatically for you. Which can eventually fill up a lot of disk space. 
 
 # Improvements
 1. Master playlist management (Adding songs to an ignore list, etc)
 2. Playing main track at lower volume on click device. (Useful if using pro headsets that have sound cancellation)
 3. Consider egui for the frontend. (I tried and failed a couple of times. #rookie)
+4. Consider a configuration option to remove 7z after files are decompressed
+5. Consider a configuration option to remove unzipped files.
