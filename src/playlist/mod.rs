@@ -13,7 +13,7 @@ pub struct Playlist {
     pub songs: Vec<SongRecord>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[allow(unused_variables)]
 pub struct SongRecord {
     pub file_name: String,
