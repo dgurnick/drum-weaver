@@ -19,10 +19,11 @@ use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
+    symbols::{self},
     text::{Line, Span},
     widgets::{
-        Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table,
-        TableState, Tabs, Wrap,
+        Block, BorderType, Borders, Cell, LineGauge, List, ListItem, ListState, Paragraph, Row,
+        Table, TableState, Tabs, Wrap,
     },
     Frame, Terminal,
 };
@@ -200,6 +201,10 @@ impl App {
 
         let (sender, receiver) = mpsc::channel();
 
+        // Define colors for smooth color transition
+        let start_color = (0, 255, 0);
+        let end_color = (255, 0, 0);
+
         // create our transmit-receive loop
         thread::spawn(move || {
             let mut last_tick = Instant::now();
@@ -234,8 +239,9 @@ impl App {
                         .constraints(
                             [
                                 Constraint::Length(3),
-                                Constraint::Min(2),
+                                Constraint::Min(3),
                                 Constraint::Length(3),
+                                Constraint::Length(1),
                             ]
                             .as_ref(),
                         )
@@ -353,8 +359,31 @@ impl App {
                     let footer_widget = Paragraph::new(format!(
                         "{} | {} | {}",
                         paused_text, footer_device_text, footer_message
-                    ));
+                    ))
+                    .block(Block::default().borders(Borders::ALL));
+
                     rect.render_widget(footer_widget, chunks[2]);
+
+                    let (position, song_length) = track_player
+                        .get_playback_position()
+                        .unwrap_or((Duration::from_secs(0), Duration::from_secs(1)));
+
+                    // Calculate the progress ratio
+                    let progress_ratio = position.as_secs_f64() / song_length.as_secs_f64();
+
+                    let color = self.lerp_color(start_color, end_color, progress_ratio);
+
+                    let gauge = LineGauge::default()
+                        .gauge_style(
+                            Style::default()
+                                .fg(color)
+                                .bg(Color::White)
+                                .add_modifier(Modifier::BOLD),
+                        )
+                        .line_set(symbols::line::THICK)
+                        .ratio(progress_ratio);
+
+                    rect.render_widget(gauge, chunks[3]);
                 })?;
             } // is quitting
 
@@ -370,13 +399,11 @@ impl App {
                             match path {
                                 Ok(path) => {
                                     if let Some(p) = path {
-                                        println!("The user selected this folder: {:?}", p);
                                         self.music_folder = Some(p.display().to_string());
                                         has_music_folder = true;
                                     }
                                 }
-                                Err(e) => {
-                                    println!("The user did not select a folder: {:?}", e);
+                                Err(_e) => {
                                     std::process::exit(0);
                                 }
                             };
@@ -1275,4 +1302,20 @@ impl App {
 
         path.display().to_string()
     }
+
+    // Function to perform linear interpolation (lerp) for colors
+    fn lerp_color(&self, start_color: (u8, u8, u8), end_color: (u8, u8, u8), t: f64) -> Color {
+        let (start_r, start_g, start_b) = start_color;
+        let (end_r, end_g, end_b) = end_color;
+
+        let r = lerp(start_r, end_r, t);
+        let g = lerp(start_g, end_g, t);
+        let b = lerp(start_b, end_b, t);
+
+        Color::Rgb(r, g, b)
+    }
+}
+
+fn lerp(start: u8, end: u8, t: f64) -> u8 {
+    (start as f64 + (end as f64 - start as f64) * t) as u8
 }
