@@ -1,9 +1,9 @@
 pub mod commands;
-use crate::ui::commands::KeyHandler;
+use crate::ui::commands::{KeyHandler, SortBy};
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use crossterm::{
-    event::{self, Event as CEvent, KeyCode, KeyEventKind},
+    event::{self, Event as CEvent, KeyCode, KeyEventKind, KeyModifiers},
     terminal::enable_raw_mode,
 };
 
@@ -21,10 +21,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     symbols::{self},
     text::{Line, Span},
-    widgets::{
-        Block, BorderType, Borders, Cell, LineGauge, List, ListItem, ListState, Paragraph, Row,
-        Table, TableState, Tabs, Wrap,
-    },
+    widgets::{Block, BorderType, Borders, Cell, LineGauge, List, ListItem, ListState, Paragraph, Row, Table, TableState, Tabs, Wrap},
     Frame, Terminal,
 };
 use std::{
@@ -46,11 +43,7 @@ impl Display for AppConfig {
         let track_device_name = self.track_device_name.as_ref().cloned().unwrap();
         let click_device_name = self.click_device_name.as_ref().cloned().unwrap();
 
-        write!(
-            f,
-            "Track Device: {}\nClick Device: {}",
-            track_device_name, click_device_name
-        )
+        write!(f, "Track Device: {}\nClick Device: {}", track_device_name, click_device_name)
     }
 }
 
@@ -74,53 +67,38 @@ pub struct App {
     is_playing_random: bool,
     is_playing: bool,
     current_playlist_idx: usize,
+    sort_reverse: bool,
+    last_sort: Option<SortBy>,
 }
 
 fn load_playlist() -> Result<BTreeMap<usize, SongRecord>, Box<dyn std::error::Error>> {
-    let loaded_playlist: Result<BTreeMap<String, SongRecord>, confy::ConfyError> =
-        confy::load("drum-weaver", "playlist");
+    let loaded_playlist: Result<BTreeMap<String, SongRecord>, confy::ConfyError> = confy::load("drum-weaver", "playlist");
 
     let playlist = match loaded_playlist {
         Ok(playlist) => playlist,
         Err(_) => BTreeMap::new(), // Provide a default playlist if loading fails
     };
 
-    let result: BTreeMap<usize, SongRecord> = playlist
-        .into_iter()
-        .map(|(k, v)| (k.parse().unwrap(), v))
-        .collect();
+    let result: BTreeMap<usize, SongRecord> = playlist.into_iter().map(|(k, v)| (k.parse().unwrap(), v)).collect();
 
     Ok(result)
 }
 
 impl App {
     pub fn new(arguments: &mut PlayerArguments, songs: Vec<SongRecord>) -> Self {
-        let config: AppConfig =
-            confy::load("drum-weaver", None).expect("Able to read configuration");
+        let config: AppConfig = confy::load("drum-weaver", None).expect("Able to read configuration");
 
         let mut device_position = arguments.track_device_position;
         let mut click_position = arguments.click_device_position;
 
         if let Some(click_device_name) = config.click_device_name.as_ref() {
-            click_position = read_devices()
-                .iter()
-                .position(|d| d.name == *click_device_name)
-                .unwrap();
+            click_position = read_devices().iter().position(|d| d.name == *click_device_name).unwrap();
 
-            println!(
-                "Found click device: {} as position {}",
-                click_device_name, device_position
-            );
+            println!("Found click device: {} as position {}", click_device_name, device_position);
         }
         if let Some(track_device_name) = config.track_device_name.as_ref() {
-            device_position = read_devices()
-                .iter()
-                .position(|d| d.name == *track_device_name)
-                .unwrap();
-            println!(
-                "Found track device: {} as position {}",
-                track_device_name, device_position
-            );
+            device_position = read_devices().iter().position(|d| d.name == *track_device_name).unwrap();
+            println!("Found track device: {} as position {}", track_device_name, device_position);
         }
 
         arguments.click_device_position = click_position;
@@ -154,6 +132,8 @@ impl App {
             is_playing_random: false,
             is_playing: false,
             current_playlist_idx: 0,
+            sort_reverse: false,
+            last_sort: None,
         }
     }
 
@@ -186,10 +166,8 @@ impl App {
         let mut track_device = &available_devices[self.track_device_idx];
         let mut click_device = &available_devices[self.click_device_idx];
 
-        let mut track_player =
-            Player::new(None, track_device).expect("Could not create track player");
-        let mut click_player =
-            Player::new(None, click_device).expect("Could not create click player");
+        let mut track_player = Player::new(None, track_device).expect("Could not create track player");
+        let mut click_player = Player::new(None, click_device).expect("Could not create click player");
 
         track_player.set_playback_speed(self.playback_speed);
         click_player.set_playback_speed(self.playback_speed);
@@ -209,9 +187,7 @@ impl App {
         thread::spawn(move || {
             let mut last_tick = Instant::now();
             loop {
-                let timeout = tick_rate
-                    .checked_sub(last_tick.elapsed())
-                    .unwrap_or_else(|| Duration::from_secs(0));
+                let timeout = tick_rate.checked_sub(last_tick.elapsed()).unwrap_or_else(|| Duration::from_secs(0));
 
                 if event::poll(timeout).expect("Polling works") {
                     if let CEvent::Key(key) = event::read().expect("can read events") {
@@ -236,15 +212,7 @@ impl App {
                     let chunks = Layout::default()
                         .direction(Direction::Vertical)
                         .margin(2)
-                        .constraints(
-                            [
-                                Constraint::Length(3),
-                                Constraint::Min(3),
-                                Constraint::Length(3),
-                                Constraint::Length(1),
-                            ]
-                            .as_ref(),
-                        )
+                        .constraints([Constraint::Length(3), Constraint::Min(3), Constraint::Length(3), Constraint::Length(1)].as_ref())
                         .split(size);
 
                     let menu = menu_titles
@@ -252,12 +220,7 @@ impl App {
                         .map(|t| {
                             let (first, rest) = t.split_at(1);
                             Line::from(vec![
-                                Span::styled(
-                                    first,
-                                    Style::default()
-                                        .fg(Color::LightBlue)
-                                        .add_modifier(Modifier::UNDERLINED),
-                                ),
+                                Span::styled(first, Style::default().fg(Color::LightBlue).add_modifier(Modifier::UNDERLINED)),
                                 Span::styled(rest, Style::default().fg(Color::White)),
                             ])
                         })
@@ -276,39 +239,19 @@ impl App {
                         MenuItem::Songs => {
                             let songlist_chunks = Layout::default()
                                 .direction(Direction::Horizontal)
-                                .constraints(
-                                    [Constraint::Percentage(70), Constraint::Percentage(30)]
-                                        .as_ref(),
-                                )
+                                .constraints([Constraint::Percentage(70), Constraint::Percentage(30)].as_ref())
                                 .split(chunks[1]);
 
-                            let (song_table, queue_table) =
-                                self.render_songs(&songlist_state, track_player.has_current_song());
+                            let (song_table, queue_table) = self.render_songs(&songlist_state, track_player.has_current_song());
 
-                            rect.render_stateful_widget(
-                                song_table,
-                                songlist_chunks[0],
-                                &mut songlist_state,
-                            );
+                            rect.render_stateful_widget(song_table, songlist_chunks[0], &mut songlist_state);
 
-                            rect.render_stateful_widget(
-                                queue_table,
-                                songlist_chunks[1],
-                                &mut playlist_state,
-                            );
+                            rect.render_stateful_widget(queue_table, songlist_chunks[1], &mut playlist_state);
                         }
                         MenuItem::Devices => {
-                            let device_chunks = Layout::default()
-                                .direction(Direction::Horizontal)
-                                .constraints([Constraint::Percentage(100)].as_ref())
-                                .split(chunks[1]);
-                            let left =
-                                self.render_devices(self.track_device_idx, self.click_device_idx);
-                            rect.render_stateful_widget(
-                                left,
-                                device_chunks[0],
-                                &mut device_list_state,
-                            );
+                            let device_chunks = Layout::default().direction(Direction::Horizontal).constraints([Constraint::Percentage(100)].as_ref()).split(chunks[1]);
+                            let left = self.render_devices(self.track_device_idx, self.click_device_idx);
+                            rect.render_stateful_widget(left, device_chunks[0], &mut device_list_state);
                         }
                         MenuItem::Help => {
                             rect.render_widget(self.render_help(), chunks[1]);
@@ -325,17 +268,9 @@ impl App {
                         Err(_) => "Unknown".to_string(),
                     };
 
-                    let track_volume = if let Some(_song) = &self.track_song {
-                        self.track_volume
-                    } else {
-                        0
-                    };
+                    let track_volume = if let Some(_song) = &self.track_song { self.track_volume } else { 0 };
 
-                    let click_volume = if let Some(_song) = &self.click_song {
-                        self.click_volume
-                    } else {
-                        0
-                    };
+                    let click_volume = if let Some(_song) = &self.click_song { self.click_volume } else { 0 };
 
                     let footer_message = if self.is_searching {
                         filter_message.clone()
@@ -345,28 +280,15 @@ impl App {
                         "No song playing".to_string()
                     };
 
-                    let footer_device_text = format!(
-                        "Track device: {} - {}% | Click device: {} - {}%",
-                        track_device_name, track_volume, click_device_name, click_volume,
-                    );
+                    let footer_device_text = format!("Track device: {} - {}% | Click device: {} - {}%", track_device_name, track_volume, click_device_name, click_volume,);
 
-                    let paused_text = if track_player.is_playing() {
-                        "Playing"
-                    } else {
-                        "Paused"
-                    };
+                    let paused_text = if track_player.is_playing() { "Playing" } else { "Paused" };
 
-                    let footer_widget = Paragraph::new(format!(
-                        "{} | {} | {}",
-                        paused_text, footer_device_text, footer_message
-                    ))
-                    .block(Block::default().borders(Borders::ALL));
+                    let footer_widget = Paragraph::new(format!("{} | {} | {}", paused_text, footer_device_text, footer_message)).block(Block::default().borders(Borders::ALL));
 
                     rect.render_widget(footer_widget, chunks[2]);
 
-                    let (position, song_length) = track_player
-                        .get_playback_position()
-                        .unwrap_or((Duration::from_secs(0), Duration::from_secs(1)));
+                    let (position, song_length) = track_player.get_playback_position().unwrap_or((Duration::from_secs(0), Duration::from_secs(1)));
 
                     // Calculate the progress ratio
                     let progress_ratio = position.as_secs_f64() / song_length.as_secs_f64();
@@ -374,12 +296,7 @@ impl App {
                     let color = self.lerp_color(start_color, end_color, progress_ratio);
 
                     let gauge = LineGauge::default()
-                        .gauge_style(
-                            Style::default()
-                                .fg(color)
-                                .bg(Color::White)
-                                .add_modifier(Modifier::BOLD),
-                        )
+                        .gauge_style(Style::default().fg(color).bg(Color::White).add_modifier(Modifier::BOLD))
                         .line_set(symbols::line::THICK)
                         .ratio(progress_ratio);
 
@@ -388,9 +305,7 @@ impl App {
             } // is quitting
 
             match receiver.recv()? {
-                UiEvent::Input(event)
-                    if event.kind == KeyEventKind::Release && !has_music_folder =>
-                {
+                UiEvent::Input(event) if event.kind == KeyEventKind::Release && !has_music_folder => {
                     match event.code {
                         KeyCode::Enter => {
                             use native_dialog::FileDialog;
@@ -415,9 +330,7 @@ impl App {
                         _ => {}
                     }
                 }
-                UiEvent::Input(event)
-                    if event.kind == KeyEventKind::Release && self.is_searching =>
-                {
+                UiEvent::Input(event) if event.kind == KeyEventKind::Release && self.is_searching => {
                     match event.code {
                         KeyCode::Enter => {
                             // searching has stopped
@@ -469,9 +382,15 @@ impl App {
                         }
                     }
                 }
-                UiEvent::Input(event)
-                    if event.kind == KeyEventKind::Release && !self.is_searching =>
-                {
+                UiEvent::Input(event) if event.kind == KeyEventKind::Release && event.modifiers.contains(KeyModifiers::ALT) && !self.is_searching => match event.code {
+                    KeyCode::Char('a') => self.do_sort(&mut playlist_state, SortBy::Artist),
+                    KeyCode::Char('t') => self.do_sort(&mut playlist_state, SortBy::Title),
+                    KeyCode::Char('l') => self.do_sort(&mut playlist_state, SortBy::Album),
+                    KeyCode::Char('g') => self.do_sort(&mut playlist_state, SortBy::Genre),
+                    KeyCode::Char('d') => self.do_sort(&mut playlist_state, SortBy::Duration),
+                    _ => {}
+                },
+                UiEvent::Input(event) if event.kind == KeyEventKind::Release && !self.is_searching => {
                     match event.code {
                         KeyCode::Char('1') => self.do_reduce_track_volume(&mut track_player),
                         KeyCode::Char('2') => self.do_reset_track_volume(&mut track_player),
@@ -481,78 +400,36 @@ impl App {
                         KeyCode::Char('6') => self.do_increase_click_volume(&mut click_player),
 
                         KeyCode::Char('+') => self.do_add_song_to_playlist(&mut songlist_state),
-                        KeyCode::Char('-') => {
-                            self.do_remove_song_from_playlist(&mut songlist_state)
-                        }
+                        KeyCode::Char('-') => self.do_remove_song_from_playlist(&mut songlist_state),
                         KeyCode::Char('/') => self.do_clear_playlist(),
                         KeyCode::Char('*') => self.do_shuffle_playlist(&mut playlist_state),
                         KeyCode::Char('p') => self.do_start_playlist(),
 
-                        KeyCode::Char(' ') => self.do_pause_playback(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
+                        KeyCode::Char(' ') => self.do_pause_playback(&mut active_menu_item, &mut track_player, &mut click_player),
                         KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
                         KeyCode::Char('g') => self.do_start_search(),
                         KeyCode::Char('G') => self.do_cancel_search(),
                         KeyCode::Char('h') => active_menu_item = MenuItem::Help,
-                        KeyCode::Char('r') => self.do_reset_playback_speed(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
+                        KeyCode::Char('r') => self.do_reset_playback_speed(&mut active_menu_item, &mut track_player, &mut click_player),
                         KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
-                        KeyCode::Char('n') => {
-                            self.do_check_stay_or_next(&mut track_player, &mut click_player)
-                        }
+                        KeyCode::Char('n') => self.do_check_stay_or_next(&mut track_player, &mut click_player),
                         KeyCode::Char('q') => {
                             self.is_quitting = true;
                         }
                         KeyCode::Char('x') => self.do_shuffle_songs(),
-                        KeyCode::Char('y') => {
-                            self.do_check_quit(&mut track_player, &mut click_player, &mut terminal)
-                        }
-                        KeyCode::Char('z') => self.do_restart_song(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
+                        KeyCode::Char('y') => self.do_check_quit(&mut track_player, &mut click_player, &mut terminal),
+                        KeyCode::Char('z') => self.do_restart_song(&mut active_menu_item, &mut track_player, &mut click_player),
 
-                        KeyCode::Down => self.do_select_next_item(
-                            &mut active_menu_item,
-                            &mut device_list_state,
-                            &mut songlist_state,
-                        ),
-                        KeyCode::Up => self.do_select_previous_item(
-                            &mut active_menu_item,
-                            &mut device_list_state,
-                            &mut songlist_state,
-                        ),
-                        KeyCode::PageDown => {
-                            self.do_select_next_page(&mut active_menu_item, &mut songlist_state)
-                        }
-                        KeyCode::PageUp => {
-                            self.do_select_previous_page(&mut active_menu_item, &mut songlist_state)
-                        }
+                        KeyCode::Down => self.do_select_next_item(&mut active_menu_item, &mut device_list_state, &mut songlist_state),
+                        KeyCode::Up => self.do_select_previous_item(&mut active_menu_item, &mut device_list_state, &mut songlist_state),
+                        KeyCode::PageDown => self.do_select_next_page(&mut active_menu_item, &mut songlist_state),
+                        KeyCode::PageUp => self.do_select_previous_page(&mut active_menu_item, &mut songlist_state),
 
-                        KeyCode::Left => self.do_reduce_playback_speed(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
-                        KeyCode::Right => self.do_increase_playback_speed(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
+                        KeyCode::Left => self.do_reduce_playback_speed(&mut active_menu_item, &mut track_player, &mut click_player),
+                        KeyCode::Right => self.do_increase_playback_speed(&mut active_menu_item, &mut track_player, &mut click_player),
                         KeyCode::Home => songlist_state.select(Some(0)),
                         KeyCode::End => songlist_state.select(Some(self.songs.len() - 1)),
-                        KeyCode::Delete => self.do_delete_track(
-                            &mut songlist_state,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
+                        KeyCode::Delete => self.do_delete_track(&mut songlist_state, &mut track_player, &mut click_player),
 
                         KeyCode::Esc => {}
 
@@ -571,8 +448,7 @@ impl App {
 
                                     click_device = &available_devices[self.click_device_idx];
 
-                                    click_player = Player::new(None, click_device)
-                                        .expect("Could not create click player");
+                                    click_player = Player::new(None, click_device).expect("Could not create click player");
 
                                     track_player.set_playback_speed(self.playback_speed);
                                     click_player.set_playback_speed(self.playback_speed);
@@ -601,8 +477,7 @@ impl App {
 
                                     track_device = &available_devices[self.track_device_idx];
 
-                                    track_player = Player::new(None, track_device)
-                                        .expect("Could not create track player");
+                                    track_player = Player::new(None, track_device).expect("Could not create track player");
 
                                     track_player.set_playback_speed(self.playback_speed);
                                     click_player.set_playback_speed(self.playback_speed);
@@ -620,21 +495,11 @@ impl App {
                                     // this is wrong when we are random
                                     let selected_song = self.songs.get(selected).unwrap();
 
-                                    if needs_unzipping(
-                                        self.music_folder.as_ref().unwrap(),
-                                        &selected_song.title,
-                                        &selected_song.artist,
-                                        &selected_song.album,
-                                    ) {
+                                    if needs_unzipping(self.music_folder.as_ref().unwrap(), &selected_song.title, &selected_song.artist, &selected_song.album) {
                                         footer_message = "Unzipping song".to_string();
                                     }
 
-                                    let (track_file, click_file) = match get_file_paths(
-                                        self.music_folder.as_ref().unwrap(),
-                                        &selected_song.title,
-                                        &selected_song.artist,
-                                        &selected_song.album,
-                                    ) {
+                                    let (track_file, click_file) = match get_file_paths(self.music_folder.as_ref().unwrap(), &selected_song.title, &selected_song.artist, &selected_song.album) {
                                         Ok((track_file, click_file)) => (track_file, click_file),
                                         Err(e) => {
                                             error!("Could not get file paths: {}", e);
@@ -642,28 +507,12 @@ impl App {
                                         }
                                     };
 
-                                    self.track_song = Some(
-                                        Song::from_file(
-                                            &track_file,
-                                            Some((self.track_volume / 100) as f32),
-                                        )
-                                        .expect("Could not create track song"),
-                                    );
+                                    self.track_song = Some(Song::from_file(&track_file, Some((self.track_volume / 100) as f32)).expect("Could not create track song"));
 
-                                    self.click_song = Some(
-                                        Song::from_file(
-                                            &click_file,
-                                            Some((self.click_volume / 100) as f32),
-                                        )
-                                        .expect("Could not create click song"),
-                                    );
+                                    self.click_song = Some(Song::from_file(&click_file, Some((self.click_volume / 100) as f32)).expect("Could not create click song"));
 
-                                    track_player
-                                        .play_song_now(self.track_song.as_ref().unwrap(), None)
-                                        .expect("Could not play track song");
-                                    click_player
-                                        .play_song_now(self.click_song.as_ref().unwrap(), None)
-                                        .expect("Could not play click song");
+                                    track_player.play_song_now(self.track_song.as_ref().unwrap(), None).expect("Could not play track song");
+                                    click_player.play_song_now(self.click_song.as_ref().unwrap(), None).expect("Could not play click song");
 
                                     self.is_playing = true;
                                     self.track_file = Some(track_file);
@@ -677,10 +526,7 @@ impl App {
                 }
                 UiEvent::Input(_) => {}
                 UiEvent::Tick => {
-                    if !track_player.has_current_song()
-                        && !click_player.has_current_song()
-                        && self.is_playing
-                    {
+                    if !track_player.has_current_song() && !click_player.has_current_song() && self.is_playing {
                         info!("Song ended, moving to the next song");
 
                         footer_message = "Moving to next song in the queue".to_string();
@@ -694,17 +540,10 @@ impl App {
                                 self.current_playlist_idx = 0;
                             }
                             playlist_state.select(Some(self.current_playlist_idx));
-                            let (_, song_record) = self
-                                .current_playlist
-                                .get_key_value(&self.current_playlist_idx)
-                                .unwrap();
+                            let (_, song_record) = self.current_playlist.get_key_value(&self.current_playlist_idx).unwrap();
 
                             // find the position of the song_title in our song list
-                            if let Some(index) = self
-                                .songs
-                                .iter()
-                                .position(|song| song.file_name == song_record.file_name)
-                            {
+                            if let Some(index) = self.songs.iter().position(|song| song.file_name == song_record.file_name) {
                                 // THIS IS A TERRIBLE HACK. I'm sorry.
                                 new_position = index;
                                 songlist_state.select(Some(new_position));
@@ -735,12 +574,7 @@ impl App {
                         songlist_state.select(Some(new_position));
                         let selected_song = self.songs.get(new_position).unwrap();
 
-                        let (track_file, click_file) = match get_file_paths(
-                            self.music_folder.as_ref().unwrap(),
-                            &selected_song.title,
-                            &selected_song.artist,
-                            &selected_song.album,
-                        ) {
+                        let (track_file, click_file) = match get_file_paths(self.music_folder.as_ref().unwrap(), &selected_song.title, &selected_song.artist, &selected_song.album) {
                             Ok((track_file, click_file)) => (track_file, click_file),
                             Err(e) => {
                                 error!("Could not get file paths: {}", e);
@@ -753,28 +587,12 @@ impl App {
                         self.track_file = Some(track_file);
                         self.click_file = Some(click_file);
 
-                        self.track_song = Some(
-                            Song::from_file(
-                                &self.track_file.clone().unwrap(),
-                                Some((self.track_volume / 100) as f32),
-                            )
-                            .expect("Could not create track song"),
-                        );
+                        self.track_song = Some(Song::from_file(&self.track_file.clone().unwrap(), Some((self.track_volume / 100) as f32)).expect("Could not create track song"));
 
-                        self.click_song = Some(
-                            Song::from_file(
-                                &self.click_file.clone().unwrap(),
-                                Some((self.click_volume / 100) as f32),
-                            )
-                            .expect("Could not create click song"),
-                        );
+                        self.click_song = Some(Song::from_file(&self.click_file.clone().unwrap(), Some((self.click_volume / 100) as f32)).expect("Could not create click song"));
 
-                        track_player
-                            .play_song_next(self.track_song.as_ref().unwrap(), None)
-                            .expect("Could not play track song");
-                        click_player
-                            .play_song_next(self.click_song.as_ref().unwrap(), None)
-                            .expect("Could not play click song");
+                        track_player.play_song_next(self.track_song.as_ref().unwrap(), None).expect("Could not play track song");
+                        click_player.play_song_next(self.click_song.as_ref().unwrap(), None).expect("Could not play click song");
                     } else {
                         footer_message = "".to_string();
                     }
@@ -793,61 +611,34 @@ impl App {
         let items: Vec<_> = read_devices()
             .iter()
             .map(|device| {
-                let selected_track = if device.position == track_device {
-                    "T"
-                } else {
-                    "-"
-                };
-                let selected_click = if device.position == click_device {
-                    "C"
-                } else {
-                    "-"
-                };
+                let selected_track = if device.position == track_device { "T" } else { "-" };
+                let selected_click = if device.position == click_device { "C" } else { "-" };
                 let selected_state = format!("{} {}", selected_track, selected_click);
 
                 ListItem::new(Line::from(vec![Span::styled(
-                    format!(
-                        "[{}] {} : {}",
-                        selected_state,
-                        device.position,
-                        device.name.clone()
-                    ),
+                    format!("[{}] {} : {}", selected_state, device.position, device.name.clone()),
                     Style::default(),
                 )]))
             })
             .collect();
 
-        let list = List::new(items).block(device_ui).highlight_style(
-            Style::default()
-                .bg(Color::Yellow)
-                .fg(Color::Black)
-                .add_modifier(Modifier::BOLD),
-        );
+        let list = List::new(items)
+            .block(device_ui)
+            .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black).add_modifier(Modifier::BOLD));
 
         list
     }
 
-    fn render_songs<'a>(
-        &mut self,
-        songlist_state: &TableState,
-        is_playing: bool,
-    ) -> (Table<'a>, Table<'a>) {
+    fn render_songs<'a>(&mut self, songlist_state: &TableState, is_playing: bool) -> (Table<'a>, Table<'a>) {
         let songlist_ui = Block::default()
             .borders(Borders::ALL)
             .style(Style::default().fg(Color::White))
             .title("Songs")
             .border_type(BorderType::Plain);
 
-        let _selected_song = self.songs.get(
-            songlist_state
-                .selected()
-                .expect("there is always a selected song"),
-        );
+        let _selected_song = self.songs.get(songlist_state.selected().expect("there is always a selected song"));
 
-        let _selected_playlist_song = self
-            .current_playlist
-            .get(&self.current_playlist_idx)
-            .cloned();
+        let _selected_playlist_song = self.current_playlist.get(&self.current_playlist_idx).cloned();
 
         let mut rows = vec![];
         for song in self.songs.clone() {
@@ -860,11 +651,7 @@ impl App {
                 }
             }
 
-            let selected_fg = if is_selected {
-                Color::LightBlue
-            } else {
-                Color::White
-            };
+            let selected_fg = if is_selected { Color::LightBlue } else { Color::White };
 
             let playlist_position = self
                 .current_playlist
@@ -873,42 +660,22 @@ impl App {
                 .map(|index| (index + 1).to_string())
                 .unwrap_or_else(|| String::from(""));
 
-            let playlist_cell = Cell::from(Span::styled(
-                playlist_position,
-                Style::default().fg(selected_fg),
-            ));
+            let playlist_cell = Cell::from(Span::styled(playlist_position, Style::default().fg(selected_fg)));
 
             let selected_cell = if is_selected {
-                Cell::from(Span::styled(
-                    "▶".to_string(),
-                    Style::default().fg(selected_fg),
-                ))
+                Cell::from(Span::styled("▶".to_string(), Style::default().fg(selected_fg)))
             } else {
-                Cell::from(Span::styled(
-                    "".to_string(),
-                    Style::default().fg(selected_fg),
-                ))
+                Cell::from(Span::styled("".to_string(), Style::default().fg(selected_fg)))
             };
 
             let row = Row::new(vec![
                 playlist_cell,
                 selected_cell,
-                Cell::from(Span::styled(
-                    song.artist.clone(),
-                    Style::default().fg(selected_fg),
-                )),
-                Cell::from(Span::styled(
-                    song.title.clone(),
-                    Style::default().fg(selected_fg),
-                )),
-                Cell::from(Span::styled(
-                    song.album.clone(),
-                    Style::default().fg(selected_fg),
-                )),
-                Cell::from(Span::styled(
-                    song.genre.clone(),
-                    Style::default().fg(selected_fg),
-                )),
+                Cell::from(Span::styled(song.artist.clone(), Style::default().fg(selected_fg))),
+                Cell::from(Span::styled(song.title.clone(), Style::default().fg(selected_fg))),
+                Cell::from(Span::styled(song.album.clone(), Style::default().fg(selected_fg))),
+                Cell::from(Span::styled(song.genre.clone(), Style::default().fg(selected_fg))),
+                Cell::from(Span::styled(song.length.clone(), Style::default().fg(selected_fg))),
             ]);
 
             rows.push(row);
@@ -916,31 +683,31 @@ impl App {
 
         let song_table = Table::new(rows)
             .block(songlist_ui)
-            .highlight_style(
-                Style::default()
-                    .bg(Color::Yellow)
-                    .fg(Color::Black)
-                    .add_modifier(Modifier::BOLD),
-            )
+            .highlight_style(Style::default().bg(Color::Yellow).fg(Color::Black).add_modifier(Modifier::BOLD))
             .header(Row::new(vec![
                 Cell::from(Span::raw(" ")),
                 Cell::from(Span::raw(" ")),
-                Cell::from(Span::styled(
-                    "Artist",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
-                Cell::from(Span::styled(
-                    "Song",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
-                Cell::from(Span::styled(
-                    "Album",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
-                Cell::from(Span::styled(
-                    "Genre",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
+                Cell::from(Line::from(vec![
+                    Span::styled("A", Style::default().add_modifier(Modifier::UNDERLINED).add_modifier(Modifier::BOLD)),
+                    Span::styled("rtist", Style::default().add_modifier(Modifier::BOLD)),
+                ])),
+                Cell::from(Line::from(vec![
+                    Span::styled("T", Style::default().add_modifier(Modifier::UNDERLINED).add_modifier(Modifier::BOLD)),
+                    Span::styled("itle", Style::default().add_modifier(Modifier::BOLD)),
+                ])),
+                Cell::from(Line::from(vec![
+                    Span::styled("A", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled("l", Style::default().add_modifier(Modifier::UNDERLINED).add_modifier(Modifier::BOLD)),
+                    Span::styled("bum", Style::default().add_modifier(Modifier::BOLD)),
+                ])),
+                Cell::from(Line::from(vec![
+                    Span::styled("G", Style::default().add_modifier(Modifier::UNDERLINED).add_modifier(Modifier::BOLD)),
+                    Span::styled("enre", Style::default().add_modifier(Modifier::BOLD)),
+                ])),
+                Cell::from(Line::from(vec![
+                    Span::styled("D", Style::default().add_modifier(Modifier::UNDERLINED).add_modifier(Modifier::BOLD)),
+                    Span::styled("uration", Style::default().add_modifier(Modifier::BOLD)),
+                ])),
             ]))
             .block(
                 Block::default()
@@ -956,6 +723,7 @@ impl App {
                 Constraint::Percentage(20),
                 Constraint::Percentage(20),
                 Constraint::Percentage(20),
+                Constraint::Length(10),
             ]);
 
         let queue_ui = Block::default()
@@ -977,34 +745,18 @@ impl App {
                 }
             }
             idx += 1;
-            let selected_fg = if is_selected {
-                Color::LightBlue
-            } else {
-                Color::White
-            };
+            let selected_fg = if is_selected { Color::LightBlue } else { Color::White };
 
             let selected_cell = if is_selected {
-                Cell::from(Span::styled(
-                    "▶".to_string(),
-                    Style::default().fg(selected_fg),
-                ))
+                Cell::from(Span::styled("▶".to_string(), Style::default().fg(selected_fg)))
             } else {
-                Cell::from(Span::styled(
-                    "".to_string(),
-                    Style::default().fg(selected_fg),
-                ))
+                Cell::from(Span::styled("".to_string(), Style::default().fg(selected_fg)))
             };
 
             let row = Row::new(vec![
                 selected_cell,
-                Cell::from(Span::styled(
-                    song.title.clone(),
-                    Style::default().fg(selected_fg),
-                )),
-                Cell::from(Span::styled(
-                    song.artist.clone(),
-                    Style::default().fg(selected_fg),
-                )),
+                Cell::from(Span::styled(song.title.clone(), Style::default().fg(selected_fg))),
+                Cell::from(Span::styled(song.artist.clone(), Style::default().fg(selected_fg))),
             ]);
 
             rows.push(row);
@@ -1012,25 +764,11 @@ impl App {
 
         let queue_table = Table::new(rows)
             .block(queue_ui)
-            .highlight_style(
-                Style::default()
-                    .bg(Color::LightBlue)
-                    .fg(Color::Black)
-                    .add_modifier(Modifier::BOLD),
-            )
+            .highlight_style(Style::default().bg(Color::LightBlue).fg(Color::Black).add_modifier(Modifier::BOLD))
             .header(Row::new(vec![
-                Cell::from(Span::styled(
-                    "",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
-                Cell::from(Span::styled(
-                    "Song",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
-                Cell::from(Span::styled(
-                    "Artist",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
+                Cell::from(Span::styled("", Style::default().add_modifier(Modifier::BOLD))),
+                Cell::from(Span::styled("Song", Style::default().add_modifier(Modifier::BOLD))),
+                Cell::from(Span::styled("Artist", Style::default().add_modifier(Modifier::BOLD))),
             ]))
             .block(
                 Block::default()
@@ -1039,11 +777,7 @@ impl App {
                     .title(format!("Queue ({} songs)", self.current_playlist.len()))
                     .border_type(BorderType::Plain),
             )
-            .widths(&[
-                Constraint::Length(1),
-                Constraint::Percentage(45),
-                Constraint::Percentage(45),
-            ]);
+            .widths(&[Constraint::Length(1), Constraint::Percentage(45), Constraint::Percentage(45)]);
 
         (song_table, queue_table)
     }
@@ -1053,24 +787,12 @@ impl App {
         self.songs = self.original_songs.clone();
 
         self.songs.retain(|song| {
-            song.title
-                .to_lowercase()
-                .contains(&search_term.clone().to_lowercase())
-                || song
-                    .artist
-                    .to_lowercase()
-                    .contains(&search_term.clone().to_lowercase())
-                || song
-                    .genre
-                    .to_lowercase()
-                    .contains(&search_term.clone().to_lowercase())
+            song.title.to_lowercase().contains(&search_term.clone().to_lowercase())
+                || song.artist.to_lowercase().contains(&search_term.clone().to_lowercase())
+                || song.genre.to_lowercase().contains(&search_term.clone().to_lowercase())
         });
 
-        *filter_message = format!(
-            "Search for [{}] found {} songs",
-            search_term,
-            self.songs.len()
-        );
+        *filter_message = format!("Search for [{}] found {} songs", search_term, self.songs.len());
 
         if self.songs.is_empty() {
             self.songs = self.original_songs.clone();
@@ -1106,8 +828,7 @@ impl App {
     }
 
     fn reindex_playlist(&mut self) {
-        let song_records: Vec<(usize, SongRecord)> =
-            self.current_playlist.clone().into_iter().collect();
+        let song_records: Vec<(usize, SongRecord)> = self.current_playlist.clone().into_iter().collect();
         self.current_playlist.clear();
 
         for (idx, song) in song_records.into_iter().enumerate() {
@@ -1116,30 +837,18 @@ impl App {
     }
 
     fn render_help<'a>(&self) -> Paragraph<'a> {
-        let header_style = Style::default()
-            .add_modifier(Modifier::BOLD)
-            .fg(Color::Yellow);
+        let header_style = Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow);
 
         let help_content = vec![
             Line::from(Span::styled("General Commands", header_style)),
-            Line::from(vec![
-                Span::styled("q", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Quit (boo!)."),
-            ]),
+            Line::from(vec![Span::styled("q", Style::default().fg(Color::LightCyan)), Span::raw(": Quit (boo!).")]),
             Line::from(vec![
                 Span::styled("d", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Show device selection. You can pick output devices for tracks and clicks separately."),
             ]),
-            Line::from(vec![
-                Span::styled("s", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Show the song list."),
-            ]),
-            Line::from(vec![
-                Span::styled("h", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Show this help screen."),
-            ]),
+            Line::from(vec![Span::styled("s", Style::default().fg(Color::LightCyan)), Span::raw(": Show the song list.")]),
+            Line::from(vec![Span::styled("h", Style::default().fg(Color::LightCyan)), Span::raw(": Show this help screen.")]),
             Line::from("\n"),
-
             Line::from(Span::styled("Song list Commands", header_style)),
             Line::from(vec![
                 Span::styled("n", Style::default().fg(Color::LightCyan)),
@@ -1149,14 +858,8 @@ impl App {
                 Span::styled("Left or Right Arrow", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Slow down or speed up playback."),
             ]),
-            Line::from(vec![
-                Span::styled("r", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Reset the playback speed."),
-            ]),
-            Line::from(vec![
-                Span::styled("z", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Restart the song that is playing."),
-            ]),
+            Line::from(vec![Span::styled("r", Style::default().fg(Color::LightCyan)), Span::raw(": Reset the playback speed.")]),
+            Line::from(vec![Span::styled("z", Style::default().fg(Color::LightCyan)), Span::raw(": Restart the song that is playing.")]),
             Line::from(vec![
                 Span::styled("SPACE", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Pause or continue the song that is playing"),
@@ -1165,22 +868,10 @@ impl App {
                 Span::styled("HOME or END", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Move to the first or last song in the queue or song list."),
             ]),
-            Line::from(vec![
-                Span::styled("x", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Shuffle or un-shuffle the playlist"),
-            ]),
-            Line::from(vec![
-                Span::styled("1 or 4", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Lower the track or click volume"),
-            ]),
-            Line::from(vec![
-                Span::styled("2 or 5", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Reset the track or click volume"),
-            ]),
-            Line::from(vec![
-                Span::styled("3 or 6", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Increase the track or click volume"),
-            ]),
+            Line::from(vec![Span::styled("x", Style::default().fg(Color::LightCyan)), Span::raw(": Shuffle or un-shuffle the playlist")]),
+            Line::from(vec![Span::styled("1 or 4", Style::default().fg(Color::LightCyan)), Span::raw(": Lower the track or click volume")]),
+            Line::from(vec![Span::styled("2 or 5", Style::default().fg(Color::LightCyan)), Span::raw(": Reset the track or click volume")]),
+            Line::from(vec![Span::styled("3 or 6", Style::default().fg(Color::LightCyan)), Span::raw(": Increase the track or click volume")]),
             Line::from(vec![
                 Span::styled("g", Style::default().fg(Color::LightCyan)),
                 Span::raw(": start filtering for a specific song or artist."),
@@ -1193,22 +884,10 @@ impl App {
             Line::from("When searching, hit ESC to cancel the search. Enter confirms."),
             Line::from("\n"),
             Line::from(Span::styled("Queue Commands", header_style)),
-            Line::from(vec![
-                Span::styled("+", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Adds the selected song to the queue"),
-            ]),
-            Line::from(vec![
-                Span::styled("-", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Removes the selected song from the queue"),
-            ]),
-            Line::from(vec![
-                Span::styled("/", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Clears the current playlist"),
-            ]),
-            Line::from(vec![
-                Span::styled("*", Style::default().fg(Color::LightCyan)),
-                Span::raw(": Randomize the current playlist"),
-            ]),
+            Line::from(vec![Span::styled("+", Style::default().fg(Color::LightCyan)), Span::raw(": Adds the selected song to the queue")]),
+            Line::from(vec![Span::styled("-", Style::default().fg(Color::LightCyan)), Span::raw(": Removes the selected song from the queue")]),
+            Line::from(vec![Span::styled("/", Style::default().fg(Color::LightCyan)), Span::raw(": Clears the current playlist")]),
+            Line::from(vec![Span::styled("*", Style::default().fg(Color::LightCyan)), Span::raw(": Randomize the current playlist")]),
             Line::from(vec![
                 Span::styled("p", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Start playing (useful when you create a playlist)."),
@@ -1216,29 +895,20 @@ impl App {
         ];
 
         // Create a Paragraph with the help screen content
-        Paragraph::new(help_content.clone())
-            .style(Style::default())
-            .block(Block::default().borders(Borders::ALL).title("Help"))
+        Paragraph::new(help_content.clone()).style(Style::default()).block(Block::default().borders(Borders::ALL).title("Help"))
     }
 
     fn confirm_exit<B: Backend>(&mut self, f: &mut Frame<B>) {
         let size = f.size();
 
-        let chunks = Layout::default()
-            .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
-            .split(size);
+        let chunks = Layout::default().constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref()).split(size);
 
-        let paragraph = Paragraph::new(Span::styled(
-            "Hi there",
-            Style::default().add_modifier(Modifier::SLOW_BLINK),
-        ))
-        .alignment(Alignment::Center)
-        .wrap(Wrap { trim: true });
+        let paragraph = Paragraph::new(Span::styled("Hi there", Style::default().add_modifier(Modifier::SLOW_BLINK)))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true });
         f.render_widget(paragraph, chunks[0]);
 
-        let block = Block::default()
-            .borders(Borders::NONE)
-            .style(Style::default().bg(Color::Black));
+        let block = Block::default().borders(Borders::NONE).style(Style::default().bg(Color::Black));
         f.render_widget(block, chunks[1]);
 
         let block = Block::default()
@@ -1254,9 +924,7 @@ impl App {
     fn prepare_for_folder<B: Backend>(&mut self, f: &mut Frame<B>) {
         let size = f.size();
 
-        let chunks = Layout::default()
-            .constraints([Constraint::Percentage(100)].as_ref())
-            .split(size);
+        let chunks = Layout::default().constraints([Constraint::Percentage(100)].as_ref()).split(size);
 
         let paragraph = Paragraph::new(Span::styled(
             "Hi there. You need to select a folder where your music collection is stored. This is typically something called 'Drumless'. Click ENTER to choose your music folder. ESC to close.",
