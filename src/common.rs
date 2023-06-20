@@ -52,25 +52,6 @@ impl From<MenuItem> for usize {
     }
 }
 
-pub fn needs_unzipping(
-    music_folder: &String,
-    song_title: &String,
-    artist_name: &String,
-    album_name: &String,
-) -> bool {
-    for song_record in read_song_file().unwrap().iter() {
-        let song: SongRecord = song_record.clone();
-
-        if &song.album == album_name && &song.artist == artist_name && &song.title == song_title {
-            let (track_path, _) = get_track_and_click_path(music_folder, &song.folder, &song.title);
-
-            return !track_path.exists();
-        }
-    }
-
-    false
-}
-
 lazy_static! {
     static ref SONGS: Mutex<Vec<SongRecord>> = Mutex::new(Vec::new());
 }

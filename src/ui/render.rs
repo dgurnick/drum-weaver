@@ -2,9 +2,7 @@ use ratatui::{
     layout::Constraint,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{
-        Block, BorderType, Borders, Cell, List, ListItem, Paragraph, Row, Table, TableState,
-    },
+    widgets::{Block, BorderType, Borders, Cell, List, ListItem, Paragraph, Row, Table},
 };
 
 use super::{ActiveFocus, App};

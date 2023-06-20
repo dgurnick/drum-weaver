@@ -11,7 +11,7 @@ use crossterm::{
 
 use crate::device::read_devices;
 
-use crate::common::{get_file_paths, needs_unzipping, MenuItem, PlayerArguments, UiEvent};
+use crate::common::{get_file_paths, MenuItem, PlayerArguments, UiEvent};
 use crate::{
     audio::{Player, Song},
     playlist::SongRecord,
@@ -655,13 +655,11 @@ impl App {
                                     } else {
                                         continue;
                                     }
+                                } else if let Some(selected) = self.queue_state.selected() {
+                                    self.active_queue_idx = &selected + 1;
+                                    self.queue.get(&self.active_queue_idx).unwrap()
                                 } else {
-                                    if let Some(selected) = self.queue_state.selected() {
-                                        self.active_queue_idx = &selected + 1;
-                                        self.queue.get(&self.active_queue_idx).unwrap()
-                                    } else {
-                                        continue;
-                                    }
+                                    continue;
                                 };
 
                                 let (track_file, click_file) = match get_file_paths(

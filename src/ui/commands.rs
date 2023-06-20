@@ -99,18 +99,16 @@ impl KeyHandler for App {
                         }
                         self.songlist_state.select(Some(new_position));
                     }
-                } else {
-                    if let Some(selected) = self.queue_state.selected() {
-                        let amount_songs = self.queue.len();
-                        #[allow(unused_assignments)]
-                        let mut new_position = selected;
-                        if selected >= amount_songs - 1 {
-                            new_position = 0;
-                        } else {
-                            new_position = selected + 1;
-                        }
-                        self.queue_state.select(Some(new_position));
+                } else if let Some(selected) = self.queue_state.selected() {
+                    let amount_songs = self.queue.len();
+                    #[allow(unused_assignments)]
+                    let mut new_position = selected;
+                    if selected >= amount_songs - 1 {
+                        new_position = 0;
+                    } else {
+                        new_position = selected + 1;
                     }
+                    self.queue_state.select(Some(new_position));
                 }
             }
             _ => {}
@@ -147,18 +145,16 @@ impl KeyHandler for App {
                         }
                         self.songlist_state.select(Some(new_position));
                     }
-                } else {
-                    if let Some(selected) = self.queue_state.selected() {
-                        let amount_songs = self.queue.len();
-                        #[allow(unused_assignments)]
-                        let mut new_position = 0;
-                        if selected > 0 {
-                            new_position = selected - 1;
-                        } else {
-                            new_position = amount_songs - 1;
-                        }
-                        self.queue_state.select(Some(new_position));
+                } else if let Some(selected) = self.queue_state.selected() {
+                    let amount_songs = self.queue.len();
+                    #[allow(unused_assignments)]
+                    let mut new_position = 0;
+                    if selected > 0 {
+                        new_position = selected - 1;
+                    } else {
+                        new_position = amount_songs - 1;
                     }
+                    self.queue_state.select(Some(new_position));
                 }
             }
             _ => {}
@@ -196,26 +192,43 @@ impl KeyHandler for App {
 
     fn do_select_next_page(&mut self, active_menu_item: &mut MenuItem) {
         if let MenuItem::Songs = active_menu_item {
-            if let Some(selected) = self.songlist_state.selected() {
-                let amount_songs = self.songs.len();
+            if self.active_focus == ActiveFocus::Songs {
+                if let Some(selected) = self.songlist_state.selected() {
+                    let amount_songs = self.songs.len();
+                    if selected + 10 > amount_songs {
+                        self.songlist_state.select(Some(0));
+                    } else {
+                        self.songlist_state.select(Some(selected + 10));
+                    }
+                }
+            } else if let Some(selected) = self.queue_state.selected() {
+                let amount_songs = self.queue.len();
                 if selected + 10 > amount_songs {
-                    self.songlist_state.select(Some(0));
+                    self.queue_state.select(Some(0));
                 } else {
-                    self.songlist_state.select(Some(selected + 10));
+                    self.queue_state.select(Some(selected + 10));
                 }
             }
-            info!("Set song to {}", self.songlist_state.selected().unwrap());
         }
     }
 
     fn do_select_previous_page(&mut self, active_menu_item: &mut MenuItem) {
         if let MenuItem::Songs = active_menu_item {
-            if let Some(selected) = self.songlist_state.selected() {
-                let amount_songs = self.songs.len();
+            if self.active_focus == ActiveFocus::Songs {
+                if let Some(selected) = self.songlist_state.selected() {
+                    let amount_songs = self.songs.len();
+                    if selected > 10 {
+                        self.songlist_state.select(Some(selected - 10));
+                    } else {
+                        self.songlist_state.select(Some(amount_songs - 1));
+                    }
+                }
+            } else if let Some(selected) = self.queue_state.selected() {
+                let amount_songs = self.queue.len();
                 if selected > 10 {
-                    self.songlist_state.select(Some(selected - 10));
+                    self.queue_state.select(Some(selected - 10));
                 } else {
-                    self.songlist_state.select(Some(amount_songs - 1));
+                    self.queue_state.select(Some(amount_songs - 1));
                 }
             }
         }
