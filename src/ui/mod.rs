@@ -82,6 +82,8 @@ pub struct App {
     sort_reverse: bool,
     last_sort: Option<SortBy>,
     active_focus: ActiveFocus,
+    songlist_state: TableState,
+    queue_state: TableState,
 }
 
 fn load_playlist() -> Result<BTreeMap<usize, SongRecord>, Box<dyn std::error::Error>> {
@@ -165,6 +167,8 @@ impl App {
             sort_reverse: false,
             last_sort: None,
             active_focus: ActiveFocus::Songs,
+            songlist_state: TableState::default(),
+            queue_state: TableState::default(),
         }
     }
 
@@ -182,11 +186,8 @@ impl App {
         let menu_titles = vec!["Songs", "Devices", "Help", "Quit"];
         let mut active_menu_item = MenuItem::Help;
 
-        let mut songlist_state = TableState::default();
-        songlist_state.select(Some(0));
-
-        let mut queue_state = TableState::default();
-        queue_state.select(Some(0));
+        self.songlist_state.select(Some(0));
+        self.queue_state.select(Some(0));
 
         let mut device_list_state = ListState::default();
         device_list_state.select(Some(0));
@@ -293,20 +294,19 @@ impl App {
                                 )
                                 .split(chunks[1]);
 
-                            let song_table =
-                                self.render_songs(&songlist_state, track_player.has_current_song());
+                            let song_table = self.render_songs(track_player.has_current_song());
                             let queue_table = self.render_queue(track_player.has_current_song());
 
                             rect.render_stateful_widget(
                                 song_table,
                                 songlist_chunks[0],
-                                &mut songlist_state,
+                                &mut self.songlist_state,
                             );
 
                             rect.render_stateful_widget(
                                 queue_table,
                                 songlist_chunks[1],
-                                &mut queue_state,
+                                &mut self.queue_state,
                             );
                         }
                         MenuItem::Devices => {
@@ -487,11 +487,11 @@ impl App {
                         && !self.is_searching =>
                 {
                     match event.code {
-                        KeyCode::Char('a') => self.do_sort(&mut queue_state, SortBy::Artist),
-                        KeyCode::Char('t') => self.do_sort(&mut queue_state, SortBy::Title),
-                        KeyCode::Char('l') => self.do_sort(&mut queue_state, SortBy::Album),
-                        KeyCode::Char('g') => self.do_sort(&mut queue_state, SortBy::Genre),
-                        KeyCode::Char('d') => self.do_sort(&mut queue_state, SortBy::Duration),
+                        KeyCode::Char('a') => self.do_sort(SortBy::Artist),
+                        KeyCode::Char('t') => self.do_sort(SortBy::Title),
+                        KeyCode::Char('l') => self.do_sort(SortBy::Album),
+                        KeyCode::Char('g') => self.do_sort(SortBy::Genre),
+                        KeyCode::Char('d') => self.do_sort(SortBy::Duration),
                         _ => {}
                     }
                 }
@@ -506,12 +506,10 @@ impl App {
                         KeyCode::Char('5') => self.do_reset_click_volume(&mut click_player),
                         KeyCode::Char('6') => self.do_increase_click_volume(&mut click_player),
 
-                        KeyCode::Char('+') => self.do_add_song_to_playlist(&mut songlist_state),
-                        KeyCode::Char('-') => {
-                            self.do_remove_song_from_playlist(&mut songlist_state)
-                        }
+                        KeyCode::Char('+') => self.do_add_song_to_playlist(),
+                        KeyCode::Char('-') => self.do_remove_song_from_playlist(),
                         KeyCode::Char('/') => self.do_clear_playlist(),
-                        KeyCode::Char('*') => self.do_shuffle_playlist(&mut queue_state),
+                        KeyCode::Char('*') => self.do_shuffle_playlist(),
                         KeyCode::Char('p') => self.do_start_playlist(),
 
                         KeyCode::Char(' ') => self.do_pause_playback(
@@ -545,22 +543,13 @@ impl App {
                             &mut click_player,
                         ),
 
-                        KeyCode::Down => self.do_select_next_item(
-                            &mut active_menu_item,
-                            &mut device_list_state,
-                            &mut songlist_state,
-                        ),
-                        KeyCode::Up => self.do_select_previous_item(
-                            &mut active_menu_item,
-                            &mut device_list_state,
-                            &mut songlist_state,
-                        ),
-                        KeyCode::PageDown => {
-                            self.do_select_next_page(&mut active_menu_item, &mut songlist_state)
+                        KeyCode::Down => {
+                            self.do_select_next_item(&mut active_menu_item, &mut device_list_state)
                         }
-                        KeyCode::PageUp => {
-                            self.do_select_previous_page(&mut active_menu_item, &mut songlist_state)
-                        }
+                        KeyCode::Up => self
+                            .do_select_previous_item(&mut active_menu_item, &mut device_list_state),
+                        KeyCode::PageDown => self.do_select_next_page(&mut active_menu_item),
+                        KeyCode::PageUp => self.do_select_previous_page(&mut active_menu_item),
 
                         KeyCode::Left => self.do_reduce_playback_speed(
                             &mut active_menu_item,
@@ -572,13 +561,11 @@ impl App {
                             &mut track_player,
                             &mut click_player,
                         ),
-                        KeyCode::Home => songlist_state.select(Some(0)),
-                        KeyCode::End => songlist_state.select(Some(self.songs.len() - 1)),
-                        KeyCode::Delete => self.do_delete_track(
-                            &mut songlist_state,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
+                        KeyCode::Home => self.songlist_state.select(Some(0)),
+                        KeyCode::End => self.songlist_state.select(Some(self.songs.len() - 1)),
+                        KeyCode::Delete => {
+                            self.do_delete_track(&mut track_player, &mut click_player)
+                        }
 
                         KeyCode::Esc => {}
 
@@ -650,7 +637,7 @@ impl App {
 
                         KeyCode::Enter => {
                             if let MenuItem::Songs = active_menu_item {
-                                if let Some(selected) = songlist_state.selected() {
+                                if let Some(selected) = self.songlist_state.selected() {
                                     // this is wrong when we are random
                                     let selected_song = self.songs.get(selected).unwrap();
 
@@ -727,7 +714,7 @@ impl App {
                             if self.active_queue_idx > self.queue.len() - 1 {
                                 self.active_queue_idx = 0;
                             }
-                            queue_state.select(Some(self.active_queue_idx));
+                            self.queue_state.select(Some(self.active_queue_idx));
                             let (_, song_record) =
                                 self.queue.get_key_value(&self.active_queue_idx).unwrap();
 
@@ -739,14 +726,14 @@ impl App {
                             {
                                 // THIS IS A TERRIBLE HACK. I'm sorry.
                                 new_position = index;
-                                songlist_state.select(Some(new_position));
+                                self.songlist_state.select(Some(new_position));
                             }
 
                             self.active_queue_idx += 1;
                             if self.active_queue_idx > self.queue.len() - 1 {
                                 self.active_queue_idx = 0;
                             }
-                        } else if let Some(selected) = songlist_state.selected() {
+                        } else if let Some(selected) = self.songlist_state.selected() {
                             info!("The current position is {}", selected);
                             let amount_songs = self.songs.len();
 
@@ -764,7 +751,7 @@ impl App {
                             }
                         }
 
-                        songlist_state.select(Some(new_position));
+                        self.songlist_state.select(Some(new_position));
                         let selected_song = self.songs.get(new_position).unwrap();
 
                         let (track_file, click_file) = match get_file_paths(

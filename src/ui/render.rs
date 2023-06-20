@@ -11,7 +11,7 @@ use super::{ActiveFocus, App};
 
 #[rustfmt::skip]
 pub trait Render {
-    fn render_songs<'a>(&mut self, songlist_state: &TableState, is_playing: bool, ) -> Table<'a>;
+    fn render_songs<'a>(&mut self, is_playing: bool, ) -> Table<'a>;
     fn render_queue<'a>(&mut self, is_playing: bool, ) -> Table<'a>;
     fn render_help<'a>(&self) -> Paragraph<'a>;
     fn render_devices<'a>(&mut self, track_device: usize, click_device: usize) -> List<'a>;
@@ -19,7 +19,7 @@ pub trait Render {
 
 #[rustfmt::enable]
 impl Render for App {
-    fn render_songs<'a>(&mut self, songlist_state: &TableState, is_playing: bool) -> Table<'a> {
+    fn render_songs<'a>(&mut self, is_playing: bool) -> Table<'a> {
         let songlist_ui = if self.active_focus == ActiveFocus::Songs {
             Block::default()
                 .borders(Borders::ALL)
@@ -35,7 +35,7 @@ impl Render for App {
         };
 
         let _selected_song = self.songs.get(
-            songlist_state
+            self.songlist_state
                 .selected()
                 .expect("there is always a selected song"),
         );

@@ -12,7 +12,6 @@ use log::info;
 use rand::seq::SliceRandom;
 use ratatui::backend::CrosstermBackend;
 use ratatui::widgets::ListState;
-use ratatui::widgets::TableState;
 use ratatui::Terminal;
 
 #[derive(PartialEq)]
@@ -27,12 +26,12 @@ pub enum SortBy {
 #[rustfmt::skip]
 pub trait KeyHandler {
     fn do_reset_playback_speed( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
-    fn do_select_next_item( &mut self, active_menu_item: &mut MenuItem, device_list_state: &mut ListState, songlist_state: &mut TableState, );
-    fn do_select_previous_item( &mut self, active_menu_item: &mut MenuItem, device_list_state: &mut ListState, songlist_state: &mut TableState, );
+    fn do_select_next_item( &mut self, active_menu_item: &mut MenuItem, device_list_state: &mut ListState, );
+    fn do_select_previous_item( &mut self, active_menu_item: &mut MenuItem, device_list_state: &mut ListState, );
     fn do_pause_playback( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
     fn do_restart_song( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
-    fn do_select_next_page( &mut self, active_menu_item: &mut MenuItem, songlist_state: &mut TableState, );
-    fn do_select_previous_page( &mut self, active_menu_item: &mut MenuItem, songlist_state: &mut TableState, );
+    fn do_select_next_page( &mut self, active_menu_item: &mut MenuItem, );
+    fn do_select_previous_page( &mut self, active_menu_item: &mut MenuItem, );
     fn do_reduce_playback_speed( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
     fn do_increase_playback_speed( &mut self, active_menu_item: &mut MenuItem, track_player: &mut Player, click_player: &mut Player, );
     fn do_reduce_track_volume( &mut self, track_player: &mut Player);
@@ -41,18 +40,18 @@ pub trait KeyHandler {
     fn do_reduce_click_volume( &mut self, click_player: &mut Player);
     fn do_reset_click_volume( &mut self, click_player: &mut Player);
     fn do_increase_click_volume( &mut self, click_player: &mut Player);
-    fn do_add_song_to_playlist( &mut self, songlist_state: &mut TableState);
-    fn do_remove_song_from_playlist( &mut self, songlist_state: &mut TableState);
+    fn do_add_song_to_playlist( &mut self);
+    fn do_remove_song_from_playlist( &mut self);
     fn do_check_quit( &mut self, track_player: &mut Player, click_player: &mut Player, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>);
     fn do_check_stay_or_next( &mut self, track_player: &mut Player, click_player: &mut Player);
     fn do_start_search( &mut self );
     fn do_shuffle_songs( &mut self );
-    fn do_delete_track( &mut self, songlist_state: &mut TableState, track_player: &mut Player, click_player: &mut Player);
+    fn do_delete_track( &mut self, track_player: &mut Player, click_player: &mut Player);
     fn do_cancel_search( &mut self );
     fn do_clear_playlist( &mut self );
-    fn do_shuffle_playlist( &mut self, table_state: &mut TableState );
-    fn do_start_playlist( &mut self );
-    fn do_sort( &mut self, table_state: &mut TableState, sort_by: SortBy );
+    fn do_shuffle_playlist( &mut self );
+    fn do_start_playlist( &mut self  );
+    fn do_sort( &mut self, sort_by: SortBy );
 }
 
 impl KeyHandler for App {
@@ -73,7 +72,6 @@ impl KeyHandler for App {
         &mut self,
         active_menu_item: &mut MenuItem,
         device_list_state: &mut ListState,
-        songlist_state: &mut TableState,
     ) {
         match active_menu_item {
             MenuItem::Devices => {
@@ -88,7 +86,7 @@ impl KeyHandler for App {
                 info!("Set device to {}", device_list_state.selected().unwrap());
             }
             MenuItem::Songs => {
-                if let Some(selected) = songlist_state.selected() {
+                if let Some(selected) = self.songlist_state.selected() {
                     let amount_songs = self.songs.len();
                     #[allow(unused_assignments)]
                     let mut new_position = selected;
@@ -97,9 +95,9 @@ impl KeyHandler for App {
                     } else {
                         new_position = selected + 1;
                     }
-                    songlist_state.select(Some(new_position));
+                    self.songlist_state.select(Some(new_position));
                 }
-                info!("Set song to {}", songlist_state.selected().unwrap());
+                info!("Set song to {}", self.songlist_state.selected().unwrap());
             }
             _ => {}
         }
@@ -109,7 +107,6 @@ impl KeyHandler for App {
         &mut self,
         active_menu_item: &mut MenuItem,
         device_list_state: &mut ListState,
-        songlist_state: &mut TableState,
     ) {
         match active_menu_item {
             MenuItem::Devices => {
@@ -124,7 +121,7 @@ impl KeyHandler for App {
                 info!("Set device to {}", device_list_state.selected().unwrap());
             }
             MenuItem::Songs => {
-                if let Some(selected) = songlist_state.selected() {
+                if let Some(selected) = self.songlist_state.selected() {
                     let amount_songs = self.songs.len();
                     #[allow(unused_assignments)]
                     let mut new_position = 0;
@@ -133,9 +130,9 @@ impl KeyHandler for App {
                     } else {
                         new_position = amount_songs - 1;
                     }
-                    songlist_state.select(Some(new_position));
+                    self.songlist_state.select(Some(new_position));
                 }
-                info!("Set song to {}", songlist_state.selected().unwrap());
+                info!("Set song to {}", self.songlist_state.selected().unwrap());
             }
             _ => {}
         }
@@ -170,39 +167,30 @@ impl KeyHandler for App {
         }
     }
 
-    fn do_select_next_page(
-        &mut self,
-        active_menu_item: &mut MenuItem,
-        songlist_state: &mut TableState,
-    ) {
+    fn do_select_next_page(&mut self, active_menu_item: &mut MenuItem) {
         if let MenuItem::Songs = active_menu_item {
-            if let Some(selected) = songlist_state.selected() {
+            if let Some(selected) = self.songlist_state.selected() {
                 let amount_songs = self.songs.len();
                 if selected + 10 > amount_songs {
-                    songlist_state.select(Some(0));
+                    self.songlist_state.select(Some(0));
                 } else {
-                    songlist_state.select(Some(selected + 10));
+                    self.songlist_state.select(Some(selected + 10));
                 }
             }
-            info!("Set song to {}", songlist_state.selected().unwrap());
+            info!("Set song to {}", self.songlist_state.selected().unwrap());
         }
     }
 
-    fn do_select_previous_page(
-        &mut self,
-        active_menu_item: &mut MenuItem,
-        songlist_state: &mut TableState,
-    ) {
+    fn do_select_previous_page(&mut self, active_menu_item: &mut MenuItem) {
         if let MenuItem::Songs = active_menu_item {
-            if let Some(selected) = songlist_state.selected() {
+            if let Some(selected) = self.songlist_state.selected() {
                 let amount_songs = self.songs.len();
                 if selected > 10 {
-                    songlist_state.select(Some(selected - 10));
+                    self.songlist_state.select(Some(selected - 10));
                 } else {
-                    songlist_state.select(Some(amount_songs - 1));
+                    self.songlist_state.select(Some(amount_songs - 1));
                 }
             }
-            info!("Set song to {}", songlist_state.selected().unwrap());
         }
     }
 
@@ -290,8 +278,8 @@ impl KeyHandler for App {
         click_player.set_volume_adjustment(self.click_volume as f32 / 100.0);
     }
 
-    fn do_add_song_to_playlist(&mut self, songlist_state: &mut TableState) {
-        if let Some(selected) = songlist_state.selected() {
+    fn do_add_song_to_playlist(&mut self) {
+        if let Some(selected) = self.songlist_state.selected() {
             // add it to the queue. We can keep adding. No issue.
             let song = self.songs[selected].clone();
             let position = self
@@ -308,8 +296,8 @@ impl KeyHandler for App {
         }
     }
 
-    fn do_remove_song_from_playlist(&mut self, songlist_state: &mut TableState) {
-        if let Some(selected) = songlist_state.selected() {
+    fn do_remove_song_from_playlist(&mut self) {
+        if let Some(selected) = self.songlist_state.selected() {
             // add it to the queue. We can keep adding. No issue.
             let song = self.songs[selected].clone();
             let position = self
@@ -388,13 +376,8 @@ impl KeyHandler for App {
         self.is_playing_random = !self.is_playing_random;
     }
 
-    fn do_delete_track(
-        &mut self,
-        songlist_state: &mut TableState,
-        track_player: &mut Player,
-        click_player: &mut Player,
-    ) {
-        if let Some(selected) = songlist_state.selected() {
+    fn do_delete_track(&mut self, track_player: &mut Player, click_player: &mut Player) {
+        if let Some(selected) = self.songlist_state.selected() {
             track_player.stop();
             click_player.stop();
 
@@ -411,7 +394,7 @@ impl KeyHandler for App {
         self.active_queue_idx = 0;
     }
 
-    fn do_shuffle_playlist(&mut self, playlist_state: &mut TableState) {
+    fn do_shuffle_playlist(&mut self) {
         // Convert the BTreeMap into a vector of key-value pairs
         let mut playlist_vec: Vec<(usize, SongRecord)> = self.queue.clone().into_iter().collect();
         self.queue.clear();
@@ -424,7 +407,7 @@ impl KeyHandler for App {
             if let Some(track_file) = self.track_file.clone() {
                 if track_file.contains(song.1.file_name.as_str()) {
                     self.active_queue_idx = idx;
-                    playlist_state.select(Some(idx));
+                    self.songlist_state.select(Some(idx));
                 }
             }
             self.queue.insert(idx, song.1);
@@ -435,7 +418,7 @@ impl KeyHandler for App {
         self.is_playing = true;
     }
 
-    fn do_sort(&mut self, _table_state: &mut TableState, sort_by: SortBy) {
+    fn do_sort(&mut self, sort_by: SortBy) {
         if self.last_sort.is_some() && self.last_sort.as_ref().unwrap() == &sort_by {
             self.sort_reverse = !self.sort_reverse;
         } else {
