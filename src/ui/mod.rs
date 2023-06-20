@@ -53,6 +53,12 @@ impl Display for AppConfig {
     }
 }
 
+#[derive(PartialEq)]
+enum ActiveFocus {
+    Songs,
+    Queue,
+}
+
 pub struct App {
     songs: Vec<SongRecord>,
     original_songs: Vec<SongRecord>,
@@ -66,15 +72,16 @@ pub struct App {
     track_device_idx: usize,
     click_device_idx: usize,
     playback_speed: f64,
-    current_playlist: BTreeMap<usize, SongRecord>,
+    queue: BTreeMap<usize, SongRecord>,
     is_quitting: bool,
     is_searching: bool,
     searching_for: String,
     is_playing_random: bool,
     is_playing: bool,
-    current_playlist_idx: usize,
+    active_queue_idx: usize,
     sort_reverse: bool,
     last_sort: Option<SortBy>,
+    active_focus: ActiveFocus,
 }
 
 fn load_playlist() -> Result<BTreeMap<usize, SongRecord>, Box<dyn std::error::Error>> {
@@ -127,7 +134,7 @@ impl App {
         arguments.click_device_position = click_position;
         arguments.track_device_position = device_position;
 
-        let playlist = match load_playlist() {
+        let queue = match load_playlist() {
             Ok(playlist) => playlist,
             Err(e) => {
                 error!("Unable to load playlist: {}", e);
@@ -148,15 +155,16 @@ impl App {
             track_device_idx: arguments.track_device_position,
             click_device_idx: arguments.click_device_position,
             playback_speed: arguments.playback_speed,
-            current_playlist: playlist,
+            queue,
             is_quitting: false,
             is_searching: false,
             searching_for: String::new(),
             is_playing_random: false,
             is_playing: false,
-            current_playlist_idx: 0,
+            active_queue_idx: 0,
             sort_reverse: false,
             last_sort: None,
+            active_focus: ActiveFocus::Songs,
         }
     }
 
@@ -177,8 +185,8 @@ impl App {
         let mut songlist_state = TableState::default();
         songlist_state.select(Some(0));
 
-        let mut playlist_state = TableState::default();
-        playlist_state.select(Some(0));
+        let mut queue_state = TableState::default();
+        queue_state.select(Some(0));
 
         let mut device_list_state = ListState::default();
         device_list_state.select(Some(0));
@@ -298,7 +306,7 @@ impl App {
                             rect.render_stateful_widget(
                                 queue_table,
                                 songlist_chunks[1],
-                                &mut playlist_state,
+                                &mut queue_state,
                             );
                         }
                         MenuItem::Devices => {
@@ -431,14 +439,14 @@ impl App {
                             footer_message.clear();
 
                             // let's take the search results and add them all to the playlist
-                            let mut idx = self.current_playlist.len();
+                            let mut idx = self.queue.len();
                             for song in self.songs.clone() {
-                                for existing in self.current_playlist.values() {
+                                for existing in self.queue.values() {
                                     if existing.file_name == song.file_name {
                                         continue;
                                     }
                                 }
-                                self.current_playlist.insert(idx, song.clone());
+                                self.queue.insert(idx, song.clone());
                                 idx += 1;
                             }
 
@@ -479,11 +487,11 @@ impl App {
                         && !self.is_searching =>
                 {
                     match event.code {
-                        KeyCode::Char('a') => self.do_sort(&mut playlist_state, SortBy::Artist),
-                        KeyCode::Char('t') => self.do_sort(&mut playlist_state, SortBy::Title),
-                        KeyCode::Char('l') => self.do_sort(&mut playlist_state, SortBy::Album),
-                        KeyCode::Char('g') => self.do_sort(&mut playlist_state, SortBy::Genre),
-                        KeyCode::Char('d') => self.do_sort(&mut playlist_state, SortBy::Duration),
+                        KeyCode::Char('a') => self.do_sort(&mut queue_state, SortBy::Artist),
+                        KeyCode::Char('t') => self.do_sort(&mut queue_state, SortBy::Title),
+                        KeyCode::Char('l') => self.do_sort(&mut queue_state, SortBy::Album),
+                        KeyCode::Char('g') => self.do_sort(&mut queue_state, SortBy::Genre),
+                        KeyCode::Char('d') => self.do_sort(&mut queue_state, SortBy::Duration),
                         _ => {}
                     }
                 }
@@ -503,7 +511,7 @@ impl App {
                             self.do_remove_song_from_playlist(&mut songlist_state)
                         }
                         KeyCode::Char('/') => self.do_clear_playlist(),
-                        KeyCode::Char('*') => self.do_shuffle_playlist(&mut playlist_state),
+                        KeyCode::Char('*') => self.do_shuffle_playlist(&mut queue_state),
                         KeyCode::Char('p') => self.do_start_playlist(),
 
                         KeyCode::Char(' ') => self.do_pause_playback(
@@ -573,6 +581,14 @@ impl App {
                         ),
 
                         KeyCode::Esc => {}
+
+                        KeyCode::Tab => {
+                            if let ActiveFocus::Songs = self.active_focus {
+                                self.active_focus = ActiveFocus::Queue;
+                            } else {
+                                self.active_focus = ActiveFocus::Songs;
+                            }
+                        }
 
                         KeyCode::Char('c') => {
                             // I won't refactor this into another function because it uses everything and I'm dumb
@@ -707,15 +723,13 @@ impl App {
                         let mut new_position = 0;
 
                         // move to first in playlist if it's there
-                        if !self.current_playlist.is_empty() {
-                            if self.current_playlist_idx > self.current_playlist.len() - 1 {
-                                self.current_playlist_idx = 0;
+                        if !self.queue.is_empty() {
+                            if self.active_queue_idx > self.queue.len() - 1 {
+                                self.active_queue_idx = 0;
                             }
-                            playlist_state.select(Some(self.current_playlist_idx));
-                            let (_, song_record) = self
-                                .current_playlist
-                                .get_key_value(&self.current_playlist_idx)
-                                .unwrap();
+                            queue_state.select(Some(self.active_queue_idx));
+                            let (_, song_record) =
+                                self.queue.get_key_value(&self.active_queue_idx).unwrap();
 
                             // find the position of the song_title in our song list
                             if let Some(index) = self
@@ -728,9 +742,9 @@ impl App {
                                 songlist_state.select(Some(new_position));
                             }
 
-                            self.current_playlist_idx += 1;
-                            if self.current_playlist_idx > self.current_playlist.len() - 1 {
-                                self.current_playlist_idx = 0;
+                            self.active_queue_idx += 1;
+                            if self.active_queue_idx > self.queue.len() - 1 {
+                                self.active_queue_idx = 0;
                             }
                         } else if let Some(selected) = songlist_state.selected() {
                             info!("The current position is {}", selected);
@@ -831,12 +845,11 @@ impl App {
     }
 
     fn reindex_playlist(&mut self) {
-        let song_records: Vec<(usize, SongRecord)> =
-            self.current_playlist.clone().into_iter().collect();
-        self.current_playlist.clear();
+        let song_records: Vec<(usize, SongRecord)> = self.queue.clone().into_iter().collect();
+        self.queue.clear();
 
         for (idx, song) in song_records.into_iter().enumerate() {
-            self.current_playlist.insert(idx + 1, song.1);
+            self.queue.insert(idx + 1, song.1);
         }
     }
 
