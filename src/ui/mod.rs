@@ -561,8 +561,20 @@ impl App {
                             &mut track_player,
                             &mut click_player,
                         ),
-                        KeyCode::Home => self.songlist_state.select(Some(0)),
-                        KeyCode::End => self.songlist_state.select(Some(self.songs.len() - 1)),
+                        KeyCode::Home => {
+                            if self.active_focus == ActiveFocus::Songs {
+                                self.songlist_state.select(Some(0));
+                            } else {
+                                self.queue_state.select(Some(0));
+                            }
+                        }
+                        KeyCode::End => {
+                            if self.active_focus == ActiveFocus::Songs {
+                                self.songlist_state.select(Some(self.songs.len() - 1));
+                            } else {
+                                self.queue_state.select(Some(self.queue.len() - 1));
+                            }
+                        }
                         KeyCode::Delete => {
                             self.do_delete_track(&mut track_player, &mut click_player)
                         }
@@ -716,7 +728,7 @@ impl App {
                             if self.active_queue_idx > self.queue.len() - 1 {
                                 self.active_queue_idx = 0;
                             }
-                            self.queue_state.select(Some(self.active_queue_idx));
+                            self.queue_state.select(Some(self.active_queue_idx - 1));
                             let (_, song_record) =
                                 self.queue.get_key_value(&self.active_queue_idx).unwrap();
 
