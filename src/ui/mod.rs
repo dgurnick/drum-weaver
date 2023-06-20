@@ -712,6 +712,7 @@ impl App {
 
                         // move to first in playlist if it's there
                         if !self.queue.is_empty() {
+                            self.active_queue_idx += 1;
                             if self.active_queue_idx > self.queue.len() - 1 {
                                 self.active_queue_idx = 0;
                             }
