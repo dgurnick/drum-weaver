@@ -575,9 +575,8 @@ impl App {
                                 self.queue_state.select(Some(self.queue.len() - 1));
                             }
                         }
-                        KeyCode::Delete => {
-                            self.do_delete_track(&mut track_player, &mut click_player)
-                        }
+                        // TODO: Delete songs
+                        KeyCode::Delete => info!("TODO delete song from playlist or queue"),
 
                         KeyCode::Esc => {}
 

@@ -54,7 +54,11 @@ impl Render for App {
             let selected_fg = if is_selected {
                 Color::LightBlue
             } else {
-                Color::White
+                if self.active_focus == ActiveFocus::Songs {
+                    Color::White
+                } else {
+                    Color::Rgb(60, 60, 60)
+                }
             };
 
             let playlist_position = self
@@ -115,7 +119,11 @@ impl Render for App {
                 .fg(Color::Black)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().bg(Color::White).fg(Color::Black)
+            if self.active_focus == ActiveFocus::Songs {
+                Style::default().bg(Color::White).fg(Color::Black)
+            } else {
+                Style::default().bg(Color::Rgb(60, 60, 60)).fg(Color::Black)
+            }
         };
 
         let song_table = Table::new(rows)
@@ -215,7 +223,11 @@ impl Render for App {
             let selected_fg = if is_selected {
                 Color::LightBlue
             } else {
-                Color::White
+                if self.active_focus == ActiveFocus::Queue {
+                    Color::White
+                } else {
+                    Color::Rgb(60, 60, 60)
+                }
             };
 
             let selected_cell = if is_selected {
@@ -251,7 +263,11 @@ impl Render for App {
                 .fg(Color::Black)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().bg(Color::White).fg(Color::Black)
+            if self.active_focus == ActiveFocus::Songs {
+                Style::default().bg(Color::White).fg(Color::Black)
+            } else {
+                Style::default().bg(Color::Rgb(60, 60, 60)).fg(Color::Black)
+            }
         };
 
         let queue_table = Table::new(rows)

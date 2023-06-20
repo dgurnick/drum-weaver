@@ -47,7 +47,6 @@ pub trait KeyHandler {
     fn do_check_stay_or_next( &mut self, track_player: &mut Player, click_player: &mut Player);
     fn do_start_search( &mut self );
     fn do_shuffle_songs( &mut self );
-    fn do_delete_track( &mut self, track_player: &mut Player, click_player: &mut Player);
     fn do_cancel_search( &mut self );
     fn do_clear_playlist( &mut self );
     fn do_shuffle_playlist( &mut self );
@@ -414,15 +413,6 @@ impl KeyHandler for App {
             self.songs.shuffle(&mut rand::thread_rng());
         }
         self.is_playing_random = !self.is_playing_random;
-    }
-
-    fn do_delete_track(&mut self, track_player: &mut Player, click_player: &mut Player) {
-        if let Some(selected) = self.songlist_state.selected() {
-            track_player.stop();
-            click_player.stop();
-
-            self.songs.remove(selected);
-        }
     }
 
     fn do_cancel_search(&mut self) {
