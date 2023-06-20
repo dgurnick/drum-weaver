@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use crate::device::read_devices;
 use crate::playlist::SongRecord;
+use crate::ui::ActiveFocus;
 use crate::ui::App;
 use crate::ui::AppConfig;
 use crate::ui::MenuItem;
@@ -86,18 +87,31 @@ impl KeyHandler for App {
                 info!("Set device to {}", device_list_state.selected().unwrap());
             }
             MenuItem::Songs => {
-                if let Some(selected) = self.songlist_state.selected() {
-                    let amount_songs = self.songs.len();
-                    #[allow(unused_assignments)]
-                    let mut new_position = selected;
-                    if selected >= amount_songs - 1 {
-                        new_position = 0;
-                    } else {
-                        new_position = selected + 1;
+                if self.active_focus == ActiveFocus::Songs {
+                    if let Some(selected) = self.songlist_state.selected() {
+                        let amount_songs = self.songs.len();
+                        #[allow(unused_assignments)]
+                        let mut new_position = selected;
+                        if selected >= amount_songs - 1 {
+                            new_position = 0;
+                        } else {
+                            new_position = selected + 1;
+                        }
+                        self.songlist_state.select(Some(new_position));
                     }
-                    self.songlist_state.select(Some(new_position));
+                } else {
+                    if let Some(selected) = self.queue_state.selected() {
+                        let amount_songs = self.queue.len();
+                        #[allow(unused_assignments)]
+                        let mut new_position = selected;
+                        if selected >= amount_songs - 1 {
+                            new_position = 0;
+                        } else {
+                            new_position = selected + 1;
+                        }
+                        self.queue_state.select(Some(new_position));
+                    }
                 }
-                info!("Set song to {}", self.songlist_state.selected().unwrap());
             }
             _ => {}
         }
@@ -121,18 +135,31 @@ impl KeyHandler for App {
                 info!("Set device to {}", device_list_state.selected().unwrap());
             }
             MenuItem::Songs => {
-                if let Some(selected) = self.songlist_state.selected() {
-                    let amount_songs = self.songs.len();
-                    #[allow(unused_assignments)]
-                    let mut new_position = 0;
-                    if selected > 0 {
-                        new_position = selected - 1;
-                    } else {
-                        new_position = amount_songs - 1;
+                if self.active_focus == ActiveFocus::Songs {
+                    if let Some(selected) = self.songlist_state.selected() {
+                        let amount_songs = self.songs.len();
+                        #[allow(unused_assignments)]
+                        let mut new_position = 0;
+                        if selected > 0 {
+                            new_position = selected - 1;
+                        } else {
+                            new_position = amount_songs - 1;
+                        }
+                        self.songlist_state.select(Some(new_position));
                     }
-                    self.songlist_state.select(Some(new_position));
+                } else {
+                    if let Some(selected) = self.queue_state.selected() {
+                        let amount_songs = self.queue.len();
+                        #[allow(unused_assignments)]
+                        let mut new_position = 0;
+                        if selected > 0 {
+                            new_position = selected - 1;
+                        } else {
+                            new_position = amount_songs - 1;
+                        }
+                        self.queue_state.select(Some(new_position));
+                    }
                 }
-                info!("Set song to {}", self.songlist_state.selected().unwrap());
             }
             _ => {}
         }

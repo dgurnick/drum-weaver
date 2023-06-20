@@ -637,59 +637,60 @@ impl App {
 
                         KeyCode::Enter => {
                             if let MenuItem::Songs = active_menu_item {
-                                if let Some(selected) = self.songlist_state.selected() {
-                                    // this is wrong when we are random
-                                    let selected_song = self.songs.get(selected).unwrap();
-
-                                    if needs_unzipping(
-                                        self.music_folder.as_ref().unwrap(),
-                                        &selected_song.title,
-                                        &selected_song.artist,
-                                        &selected_song.album,
-                                    ) {
-                                        footer_message = "Unzipping song".to_string();
+                                let selected_song = if self.active_focus == ActiveFocus::Songs {
+                                    if let Some(selected) = self.songlist_state.selected() {
+                                        self.songs.get(selected).unwrap()
+                                    } else {
+                                        continue;
                                     }
+                                } else {
+                                    if let Some(selected) = self.queue_state.selected() {
+                                        self.active_queue_idx = &selected + 1;
+                                        self.queue.get(&self.active_queue_idx).unwrap()
+                                    } else {
+                                        continue;
+                                    }
+                                };
 
-                                    let (track_file, click_file) = match get_file_paths(
-                                        self.music_folder.as_ref().unwrap(),
-                                        &selected_song.title,
-                                        &selected_song.artist,
-                                        &selected_song.album,
-                                    ) {
-                                        Ok((track_file, click_file)) => (track_file, click_file),
-                                        Err(e) => {
-                                            error!("Could not get file paths: {}", e);
-                                            continue;
-                                        }
-                                    };
+                                let (track_file, click_file) = match get_file_paths(
+                                    self.music_folder.as_ref().unwrap(),
+                                    &selected_song.title,
+                                    &selected_song.artist,
+                                    &selected_song.album,
+                                ) {
+                                    Ok((track_file, click_file)) => (track_file, click_file),
+                                    Err(e) => {
+                                        error!("Could not get file paths: {}", e);
+                                        continue;
+                                    }
+                                };
 
-                                    self.track_song = Some(
-                                        Song::from_file(
-                                            &track_file,
-                                            Some((self.track_volume / 100) as f32),
-                                        )
-                                        .expect("Could not create track song"),
-                                    );
+                                self.track_song = Some(
+                                    Song::from_file(
+                                        &track_file,
+                                        Some((self.track_volume / 100) as f32),
+                                    )
+                                    .expect("Could not create track song"),
+                                );
 
-                                    self.click_song = Some(
-                                        Song::from_file(
-                                            &click_file,
-                                            Some((self.click_volume / 100) as f32),
-                                        )
-                                        .expect("Could not create click song"),
-                                    );
+                                self.click_song = Some(
+                                    Song::from_file(
+                                        &click_file,
+                                        Some((self.click_volume / 100) as f32),
+                                    )
+                                    .expect("Could not create click song"),
+                                );
 
-                                    track_player
-                                        .play_song_now(self.track_song.as_ref().unwrap(), None)
-                                        .expect("Could not play track song");
-                                    click_player
-                                        .play_song_now(self.click_song.as_ref().unwrap(), None)
-                                        .expect("Could not play click song");
+                                track_player
+                                    .play_song_now(self.track_song.as_ref().unwrap(), None)
+                                    .expect("Could not play track song");
+                                click_player
+                                    .play_song_now(self.click_song.as_ref().unwrap(), None)
+                                    .expect("Could not play click song");
 
-                                    self.is_playing = true;
-                                    self.track_file = Some(track_file);
-                                    self.click_file = Some(click_file);
-                                }
+                                self.is_playing = true;
+                                self.track_file = Some(track_file);
+                                self.click_file = Some(click_file);
                             }
                         }
 
