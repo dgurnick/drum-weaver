@@ -45,11 +45,7 @@ impl Display for AppConfig {
         let track_device_name = self.track_device_name.as_ref().cloned().unwrap();
         let click_device_name = self.click_device_name.as_ref().cloned().unwrap();
 
-        write!(
-            f,
-            "Track Device: {}\nClick Device: {}",
-            track_device_name, click_device_name
-        )
+        write!(f, "Track Device: {}\nClick Device: {}", track_device_name, click_device_name)
     }
 }
 
@@ -100,25 +96,13 @@ impl App {
         let mut click_position = arguments.click_device_position;
 
         if let Some(click_device_name) = config.click_device_name.as_ref() {
-            click_position = read_devices()
-                .iter()
-                .position(|d| d.name == *click_device_name)
-                .unwrap();
+            click_position = read_devices().iter().position(|d| d.name == *click_device_name).unwrap();
 
-            println!(
-                "Found click device: {} as position {}",
-                click_device_name, device_position
-            );
+            println!("Found click device: {} as position {}", click_device_name, device_position);
         }
         if let Some(track_device_name) = config.track_device_name.as_ref() {
-            device_position = read_devices()
-                .iter()
-                .position(|d| d.name == *track_device_name)
-                .unwrap();
-            println!(
-                "Found track device: {} as position {}",
-                track_device_name, device_position
-            );
+            device_position = read_devices().iter().position(|d| d.name == *track_device_name).unwrap();
+            println!("Found track device: {} as position {}", track_device_name, device_position);
         }
 
         arguments.click_device_position = click_position;
@@ -164,7 +148,7 @@ impl App {
         terminal.clear()?;
 
         let menu_titles = vec!["Songs", "Devices", "Help", "Quit"];
-        let mut active_menu_item = MenuItem::Help;
+        let mut active_menu_item = MenuItem::Songs;
 
         self.songlist_state.select(Some(0));
         self.queue_state.select(Some(0));
@@ -178,10 +162,8 @@ impl App {
         let mut track_device = &available_devices[self.track_device_idx];
         let mut click_device = &available_devices[self.click_device_idx];
 
-        let mut track_player =
-            Player::new(None, track_device).expect("Could not create track player");
-        let mut click_player =
-            Player::new(None, click_device).expect("Could not create click player");
+        let mut track_player = Player::new(None, track_device).expect("Could not create track player");
+        let mut click_player = Player::new(None, click_device).expect("Could not create click player");
 
         track_player.set_playback_speed(self.playback_speed);
         click_player.set_playback_speed(self.playback_speed);
@@ -201,9 +183,7 @@ impl App {
         thread::spawn(move || {
             let mut last_tick = Instant::now();
             loop {
-                let timeout = tick_rate
-                    .checked_sub(last_tick.elapsed())
-                    .unwrap_or_else(|| Duration::from_secs(0));
+                let timeout = tick_rate.checked_sub(last_tick.elapsed()).unwrap_or_else(|| Duration::from_secs(0));
 
                 if event::poll(timeout).expect("Polling works") {
                     if let CEvent::Key(key) = event::read().expect("can read events") {
@@ -228,15 +208,7 @@ impl App {
                     let chunks = Layout::default()
                         .direction(Direction::Vertical)
                         .margin(2)
-                        .constraints(
-                            [
-                                Constraint::Length(3),
-                                Constraint::Min(3),
-                                Constraint::Length(3),
-                                Constraint::Length(1),
-                            ]
-                            .as_ref(),
-                        )
+                        .constraints([Constraint::Length(3), Constraint::Min(3), Constraint::Length(3), Constraint::Length(1)].as_ref())
                         .split(size);
 
                     let menu = menu_titles
@@ -244,12 +216,7 @@ impl App {
                         .map(|t| {
                             let (first, rest) = t.split_at(1);
                             Line::from(vec![
-                                Span::styled(
-                                    first,
-                                    Style::default()
-                                        .fg(Color::LightBlue)
-                                        .add_modifier(Modifier::UNDERLINED),
-                                ),
+                                Span::styled(first, Style::default().fg(Color::LightBlue).add_modifier(Modifier::UNDERLINED)),
                                 Span::styled(rest, Style::default().fg(Color::White)),
                             ])
                         })
@@ -268,56 +235,29 @@ impl App {
                         MenuItem::Songs => {
                             let songlist_chunks = Layout::default()
                                 .direction(Direction::Horizontal)
-                                .constraints(
-                                    [Constraint::Percentage(70), Constraint::Percentage(30)]
-                                        .as_ref(),
-                                )
+                                .constraints([Constraint::Percentage(70), Constraint::Percentage(30)].as_ref())
                                 .split(chunks[1]);
 
                             let song_table = self.render_songs(track_player.has_current_song());
                             let queue_table = self.render_queue(track_player.has_current_song());
 
-                            rect.render_stateful_widget(
-                                song_table,
-                                songlist_chunks[0],
-                                &mut self.songlist_state,
-                            );
+                            rect.render_stateful_widget(song_table, songlist_chunks[0], &mut self.songlist_state);
 
-                            rect.render_stateful_widget(
-                                queue_table,
-                                songlist_chunks[1],
-                                &mut self.queue_state,
-                            );
+                            rect.render_stateful_widget(queue_table, songlist_chunks[1], &mut self.queue_state);
                         }
                         MenuItem::Devices => {
-                            let device_chunks = Layout::default()
-                                .direction(Direction::Horizontal)
-                                .constraints([Constraint::Percentage(100)].as_ref())
-                                .split(chunks[1]);
-                            let left =
-                                self.render_devices(self.track_device_idx, self.click_device_idx);
-                            rect.render_stateful_widget(
-                                left,
-                                device_chunks[0],
-                                &mut device_list_state,
-                            );
+                            let device_chunks = Layout::default().direction(Direction::Horizontal).constraints([Constraint::Percentage(100)].as_ref()).split(chunks[1]);
+                            let left = self.render_devices(self.track_device_idx, self.click_device_idx);
+                            rect.render_stateful_widget(left, device_chunks[0], &mut device_list_state);
                         }
                         MenuItem::Help => {
                             rect.render_widget(self.render_help(), chunks[1]);
                         }
                     }
 
-                    let track_volume = if let Some(_song) = &self.track_song {
-                        self.track_volume
-                    } else {
-                        0
-                    };
+                    let track_volume = if let Some(_song) = &self.track_song { self.track_volume } else { 0 };
 
-                    let click_volume = if let Some(_song) = &self.click_song {
-                        self.click_volume
-                    } else {
-                        0
-                    };
+                    let click_volume = if let Some(_song) = &self.click_song { self.click_volume } else { 0 };
 
                     let footer_message = if self.is_searching {
                         filter_message.clone()
@@ -327,28 +267,15 @@ impl App {
                         "No song playing".to_string()
                     };
 
-                    let footer_device_text = format!(
-                        "Track device: {}% | Click device: {}%",
-                        track_volume, click_volume,
-                    );
+                    let footer_device_text = format!("Track device: {}% | Click device: {}%", track_volume, click_volume,);
 
-                    let paused_text = if track_player.is_playing() {
-                        "Playing"
-                    } else {
-                        "Paused"
-                    };
+                    let paused_text = if track_player.is_playing() { "Playing" } else { "Paused" };
 
-                    let footer_widget = Paragraph::new(format!(
-                        "{} | {} | {}",
-                        paused_text, footer_device_text, footer_message
-                    ))
-                    .block(Block::default().borders(Borders::ALL));
+                    let footer_widget = Paragraph::new(format!("{} | {} | {}", paused_text, footer_device_text, footer_message)).block(Block::default().borders(Borders::ALL));
 
                     rect.render_widget(footer_widget, chunks[2]);
 
-                    let (position, song_length) = track_player
-                        .get_playback_position()
-                        .unwrap_or((Duration::from_secs(0), Duration::from_secs(1)));
+                    let (position, song_length) = track_player.get_playback_position().unwrap_or((Duration::from_secs(0), Duration::from_secs(1)));
 
                     // Calculate the progress ratio
                     let progress_ratio = position.as_secs_f64() / song_length.as_secs_f64();
@@ -356,12 +283,7 @@ impl App {
                     let color = self.lerp_color(start_color, end_color, progress_ratio);
 
                     let gauge = LineGauge::default()
-                        .gauge_style(
-                            Style::default()
-                                .fg(color)
-                                .bg(Color::White)
-                                .add_modifier(Modifier::BOLD),
-                        )
+                        .gauge_style(Style::default().fg(color).bg(Color::White).add_modifier(Modifier::BOLD))
                         .line_set(symbols::line::THICK)
                         .ratio(progress_ratio);
 
@@ -370,9 +292,7 @@ impl App {
             } // is quitting
 
             match receiver.recv()? {
-                UiEvent::Input(event)
-                    if event.kind == KeyEventKind::Release && !has_music_folder =>
-                {
+                UiEvent::Input(event) if event.kind == KeyEventKind::Release && !has_music_folder => {
                     match event.code {
                         KeyCode::Enter => {
                             use native_dialog::FileDialog;
@@ -397,9 +317,7 @@ impl App {
                         _ => {}
                     }
                 }
-                UiEvent::Input(event)
-                    if event.kind == KeyEventKind::Release && self.is_searching =>
-                {
+                UiEvent::Input(event) if event.kind == KeyEventKind::Release && self.is_searching => {
                     match event.code {
                         KeyCode::Enter => {
                             // searching has stopped
@@ -451,23 +369,15 @@ impl App {
                         }
                     }
                 }
-                UiEvent::Input(event)
-                    if event.kind == KeyEventKind::Release
-                        && event.modifiers.contains(KeyModifiers::ALT)
-                        && !self.is_searching =>
-                {
-                    match event.code {
-                        KeyCode::Char('a') => self.do_sort(SortBy::Artist),
-                        KeyCode::Char('t') => self.do_sort(SortBy::Title),
-                        KeyCode::Char('l') => self.do_sort(SortBy::Album),
-                        KeyCode::Char('g') => self.do_sort(SortBy::Genre),
-                        KeyCode::Char('d') => self.do_sort(SortBy::Duration),
-                        _ => {}
-                    }
-                }
-                UiEvent::Input(event)
-                    if event.kind == KeyEventKind::Release && !self.is_searching =>
-                {
+                UiEvent::Input(event) if event.kind == KeyEventKind::Release && event.modifiers.contains(KeyModifiers::ALT) && !self.is_searching => match event.code {
+                    KeyCode::Char('a') => self.do_sort(SortBy::Artist),
+                    KeyCode::Char('t') => self.do_sort(SortBy::Title),
+                    KeyCode::Char('l') => self.do_sort(SortBy::Album),
+                    KeyCode::Char('g') => self.do_sort(SortBy::Genre),
+                    KeyCode::Char('d') => self.do_sort(SortBy::Duration),
+                    _ => {}
+                },
+                UiEvent::Input(event) if event.kind == KeyEventKind::Release && !self.is_searching => {
                     match event.code {
                         KeyCode::Char('1') => self.do_reduce_track_volume(&mut track_player),
                         KeyCode::Char('2') => self.do_reset_track_volume(&mut track_player),
@@ -476,60 +386,32 @@ impl App {
                         KeyCode::Char('5') => self.do_reset_click_volume(&mut click_player),
                         KeyCode::Char('6') => self.do_increase_click_volume(&mut click_player),
 
+                        KeyCode::Char('R') => self.do_reset(&mut track_player, &mut click_player),
                         KeyCode::Char('+') => self.do_add_song_to_playlist(),
                         KeyCode::Char('/') => self.do_clear_playlist(),
                         KeyCode::Char('*') => self.do_shuffle_playlist(),
                         KeyCode::Char('p') => self.do_start_playlist(),
 
-                        KeyCode::Char(' ') => self.do_pause_playback(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
+                        KeyCode::Char(' ') => self.do_pause_playback(&mut active_menu_item, &mut track_player, &mut click_player),
                         KeyCode::Char('d') => active_menu_item = MenuItem::Devices,
                         KeyCode::Char('g') => self.do_start_search(),
                         KeyCode::Char('G') => self.do_cancel_search(),
                         KeyCode::Char('h') => active_menu_item = MenuItem::Help,
-                        KeyCode::Char('r') => self.do_reset_playback_speed(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
+                        KeyCode::Char('r') => self.do_reset_playback_speed(&mut active_menu_item, &mut track_player, &mut click_player),
                         KeyCode::Char('s') => active_menu_item = MenuItem::Songs,
-                        KeyCode::Char('n') => {
-                            self.do_check_stay_or_next(&mut track_player, &mut click_player)
-                        }
-                        KeyCode::Char('q') => {
-                            self.is_quitting = true;
-                        }
+                        KeyCode::Char('n') => self.do_check_stay_or_next(&mut track_player, &mut click_player),
+                        KeyCode::Char('q') => self.is_quitting = true,
                         KeyCode::Char('x') => self.do_shuffle_songs(),
-                        KeyCode::Char('y') => {
-                            self.do_check_quit(&mut track_player, &mut click_player, &mut terminal)
-                        }
-                        KeyCode::Char('z') => self.do_restart_song(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
+                        KeyCode::Char('y') => self.do_check_quit(&mut track_player, &mut click_player, &mut terminal),
+                        KeyCode::Char('z') => self.do_restart_song(&mut active_menu_item, &mut track_player, &mut click_player),
 
-                        KeyCode::Down => {
-                            self.do_select_next_item(&mut active_menu_item, &mut device_list_state)
-                        }
-                        KeyCode::Up => self
-                            .do_select_previous_item(&mut active_menu_item, &mut device_list_state),
+                        KeyCode::Down => self.do_select_next_item(&mut active_menu_item, &mut device_list_state),
+                        KeyCode::Up => self.do_select_previous_item(&mut active_menu_item, &mut device_list_state),
                         KeyCode::PageDown => self.do_select_next_page(&mut active_menu_item),
                         KeyCode::PageUp => self.do_select_previous_page(&mut active_menu_item),
 
-                        KeyCode::Left => self.do_reduce_playback_speed(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
-                        KeyCode::Right => self.do_increase_playback_speed(
-                            &mut active_menu_item,
-                            &mut track_player,
-                            &mut click_player,
-                        ),
+                        KeyCode::Left => self.do_reduce_playback_speed(&mut active_menu_item, &mut track_player, &mut click_player),
+                        KeyCode::Right => self.do_increase_playback_speed(&mut active_menu_item, &mut track_player, &mut click_player),
                         KeyCode::Home => {
                             if self.active_focus == ActiveFocus::Songs {
                                 self.songlist_state.select(Some(0));
@@ -572,8 +454,7 @@ impl App {
 
                                     click_device = &available_devices[self.click_device_idx];
 
-                                    click_player = Player::new(None, click_device)
-                                        .expect("Could not create click player");
+                                    click_player = Player::new(None, click_device).expect("Could not create click player");
 
                                     track_player.set_playback_speed(self.playback_speed);
                                     click_player.set_playback_speed(self.playback_speed);
@@ -602,8 +483,7 @@ impl App {
 
                                     track_device = &available_devices[self.track_device_idx];
 
-                                    track_player = Player::new(None, track_device)
-                                        .expect("Could not create track player");
+                                    track_player = Player::new(None, track_device).expect("Could not create track player");
 
                                     track_player.set_playback_speed(self.playback_speed);
                                     click_player.set_playback_speed(self.playback_speed);
@@ -630,12 +510,7 @@ impl App {
                                     continue;
                                 };
 
-                                let (track_file, click_file) = match get_file_paths(
-                                    self.music_folder.as_ref().unwrap(),
-                                    &selected_song.title,
-                                    &selected_song.artist,
-                                    &selected_song.album,
-                                ) {
+                                let (track_file, click_file) = match get_file_paths(self.music_folder.as_ref().unwrap(), &selected_song.title, &selected_song.artist, &selected_song.album) {
                                     Ok((track_file, click_file)) => (track_file, click_file),
                                     Err(e) => {
                                         error!("Could not get file paths: {}", e);
@@ -643,28 +518,12 @@ impl App {
                                     }
                                 };
 
-                                self.track_song = Some(
-                                    Song::from_file(
-                                        &track_file,
-                                        Some((self.track_volume / 100) as f32),
-                                    )
-                                    .expect("Could not create track song"),
-                                );
+                                self.track_song = Some(Song::from_file(&track_file, Some((self.track_volume / 100) as f32)).expect("Could not create track song"));
 
-                                self.click_song = Some(
-                                    Song::from_file(
-                                        &click_file,
-                                        Some((self.click_volume / 100) as f32),
-                                    )
-                                    .expect("Could not create click song"),
-                                );
+                                self.click_song = Some(Song::from_file(&click_file, Some((self.click_volume / 100) as f32)).expect("Could not create click song"));
 
-                                track_player
-                                    .play_song_now(self.track_song.as_ref().unwrap(), None)
-                                    .expect("Could not play track song");
-                                click_player
-                                    .play_song_now(self.click_song.as_ref().unwrap(), None)
-                                    .expect("Could not play click song");
+                                track_player.play_song_now(self.track_song.as_ref().unwrap(), None).expect("Could not play track song");
+                                click_player.play_song_now(self.click_song.as_ref().unwrap(), None).expect("Could not play click song");
 
                                 self.is_playing = true;
                                 self.track_file = Some(track_file);
@@ -677,10 +536,7 @@ impl App {
                 }
                 UiEvent::Input(_) => {}
                 UiEvent::Tick => {
-                    if !track_player.has_current_song()
-                        && !click_player.has_current_song()
-                        && self.is_playing
-                    {
+                    if !track_player.has_current_song() && !click_player.has_current_song() && self.is_playing {
                         info!("Song ended, moving to the next song");
 
                         footer_message = "Moving to next song in the queue".to_string();
@@ -697,11 +553,7 @@ impl App {
                             let song_record = self.queue.get(self.active_queue_idx).unwrap();
 
                             // find the position of the song_title in our song list
-                            if let Some(index) = self
-                                .songs
-                                .iter()
-                                .position(|song| song.file_name == song_record.file_name)
-                            {
+                            if let Some(index) = self.songs.iter().position(|song| song.file_name == song_record.file_name) {
                                 // THIS IS A TERRIBLE HACK. I'm sorry.
                                 new_position = index;
                                 self.songlist_state.select(Some(new_position));
@@ -732,12 +584,7 @@ impl App {
                         self.songlist_state.select(Some(new_position));
                         let selected_song = self.songs.get(new_position).unwrap();
 
-                        let (track_file, click_file) = match get_file_paths(
-                            self.music_folder.as_ref().unwrap(),
-                            &selected_song.title,
-                            &selected_song.artist,
-                            &selected_song.album,
-                        ) {
+                        let (track_file, click_file) = match get_file_paths(self.music_folder.as_ref().unwrap(), &selected_song.title, &selected_song.artist, &selected_song.album) {
                             Ok((track_file, click_file)) => (track_file, click_file),
                             Err(e) => {
                                 error!("Could not get file paths: {}", e);
@@ -750,28 +597,12 @@ impl App {
                         self.track_file = Some(track_file);
                         self.click_file = Some(click_file);
 
-                        self.track_song = Some(
-                            Song::from_file(
-                                &self.track_file.clone().unwrap(),
-                                Some((self.track_volume / 100) as f32),
-                            )
-                            .expect("Could not create track song"),
-                        );
+                        self.track_song = Some(Song::from_file(&self.track_file.clone().unwrap(), Some((self.track_volume / 100) as f32)).expect("Could not create track song"));
 
-                        self.click_song = Some(
-                            Song::from_file(
-                                &self.click_file.clone().unwrap(),
-                                Some((self.click_volume / 100) as f32),
-                            )
-                            .expect("Could not create click song"),
-                        );
+                        self.click_song = Some(Song::from_file(&self.click_file.clone().unwrap(), Some((self.click_volume / 100) as f32)).expect("Could not create click song"));
 
-                        track_player
-                            .play_song_next(self.track_song.as_ref().unwrap(), None)
-                            .expect("Could not play track song");
-                        click_player
-                            .play_song_next(self.click_song.as_ref().unwrap(), None)
-                            .expect("Could not play click song");
+                        track_player.play_song_next(self.track_song.as_ref().unwrap(), None).expect("Could not play track song");
+                        click_player.play_song_next(self.click_song.as_ref().unwrap(), None).expect("Could not play click song");
                     } else {
                         footer_message = "".to_string();
                     }
@@ -785,24 +616,12 @@ impl App {
         self.songs = self.original_songs.clone();
 
         self.songs.retain(|song| {
-            song.title
-                .to_lowercase()
-                .contains(&search_term.clone().to_lowercase())
-                || song
-                    .artist
-                    .to_lowercase()
-                    .contains(&search_term.clone().to_lowercase())
-                || song
-                    .genre
-                    .to_lowercase()
-                    .contains(&search_term.clone().to_lowercase())
+            song.title.to_lowercase().contains(&search_term.clone().to_lowercase())
+                || song.artist.to_lowercase().contains(&search_term.clone().to_lowercase())
+                || song.genre.to_lowercase().contains(&search_term.clone().to_lowercase())
         });
 
-        *filter_message = format!(
-            "Search for [{}] found {} songs",
-            search_term,
-            self.songs.len()
-        );
+        *filter_message = format!("Search for [{}] found {} songs", search_term, self.songs.len());
 
         if self.songs.is_empty() {
             self.songs = self.original_songs.clone();
@@ -821,21 +640,14 @@ impl App {
     fn confirm_exit<B: Backend>(&mut self, f: &mut Frame<B>) {
         let size = f.size();
 
-        let chunks = Layout::default()
-            .constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref())
-            .split(size);
+        let chunks = Layout::default().constraints([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref()).split(size);
 
-        let paragraph = Paragraph::new(Span::styled(
-            "Hi there",
-            Style::default().add_modifier(Modifier::SLOW_BLINK),
-        ))
-        .alignment(Alignment::Center)
-        .wrap(Wrap { trim: true });
+        let paragraph = Paragraph::new(Span::styled("Hi there", Style::default().add_modifier(Modifier::SLOW_BLINK)))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true });
         f.render_widget(paragraph, chunks[0]);
 
-        let block = Block::default()
-            .borders(Borders::NONE)
-            .style(Style::default().bg(Color::Black));
+        let block = Block::default().borders(Borders::NONE).style(Style::default().bg(Color::Black));
         f.render_widget(block, chunks[1]);
 
         let block = Block::default()
@@ -851,9 +663,7 @@ impl App {
     fn prepare_for_folder<B: Backend>(&mut self, f: &mut Frame<B>) {
         let size = f.size();
 
-        let chunks = Layout::default()
-            .constraints([Constraint::Percentage(100)].as_ref())
-            .split(size);
+        let chunks = Layout::default().constraints([Constraint::Percentage(100)].as_ref()).split(size);
 
         let paragraph = Paragraph::new(Span::styled(
             "Hi there. You need to select a folder where your music collection is stored. This is typically something called 'Drumless'. Click ENTER to choose your music folder. ESC to close.",
