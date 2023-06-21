@@ -1,4 +1,4 @@
-use app::app::App;
+use app::App;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use log::LevelFilter;
 mod app;
