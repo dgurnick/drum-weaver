@@ -718,7 +718,7 @@ impl App {
                             if self.active_queue_idx > self.queue.len() - 1 {
                                 self.active_queue_idx = 0;
                             }
-                            self.queue_state.select(Some(self.active_queue_idx - 1));
+                            self.queue_state.select(Some(self.active_queue_idx));
                             let song_record = self.queue.get(self.active_queue_idx).unwrap();
 
                             // find the position of the song_title in our song list
