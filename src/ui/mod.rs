@@ -26,12 +26,11 @@ use ratatui::{
     widgets::{Block, Borders, LineGauge, ListState, Paragraph, TableState, Tabs, Wrap},
     Frame, Terminal,
 };
+use std::{env, sync::mpsc};
 use std::{
-    collections::BTreeMap,
     fmt::Display,
     time::{Duration, Instant},
 };
-use std::{env, sync::mpsc};
 use std::{io, thread};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
@@ -72,7 +71,7 @@ pub struct App {
     track_device_idx: usize,
     click_device_idx: usize,
     playback_speed: f64,
-    queue: BTreeMap<usize, SongRecord>,
+    queue: Vec<SongRecord>,
     is_quitting: bool,
     is_searching: bool,
     searching_for: String,
@@ -86,21 +85,16 @@ pub struct App {
     queue_state: TableState,
 }
 
-fn load_playlist() -> Result<BTreeMap<usize, SongRecord>, Box<dyn std::error::Error>> {
-    let loaded_playlist: Result<BTreeMap<String, SongRecord>, confy::ConfyError> =
+fn load_playlist() -> Result<Vec<SongRecord>, Box<dyn std::error::Error>> {
+    let loaded_playlist: Result<Vec<SongRecord>, confy::ConfyError> =
         confy::load("drum-weaver", "playlist");
 
     let playlist = match loaded_playlist {
         Ok(playlist) => playlist,
-        Err(_) => BTreeMap::new(), // Provide a default playlist if loading fails
+        Err(_) => Vec::new(), // Provide a default playlist if loading fails
     };
 
-    let result: BTreeMap<usize, SongRecord> = playlist
-        .into_iter()
-        .map(|(k, v)| (k.parse().unwrap(), v))
-        .collect();
-
-    Ok(result)
+    Ok(playlist)
 }
 
 impl App {
@@ -140,7 +134,7 @@ impl App {
             Ok(playlist) => playlist,
             Err(e) => {
                 error!("Unable to load playlist: {}", e);
-                BTreeMap::new()
+                Vec::new()
             }
         };
 
@@ -441,7 +435,7 @@ impl App {
                             // let's take the search results and add them all to the playlist
                             let mut idx = self.queue.len();
                             for song in self.songs.clone() {
-                                for existing in self.queue.values() {
+                                for existing in self.queue.clone() {
                                     if existing.file_name == song.file_name {
                                         continue;
                                     }
@@ -507,7 +501,6 @@ impl App {
                         KeyCode::Char('6') => self.do_increase_click_volume(&mut click_player),
 
                         KeyCode::Char('+') => self.do_add_song_to_playlist(),
-                        KeyCode::Char('-') => self.do_remove_song_from_playlist(),
                         KeyCode::Char('/') => self.do_clear_playlist(),
                         KeyCode::Char('*') => self.do_shuffle_playlist(),
                         KeyCode::Char('p') => self.do_start_playlist(),
@@ -656,7 +649,7 @@ impl App {
                                     }
                                 } else if let Some(selected) = self.queue_state.selected() {
                                     self.active_queue_idx = &selected + 1;
-                                    self.queue.get(&self.active_queue_idx).unwrap()
+                                    self.queue.get(self.active_queue_idx).unwrap()
                                 } else {
                                     continue;
                                 };
@@ -726,8 +719,7 @@ impl App {
                                 self.active_queue_idx = 0;
                             }
                             self.queue_state.select(Some(self.active_queue_idx - 1));
-                            let (_, song_record) =
-                                self.queue.get_key_value(&self.active_queue_idx).unwrap();
+                            let song_record = self.queue.get(self.active_queue_idx).unwrap();
 
                             // find the position of the song_title in our song list
                             if let Some(index) = self
@@ -740,7 +732,7 @@ impl App {
                                 self.songlist_state.select(Some(new_position));
                             }
 
-                            self.active_queue_idx += 1;
+                            //self.active_queue_idx += 1;
                             if self.active_queue_idx > self.queue.len() - 1 {
                                 self.active_queue_idx = 0;
                             }
@@ -843,11 +835,11 @@ impl App {
     }
 
     fn reindex_playlist(&mut self) {
-        let song_records: Vec<(usize, SongRecord)> = self.queue.clone().into_iter().collect();
+        let song_records: Vec<SongRecord> = self.queue.clone();
         self.queue.clear();
 
         for (idx, song) in song_records.into_iter().enumerate() {
-            self.queue.insert(idx + 1, song.1);
+            self.queue.insert(idx + 1, song);
         }
     }
 

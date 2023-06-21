@@ -1,8 +1,6 @@
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use crate::device::read_devices;
-use crate::playlist::SongRecord;
 use crate::ui::ActiveFocus;
 use crate::ui::App;
 use crate::ui::AppConfig;
@@ -42,7 +40,6 @@ pub trait KeyHandler {
     fn do_reset_click_volume( &mut self, click_player: &mut Player);
     fn do_increase_click_volume( &mut self, click_player: &mut Player);
     fn do_add_song_to_playlist( &mut self);
-    fn do_remove_song_from_playlist( &mut self);
     fn do_check_quit( &mut self, track_player: &mut Player, click_player: &mut Player, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>);
     fn do_check_stay_or_next( &mut self, track_player: &mut Player, click_player: &mut Player);
     fn do_start_search( &mut self );
@@ -321,33 +318,8 @@ impl KeyHandler for App {
         if let Some(selected) = self.songlist_state.selected() {
             // add it to the queue. We can keep adding. No issue.
             let song = self.songs[selected].clone();
-            let position = self
-                .queue
-                .values()
-                .position(|song_record| song_record.title == song.title);
-
-            if position.is_none() {
-                self.queue.insert(self.queue.len() + 1, song.clone());
-                info!("Added song to queue: {}", &song.title);
-            }
-
-            self.reindex_playlist();
-        }
-    }
-
-    fn do_remove_song_from_playlist(&mut self) {
-        if let Some(selected) = self.songlist_state.selected() {
-            // add it to the queue. We can keep adding. No issue.
-            let song = self.songs[selected].clone();
-            let position = self
-                .queue
-                .values()
-                .position(|song_record| song_record.title == song.title);
-
-            if let Some(pos) = position {
-                self.queue.remove(&(&pos + 1));
-                info!("Removed song from queue: {}", song.title);
-            }
+            self.queue.insert(self.queue.len() + 1, song.clone());
+            info!("Added song to queue: {}", &song.title);
 
             self.reindex_playlist();
         }
@@ -378,12 +350,8 @@ impl KeyHandler for App {
                 .expect("Unable to save configuration");
             println!("Stored config {}", config);
 
-            let playlist_str: BTreeMap<String, SongRecord> = self
-                .queue
-                .clone()
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v))
-                .collect();
+            let playlist_str =
+                serde_json::to_string(&self.queue).expect("Failed to serialize playlist");
 
             // Save playlist using confy
             confy::store("drum-weaver", "playlist", playlist_str).expect("Failed to save playlist");
@@ -426,7 +394,7 @@ impl KeyHandler for App {
 
     fn do_shuffle_playlist(&mut self) {
         // Convert the BTreeMap into a vector of key-value pairs
-        let mut playlist_vec: Vec<(usize, SongRecord)> = self.queue.clone().into_iter().collect();
+        let mut playlist_vec = self.queue.clone();
         self.queue.clear();
 
         // Shuffle the vector using the Fisher-Yates algorithm
@@ -435,12 +403,12 @@ impl KeyHandler for App {
 
         for (idx, song) in playlist_vec.into_iter().enumerate() {
             if let Some(track_file) = self.track_file.clone() {
-                if track_file.contains(song.1.file_name.as_str()) {
+                if track_file.contains(song.file_name.as_str()) {
                     self.active_queue_idx = idx;
                     self.songlist_state.select(Some(idx));
                 }
             }
-            self.queue.insert(idx, song.1);
+            self.queue.insert(idx, song);
         }
     }
 

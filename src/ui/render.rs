@@ -38,7 +38,7 @@ impl Render for App {
                 .expect("there is always a selected song"),
         );
 
-        let _selected_playlist_song = self.queue.get(&self.active_queue_idx).cloned();
+        let _selected_playlist_song = self.queue.get(self.active_queue_idx).cloned();
 
         let mut rows = vec![];
         for song in self.songs.clone() {
@@ -63,7 +63,7 @@ impl Render for App {
 
             let playlist_position = self
                 .queue
-                .values()
+                .iter()
                 .position(|song_record| song_record.title == song.title.as_str())
                 .map(|index| (index + 1).to_string())
                 .unwrap_or_else(|| String::from(""));
@@ -209,7 +209,7 @@ impl Render for App {
 
         let mut rows = vec![];
         let mut idx = 1;
-        for song in self.queue.values() {
+        for song in self.queue.clone() {
             let mut is_selected = false;
             if is_playing {
                 if let Some(track_file) = self.track_file.clone() {
