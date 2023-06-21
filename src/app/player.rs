@@ -3,9 +3,8 @@ use std::{
     thread,
 };
 
-use rand::Rng;
-
 use crossbeam_channel::{Receiver, Sender};
+use log::info;
 pub struct Player {
     player_command_receiver: Receiver<PlayerCommand>,
     player_event_sender: Sender<PlayerEvent>,

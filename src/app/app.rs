@@ -1,4 +1,7 @@
-use std::thread;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 use crossbeam_channel::{Receiver, Sender};
 use log::info;
@@ -19,8 +22,18 @@ impl App {
     }
 
     pub fn run(&mut self) {
+        let running = Arc::new(AtomicBool::new(true));
+        let running_clone = running.clone();
+
+        // Set up the Ctrl+C signal handler
+        ctrlc::set_handler(move || {
+            println!("Ctrl+C received!");
+            running_clone.store(false, Ordering::SeqCst);
+        })
+        .expect("Error setting Ctrl+C handler");
+
         self.player_command_sender.send(PlayerCommand::Play("test.mp3".to_string())).unwrap();
-        loop {
+        while running.load(Ordering::SeqCst) {
             match self.player_event_receiver.try_recv() {
                 Ok(event) => match event {
                     PlayerEvent::Decompressing => {
