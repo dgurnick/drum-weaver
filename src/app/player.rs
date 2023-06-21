@@ -50,30 +50,25 @@ impl Player {
                 match player_command_receiver.try_recv() {
                     Ok(command) => match command {
                         PlayerCommand::Play(file_name) => {
-                            println!("Player will load: {:?}", file_name);
-                            thread::sleep(std::time::Duration::from_millis(1000));
-                            player_event_sender.send(PlayerEvent::Decompressing).unwrap();
-                            thread::sleep(std::time::Duration::from_millis(1000));
-                            player_event_sender.send(PlayerEvent::Decompressed).unwrap();
-                            thread::sleep(std::time::Duration::from_millis(1000));
+                            info!("Player will load: {:?}", file_name);
 
-                            let mut rng = rand::thread_rng();
-                            match rng.gen_range(0..=1) {
-                                0 => player_event_sender.send(PlayerEvent::LoadFailure(file_name)).unwrap(),
-                                _ => player_event_sender.send(PlayerEvent::Playing(file_name)).unwrap(),
-                            };
+                            // todo: check if decompression is required and execute in a separate thread
+                            player_event_sender.send(PlayerEvent::Decompressing).unwrap();
+                            player_event_sender.send(PlayerEvent::Decompressed).unwrap();
+
+                            // TODO: capture any errors and send LoadFailure event
+                            player_event_sender.send(PlayerEvent::Playing(file_name)).unwrap();
                         }
                         PlayerCommand::Pause => {
-                            println!("Player is pausing");
-                            thread::sleep(std::time::Duration::from_millis(1000));
+                            info!("Player is pausing");
                             player_event_sender.send(PlayerEvent::Paused).unwrap();
                         }
                         PlayerCommand::Stop => {
-                            println!("Player will stop");
+                            info!("Player will stop");
                             player_event_sender.send(PlayerEvent::Stopped).unwrap();
                         }
                         PlayerCommand::Quit => {
-                            println!("Player will quit");
+                            info!("Player will quit. Exiting.");
                             player_event_sender.send(PlayerEvent::Quit).unwrap();
                             break;
                         }
