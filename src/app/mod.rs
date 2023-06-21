@@ -20,13 +20,26 @@ use crossterm::{
     ExecutableCommand,
 };
 
-use ratatui::{backend::CrosstermBackend, Terminal};
+use log::{error, info};
+use ratatui::{backend::CrosstermBackend, widgets::TableState, Terminal};
 
 use self::{
     events::UiEventTrait,
-    library::Library,
+    library::{Library, SongRecord},
     player::{PlayerCommand, PlayerEvent},
 };
+
+#[derive(PartialEq)]
+pub enum ActiveFocus {
+    Library,
+    Queue,
+}
+
+#[derive(Clone)]
+pub struct Track {
+    main_file: String,
+    click_file: String,
+}
 
 pub struct App {
     pub player_command_sender: Sender<PlayerCommand>,
@@ -35,12 +48,36 @@ pub struct App {
     pub ui_command_sender: Sender<UiEvent<KeyEvent>>,
     pub terminal: Terminal<CrosstermBackend<Stdout>>,
     pub library: Option<Library>,
+    pub queue: Vec<SongRecord>,
     pub is_running: bool,
+    pub active_menu_item: MenuItem,
+    pub active_focus: ActiveFocus,
+    pub library_state: TableState,
+    pub queue_state: TableState,
+    pub active_track: Option<Track>,
+    pub is_exiting: bool,
 }
 
 pub enum UiEvent<I> {
     Input(I),
     Tick,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum MenuItem {
+    Songs,
+    Devices,
+    Help,
+}
+
+impl From<MenuItem> for usize {
+    fn from(input: MenuItem) -> usize {
+        match input {
+            MenuItem::Songs => 1,
+            MenuItem::Devices => 2,
+            MenuItem::Help => 3,
+        }
+    }
 }
 
 impl App {
@@ -68,6 +105,13 @@ impl App {
             terminal,
             is_running: true,
             library: None,
+            active_menu_item: MenuItem::Songs,
+            active_focus: ActiveFocus::Library,
+            library_state: TableState::default(),
+            queue_state: TableState::default(),
+            queue: Vec::new(),
+            active_track: None,
+            is_exiting: false,
         }
     }
 
@@ -75,6 +119,22 @@ impl App {
         self.setup_exit_handler();
         self.setup_ui_signal_loop();
         self.setup_library();
+
+        match self.queue_state.selected() {
+            Some(index) => index,
+            None => {
+                self.queue_state.select(Some(0));
+                0
+            }
+        };
+
+        match self.library_state.selected() {
+            Some(index) => index,
+            None => {
+                self.library_state.select(Some(0));
+                0
+            }
+        };
 
         while self.is_running {
             // Wait for the user to pick a folder
@@ -85,6 +145,13 @@ impl App {
             self.handle_ui_events();
             self.handle_player_events();
             self.render_ui();
+        }
+    }
+
+    pub fn get_songs(&self) -> Vec<SongRecord> {
+        match &self.library {
+            Some(library) => library.songs.clone(),
+            None => vec![],
         }
     }
 }

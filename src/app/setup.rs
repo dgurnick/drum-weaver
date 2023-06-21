@@ -14,14 +14,14 @@ pub trait UiSetupTrait {
     fn setup_exit_handler(&mut self);
     fn setup_ui_signal_loop(&mut self);
     fn setup_library(&mut self);
+    fn init_library(&mut self, path: String);
 }
 
 impl UiSetupTrait for App {
+    // We intercept ctrl+c and send a quit event to ensure clean shutdown
     fn setup_exit_handler(&mut self) {
         let player_command_sender = Arc::new(Mutex::new(self.player_command_sender.clone()));
 
-        // Set up the Ctrl+C signal handler.
-        // We send a quit event to ensure clean shutdown
         ctrlc::set_handler(move || {
             println!("BYE!");
             let player_command_sender = player_command_sender.lock().unwrap();
@@ -30,6 +30,7 @@ impl UiSetupTrait for App {
         .expect("Error setting Ctrl+C handler");
     }
 
+    // We set up a thread to handle UI events
     fn setup_ui_signal_loop(&mut self) {
         let tick_rate = Duration::from_millis(200);
         let ui_command_sender = Arc::new(Mutex::new(self.ui_command_sender.clone()));
@@ -56,6 +57,7 @@ impl UiSetupTrait for App {
         });
     }
 
+    // We set up the library that includes the root folder path for all songs as well as the songs themselves
     fn setup_library(&mut self) {
         use native_dialog::FileDialog;
         let path = FileDialog::new().show_open_single_dir();
@@ -63,8 +65,7 @@ impl UiSetupTrait for App {
         match path {
             Ok(path) => {
                 if let Some(p) = path {
-                    let library = Library::new(p.display().to_string());
-                    self.library = Some(library);
+                    self.init_library(p.display().to_string());
                 } else {
                     std::process::exit(0);
                 }
@@ -73,5 +74,12 @@ impl UiSetupTrait for App {
                 std::process::exit(0);
             }
         };
+    }
+
+    // Builds the actual library
+    fn init_library(&mut self, path: String) {
+        let mut library = Library::new(path);
+        library.load_csv();
+        self.library = Some(library);
     }
 }

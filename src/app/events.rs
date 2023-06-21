@@ -21,6 +21,9 @@ impl UiEventTrait for App {
                     KeyCode::Char('q') => self.do_exit(),
                     KeyCode::Char(' ') => self.do_pause(),
                     KeyCode::Enter => self.do_playback(),
+                    KeyCode::Down => self.do_next(),
+                    KeyCode::Up => self.do_previous(),
+                    KeyCode::Tab => self.do_tab(),
                     _ => {}
                 },
                 UiEvent::Tick => {}
