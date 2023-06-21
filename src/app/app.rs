@@ -1,6 +1,9 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+    thread,
 };
 
 use crossbeam_channel::{Receiver, Sender};
@@ -22,12 +25,17 @@ impl App {
     }
 
     pub fn run(&mut self) {
+        let player_command_sender = Arc::new(Mutex::new(self.player_command_sender.clone()));
+
         let running = Arc::new(AtomicBool::new(true));
         let running_clone = running.clone();
 
         // Set up the Ctrl+C signal handler
         ctrlc::set_handler(move || {
             println!("Ctrl+C received!");
+            let player_command_sender = player_command_sender.lock().unwrap();
+            player_command_sender.send(PlayerCommand::Quit).unwrap();
+            thread::sleep(std::time::Duration::from_millis(1000));
             running_clone.store(false, Ordering::SeqCst);
         })
         .expect("Error setting Ctrl+C handler");
