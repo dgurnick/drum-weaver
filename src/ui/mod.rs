@@ -37,6 +37,7 @@ use std::{io, thread};
 struct AppConfig {
     track_device_name: Option<String>,
     click_device_name: Option<String>,
+    queue: Vec<SongRecord>,
 }
 
 impl Display for AppConfig {
@@ -85,22 +86,15 @@ pub struct App {
     queue_state: TableState,
 }
 
-fn load_playlist() -> Result<Vec<SongRecord>, Box<dyn std::error::Error>> {
-    let loaded_playlist: Result<Vec<SongRecord>, confy::ConfyError> =
-        confy::load("drum-weaver", "playlist");
-
-    let playlist = match loaded_playlist {
-        Ok(playlist) => playlist,
-        Err(_) => Vec::new(), // Provide a default playlist if loading fails
-    };
-
-    Ok(playlist)
-}
-
 impl App {
     pub fn new(arguments: &mut PlayerArguments, songs: Vec<SongRecord>) -> Self {
-        let config: AppConfig =
-            confy::load("drum-weaver", None).expect("Able to read configuration");
+        let config: AppConfig = match confy::load("drum-weaver", None) {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Error loading config: {}", e);
+                AppConfig::default()
+            }
+        };
 
         let mut device_position = arguments.track_device_position;
         let mut click_position = arguments.click_device_position;
@@ -130,14 +124,6 @@ impl App {
         arguments.click_device_position = click_position;
         arguments.track_device_position = device_position;
 
-        let queue = match load_playlist() {
-            Ok(playlist) => playlist,
-            Err(e) => {
-                error!("Unable to load playlist: {}", e);
-                Vec::new()
-            }
-        };
-
         App {
             songs: songs.clone(),
             original_songs: songs,
@@ -151,7 +137,7 @@ impl App {
             track_device_idx: arguments.track_device_position,
             click_device_idx: arguments.click_device_position,
             playback_speed: arguments.playback_speed,
-            queue,
+            queue: config.queue,
             is_quitting: false,
             is_searching: false,
             searching_for: String::new(),

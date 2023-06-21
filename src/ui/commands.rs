@@ -345,16 +345,11 @@ impl KeyHandler for App {
             let config = AppConfig {
                 track_device_name: Some(track_device_name),
                 click_device_name: Some(click_device_name),
+                queue: self.queue.clone(),
             };
             confy::store("drum-weaver", None, config.clone())
                 .expect("Unable to save configuration");
             println!("Stored config {}", config);
-
-            let playlist_str =
-                serde_json::to_string(&self.queue).expect("Failed to serialize playlist");
-
-            // Save playlist using confy
-            confy::store("drum-weaver", "playlist", playlist_str).expect("Failed to save playlist");
 
             std::process::exit(0);
         }
