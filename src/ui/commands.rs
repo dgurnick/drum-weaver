@@ -48,6 +48,7 @@ pub trait KeyHandler {
     fn do_clear_playlist( &mut self );
     fn do_shuffle_playlist( &mut self );
     fn do_start_playlist( &mut self  );
+    fn do_delete_song( &mut self );
     fn do_sort( &mut self, sort_by: SortBy );
 }
 
@@ -441,6 +442,32 @@ impl KeyHandler for App {
         }
 
         self.last_sort = Some(sort_by);
+    }
+
+    fn do_delete_song(&mut self) {
+        if self.active_focus == ActiveFocus::Songs {
+            // this is only active for the session
+            // TODO: add ignore list to configuration
+            let selected = self.songlist_state.selected().unwrap_or(0);
+            let which = self.songs[selected].clone();
+            self.songs.remove(selected);
+
+            // also remove it from the queue
+            let index = self
+                .queue
+                .iter()
+                .position(|item| item.file_name == which.file_name);
+            if let Some(i) = index {
+                self.queue.remove(i);
+            }
+        } else if let Some(selected) = self.queue_state.selected() {
+            info!("Removing {} from queue", selected);
+            self.queue.remove(selected);
+        }
+
+        if self.active_queue_idx > self.queue.len() - 1 {
+            self.active_queue_idx = self.queue.len() - 1;
+        }
     }
 }
 

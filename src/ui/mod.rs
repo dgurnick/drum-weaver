@@ -3,7 +3,7 @@ pub mod render;
 use crate::ui::commands::{KeyHandler, SortBy};
 use crate::ui::render::Render;
 
-use cpal::traits::{DeviceTrait, HostTrait};
+use cpal::traits::HostTrait;
 use crossterm::{
     event::{self, Event as CEvent, KeyCode, KeyEventKind, KeyModifiers},
     terminal::enable_raw_mode,
@@ -307,16 +307,6 @@ impl App {
                         }
                     }
 
-                    let track_device_name = match available_devices[self.track_device_idx].name() {
-                        Ok(name) => name,
-                        Err(_) => "Unknown".to_string(),
-                    };
-
-                    let click_device_name = match available_devices[self.click_device_idx].name() {
-                        Ok(name) => name,
-                        Err(_) => "Unknown".to_string(),
-                    };
-
                     let track_volume = if let Some(_song) = &self.track_song {
                         self.track_volume
                     } else {
@@ -338,8 +328,8 @@ impl App {
                     };
 
                     let footer_device_text = format!(
-                        "Track device: {} - {}% | Click device: {} - {}%",
-                        track_device_name, track_volume, click_device_name, click_volume,
+                        "Track device: {}% | Click device: {}%",
+                        track_volume, click_volume,
                     );
 
                     let paused_text = if track_player.is_playing() {
@@ -554,8 +544,8 @@ impl App {
                                 self.queue_state.select(Some(self.queue.len() - 1));
                             }
                         }
-                        // TODO: Delete songs
-                        KeyCode::Delete => info!("TODO delete song from playlist or queue"),
+
+                        KeyCode::Delete => self.do_delete_song(),
 
                         KeyCode::Esc => {}
 
@@ -634,7 +624,7 @@ impl App {
                                         continue;
                                     }
                                 } else if let Some(selected) = self.queue_state.selected() {
-                                    self.active_queue_idx = &selected + 1;
+                                    self.active_queue_idx = selected;
                                     self.queue.get(self.active_queue_idx).unwrap()
                                 } else {
                                     continue;
@@ -700,7 +690,6 @@ impl App {
 
                         // move to first in playlist if it's there
                         if !self.queue.is_empty() {
-                            self.active_queue_idx += 1;
                             if self.active_queue_idx > self.queue.len() - 1 {
                                 self.active_queue_idx = 0;
                             }
@@ -718,7 +707,7 @@ impl App {
                                 self.songlist_state.select(Some(new_position));
                             }
 
-                            //self.active_queue_idx += 1;
+                            self.active_queue_idx += 1;
                             if self.active_queue_idx > self.queue.len() - 1 {
                                 self.active_queue_idx = 0;
                             }
