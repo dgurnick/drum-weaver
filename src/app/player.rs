@@ -63,8 +63,7 @@ pub enum PlayerCommand {
     SlowDown,
     SetDevice(DeviceType, String),
     ResetSpeed,
-    IncreaseVolume(DeviceType),
-    DecreaseVolume(DeviceType),
+    SetVolume(DeviceType, usize),
     ResetVolume(DeviceType),
 }
 
@@ -317,31 +316,23 @@ impl Player {
                             track_player.set_playback_speed(1.0);
                             click_player.set_playback_speed(1.0);
                         }
-                        PlayerCommand::IncreaseVolume(device_type) => match device_type {
-                            DeviceType::Track => {
-                                let current_volume = track_player.get_volume_adjustment();
-                                let new_volume = current_volume + 0.1;
-                                track_player.set_volume_adjustment(new_volume);
+                        PlayerCommand::SetVolume(device_type, volume) => {
+                            let new_volume = volume as f32 / 100.0;
+
+                            match device_type {
+                                DeviceType::Track => {
+                                    track_player.set_volume_adjustment(new_volume);
+                                }
+                                DeviceType::Click => {
+                                    click_player.set_volume_adjustment(new_volume);
+                                }
                             }
-                            DeviceType::Click => {
-                                let current_volume = click_player.get_volume_adjustment();
-                                let new_volume = current_volume + 0.1;
-                                click_player.set_volume_adjustment(new_volume);
-                            }
-                        },
-                        PlayerCommand::DecreaseVolume(device_type) => match device_type {
-                            DeviceType::Track => {
-                                let current_volume = track_player.get_volume_adjustment();
-                                let new_volume = current_volume - 0.1;
-                                track_player.set_volume_adjustment(new_volume);
-                            }
-                            DeviceType::Click => {
-                                let current_volume = click_player.get_volume_adjustment();
-                                let new_volume = current_volume - 0.1;
-                                click_player.set_volume_adjustment(new_volume);
-                            }
-                        },
-                        PlayerCommand::ResetVolume(_) => todo!(),
+                        }
+
+                        PlayerCommand::ResetVolume(_) => {
+                            track_player.set_volume_adjustment(1.0);
+                            click_player.set_volume_adjustment(1.0);
+                        }
                     },
                     Err(_err) => {}
                 }

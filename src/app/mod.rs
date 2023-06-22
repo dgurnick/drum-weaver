@@ -92,6 +92,8 @@ pub struct App {
     pub player_status: PlayerStatus,
     pub track_device_idx: usize,
     pub click_device_idx: usize,
+    pub track_volume: usize,
+    pub click_volume: usize,
 }
 
 pub enum UiEvent<I> {
@@ -153,6 +155,8 @@ impl App {
             player_status: PlayerStatus::Ready,
             track_device_idx: 0,
             click_device_idx: 0,
+            track_volume: 100,
+            click_volume: 100,
         }
     }
 

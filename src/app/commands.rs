@@ -174,14 +174,44 @@ impl UiCommandTrait for App {
     }
 
     fn do_increase_volume(&mut self, device_type: DeviceType) {
-        self.send_player_command(PlayerCommand::IncreaseVolume(device_type));
+        let volume = match device_type {
+            DeviceType::Track => {
+                self.track_volume = std::cmp::min(self.track_volume + 1, 200);
+                self.track_volume
+            }
+            DeviceType::Click => {
+                self.click_volume = std::cmp::min(self.click_volume + 1, 200);
+                self.click_volume
+            }
+        };
+
+        self.send_player_command(PlayerCommand::SetVolume(device_type, volume));
     }
 
     fn do_decrease_volume(&mut self, device_type: DeviceType) {
-        self.send_player_command(PlayerCommand::DecreaseVolume(device_type));
+        let volume = match device_type {
+            DeviceType::Track => {
+                self.track_volume = std::cmp::max(self.track_volume.saturating_sub(1), 0);
+                self.track_volume
+            }
+            DeviceType::Click => {
+                self.click_volume = std::cmp::max(self.click_volume.saturating_sub(1), 0);
+                self.click_volume
+            }
+        };
+
+        self.send_player_command(PlayerCommand::SetVolume(device_type, volume));
     }
 
     fn do_reset_volume(&mut self, device_type: DeviceType) {
+        match device_type {
+            DeviceType::Track => {
+                self.track_volume = 100;
+            }
+            DeviceType::Click => {
+                self.click_volume = 100;
+            }
+        }
         self.send_player_command(PlayerCommand::ResetVolume(device_type));
     }
 }
