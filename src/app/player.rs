@@ -45,6 +45,8 @@ pub enum PlayerCommand {
     GetPosition,
     Forward,
     Backward,
+    SpeedUp,
+    SlowDown,
 }
 
 #[derive(Debug)]
@@ -249,6 +251,25 @@ impl Player {
                                     track_player.seek(Duration::from_micros(0));
                                 }
                             }
+                        }
+                        PlayerCommand::SpeedUp => {
+                            info!("Player is speeding up");
+                            let current_speed = track_player.get_playback_speed();
+                            let new_speed = current_speed + 0.1;
+                            track_player.set_playback_speed(new_speed);
+                            click_player.set_playback_speed(new_speed);
+                        }
+                        PlayerCommand::SlowDown => {
+                            let current_speed = track_player.get_playback_speed();
+                            let new_speed = current_speed - 0.1;
+                            if new_speed < 0.1 {
+                                info!("Player is slowing down too much, stopping");
+                                continue;
+                            }
+
+                            info!("Player is slowing down");
+                            track_player.set_playback_speed(new_speed);
+                            click_player.set_playback_speed(new_speed);
                         }
                     },
                     Err(_err) => {}

@@ -25,6 +25,8 @@ pub trait UiCommandTrait {
     fn do_autoplay(&mut self);
     fn do_forward(&mut self);
     fn do_backward(&mut self);
+    fn do_speedup(&mut self);
+    fn do_slowdown(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -122,5 +124,15 @@ impl UiCommandTrait for App {
 
     fn do_backward(&mut self) {
         self.send_player_command(PlayerCommand::Backward);
+    }
+
+    fn do_speedup(&mut self) {
+        info!("Speeding up");
+        self.send_player_command(PlayerCommand::SpeedUp);
+    }
+
+    fn do_slowdown(&mut self) {
+        info!("Slowing down");
+        self.send_player_command(PlayerCommand::SlowDown);
     }
 }

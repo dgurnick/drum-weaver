@@ -1,4 +1,4 @@
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyModifiers};
 use log::{error, info};
 
 use crate::app::{player::PlayerCommand, PlayerStatus};
@@ -20,6 +20,11 @@ impl UiEventTrait for App {
         if !self.is_exiting {
             if let Ok(event) = self.ui_command_receiver.try_recv() {
                 match event {
+                    UiEvent::Input(event) if event.modifiers.contains(KeyModifiers::SHIFT) => match event.code {
+                        KeyCode::Left => self.do_slowdown(),
+                        KeyCode::Right => self.do_speedup(),
+                        _ => {}
+                    },
                     UiEvent::Input(input) => match input.code {
                         KeyCode::Char('q') => self.do_exit(),
                         KeyCode::Char(' ') => self.do_pause(),
