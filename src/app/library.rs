@@ -1,9 +1,10 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Mutex};
 
 use log::info;
 use serde::{Deserialize, Serialize};
 
 use super::player::SongStub;
+use lazy_static::lazy_static;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SongRecord {
@@ -21,7 +22,11 @@ pub struct SongRecord {
 #[derive(Clone)]
 pub struct Library {
     pub path: String, // the root path of the library (i.e. ...\Drumless)
-    pub songs: Vec<SongRecord>,
+    songs: Vec<SongRecord>,
+}
+
+lazy_static! {
+    static ref SONGS: Mutex<Vec<SongRecord>> = Mutex::new(Vec::new());
 }
 
 impl Library {
@@ -52,5 +57,15 @@ impl Library {
         if let Some(index) = self.songs.iter().position(|song| song.file_name == stub.file_name) {
             self.songs.remove(index);
         }
+    }
+
+    pub fn get_songs(&self) -> &Vec<SongRecord> {
+        &self.songs
+    }
+
+    pub fn shuffle(&mut self) {
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+        self.songs.shuffle(&mut rng);
     }
 }

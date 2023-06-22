@@ -9,7 +9,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Cell, LineGauge, Paragraph, Row, Table, Tabs},
 };
 
-use super::{devices::read_devices, player::PlaybackStatus, ActiveFocus, App, MenuItem};
+use super::{devices::read_devices, ActiveFocus, App, MenuItem};
 
 pub trait UiRenderTrait {
     fn render_ui(&mut self);
@@ -30,7 +30,7 @@ impl UiRenderTrait for App {
 
         let menu_view = self.render_menu();
         let songs_view = if self.active_menu_item == MenuItem::Library { Some(self.render_songs()) } else { None };
-        let queue_view = if self.active_menu_item == MenuItem::Library { Some(self.render_songs()) } else { None };
+        let queue_view = if self.active_menu_item == MenuItem::Library { Some(self.render_queue()) } else { None };
         let device_view = if self.active_menu_item == MenuItem::Devices { Some(self.render_devices()) } else { None };
         let footer_view = self.render_footer();
         let gauge_view = self.render_gauge();
@@ -99,18 +99,18 @@ impl UiRenderTrait for App {
             Block::default()
                 .borders(Borders::ALL)
                 .style(Style::default().fg(Color::White))
-                .title(format!("Songs ({})", self.get_songs().len()))
+                .title(format!("Songs ({})", self.library.as_ref().unwrap().get_songs().len()))
                 .border_type(BorderType::Thick)
         } else {
             Block::default()
                 .borders(Borders::ALL)
                 .style(Style::default().fg(Color::Rgb(60, 60, 60)))
-                .title(format!("Songs ({})", self.get_songs().len()))
+                .title(format!("Songs ({})", self.library.as_ref().unwrap().get_songs().len()))
                 .border_type(BorderType::Plain)
         };
 
         let mut rows = vec![];
-        for song in self.get_songs() {
+        for song in self.library.as_ref().unwrap().get_songs() {
             let mut is_selected = false;
             if let Some(active_track) = &self.active_track {
                 if active_track.main_file.contains(&song.title) {
@@ -219,7 +219,6 @@ impl UiRenderTrait for App {
         };
 
         let mut rows = vec![];
-        let mut idx = 1;
         for song in self.queue.clone() {
             let mut is_selected = false;
             if let Some(active_track) = self.active_track.clone() {
@@ -228,7 +227,6 @@ impl UiRenderTrait for App {
                 }
             }
 
-            idx += 1;
             let selected_fg = if is_selected {
                 Color::LightBlue
             } else if self.active_focus == ActiveFocus::Queue {

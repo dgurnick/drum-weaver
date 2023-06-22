@@ -11,6 +11,7 @@ use crate::app::render::UiRenderTrait;
 use crate::app::setup::UiSetupTrait;
 
 use std::{
+    fmt::Display,
     io::{stdout, Stdout},
     thread,
     time::Duration,
@@ -25,12 +26,14 @@ use crossterm::{
     ExecutableCommand,
 };
 
+use log::error;
 use ratatui::{backend::CrosstermBackend, widgets::TableState, Terminal};
 
 use self::{
+    devices::read_devices,
     events::UiEventTrait,
     library::{Library, SongRecord},
-    player::{PlaybackStatus, PlayerCommand, PlayerEvent},
+    player::{DeviceType, PlaybackStatus, PlayerCommand, PlayerEvent},
 };
 
 #[derive(PartialEq)]
@@ -63,6 +66,22 @@ impl PlayerStatus {
             PlayerStatus::Ended => "Ended".to_string(),
             PlayerStatus::Error(s) => format!("Error loading song: {}", s),
         }
+    }
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
+struct AppConfig {
+    track_device_name: Option<String>,
+    click_device_name: Option<String>,
+    queue: Vec<SongRecord>,
+}
+
+impl Display for AppConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let track_device_name = self.track_device_name.as_ref().cloned().unwrap();
+        let click_device_name = self.click_device_name.as_ref().cloned().unwrap();
+
+        write!(f, "Track Device: {}\nClick Device: {}", track_device_name, click_device_name)
     }
 }
 
@@ -120,6 +139,27 @@ impl From<MenuItem> for usize {
 
 impl App {
     pub fn new(player_command_sender: Sender<PlayerCommand>, player_event_receiver: Receiver<PlayerEvent>) -> Self {
+        let config: AppConfig = match confy::load("drum-weaver", None) {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Error loading config: {}", e);
+                AppConfig::default()
+            }
+        };
+
+        let mut track_device_idx = 0;
+        let mut click_device_idx = 0;
+
+        if let Some(click_device_name) = config.click_device_name.as_ref() {
+            click_device_idx = read_devices().iter().position(|d| &d.name == click_device_name).unwrap_or(0);
+            player_command_sender.send(PlayerCommand::SetDevice(DeviceType::Click, click_device_name.clone())).unwrap();
+        }
+
+        if let Some(track_device_name) = config.track_device_name.as_ref() {
+            track_device_idx = read_devices().iter().position(|d| &d.name == track_device_name).unwrap_or(0);
+            player_command_sender.send(PlayerCommand::SetDevice(DeviceType::Track, track_device_name.clone())).unwrap();
+        }
+
         // Set up the terminal
         let mut stdout = stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture).expect("Unable to setup terminal");
@@ -148,13 +188,13 @@ impl App {
             library_state: TableState::default(),
             queue_state: TableState::default(),
             device_state: TableState::default(),
-            queue: Vec::new(),
+            queue: config.queue,
             active_track: None,
             is_exiting: false,
             playback_status: None,
             player_status: PlayerStatus::Ready,
-            track_device_idx: 0,
-            click_device_idx: 0,
+            track_device_idx: track_device_idx,
+            click_device_idx: click_device_idx,
             track_volume: 100,
             click_volume: 100,
         }
@@ -205,13 +245,6 @@ impl App {
             self.handle_ui_events();
             self.handle_player_events();
             self.render_ui();
-        }
-    }
-
-    pub fn get_songs(&self) -> Vec<SongRecord> {
-        match &self.library {
-            Some(library) => library.songs.clone(),
-            None => vec![],
         }
     }
 }

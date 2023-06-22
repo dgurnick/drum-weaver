@@ -12,7 +12,7 @@ use super::{
     devices::read_devices,
     events::UiEventTrait,
     player::{DeviceType, PlayerCommand, SongStub},
-    ActiveFocus, App,
+    ActiveFocus, App, AppConfig,
 };
 
 pub trait UiCommandTrait {
@@ -35,6 +35,7 @@ pub trait UiCommandTrait {
     fn do_increase_volume(&mut self, device_type: DeviceType);
     fn do_decrease_volume(&mut self, device_type: DeviceType);
     fn do_reset_volume(&mut self, device_type: DeviceType);
+    fn do_shuffle_library(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -55,6 +56,16 @@ impl UiCommandTrait for App {
     }
 
     fn on_exit(&mut self) {
+        let track_device_name = read_devices()[self.track_device_idx].name.clone();
+        let click_device_name = read_devices()[self.click_device_idx].name.clone();
+
+        let config = AppConfig {
+            track_device_name: Some(track_device_name),
+            click_device_name: Some(click_device_name),
+            queue: self.queue.clone(),
+        };
+        confy::store("drum-weaver", None, config.clone()).expect("Unable to save configuration");
+
         disable_raw_mode().unwrap();
         execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
         std::process::exit(0);
@@ -69,7 +80,7 @@ impl UiCommandTrait for App {
             ActiveFocus::Queue => {}
             ActiveFocus::Library => {
                 let idx = self.library_state.selected().unwrap_or(0);
-                let song = self.get_songs()[idx].clone();
+                let song = self.library.as_ref().unwrap().get_songs()[idx].clone();
 
                 self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
             }
@@ -82,7 +93,7 @@ impl UiCommandTrait for App {
             ActiveFocus::Library => {
                 let mut idx = self.library_state.selected().unwrap_or(0);
                 idx += 1;
-                if idx > self.get_songs().len() - 1 {
+                if idx > self.library.as_ref().unwrap().get_songs().len() - 1 {
                     idx = 0;
                 }
                 self.library_state.select(Some(idx));
@@ -97,7 +108,7 @@ impl UiCommandTrait for App {
                 let mut idx = self.library_state.selected().unwrap_or(0) as i32;
                 idx -= 1;
                 if idx < 0 {
-                    idx = (self.get_songs().len() - 1) as i32;
+                    idx = (self.library.as_ref().unwrap().get_songs().len() - 1) as i32;
                 }
                 self.library_state.select(Some(idx as usize));
             }
@@ -116,10 +127,10 @@ impl UiCommandTrait for App {
         if self.active_focus == ActiveFocus::Library {
             let mut idx = self.library_state.selected().unwrap_or(0);
             idx = idx + 1;
-            if idx > self.get_songs().len() - 1 {
+            if idx > self.library.as_ref().unwrap().get_songs().len() - 1 {
                 idx = 0;
             }
-            let song = self.get_songs()[idx].clone();
+            let song = self.library.as_ref().unwrap().get_songs()[idx].clone();
             self.library_state.select(Some(idx));
 
             self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
@@ -164,8 +175,18 @@ impl UiCommandTrait for App {
     }
 
     fn do_set_device(&mut self, device_type: DeviceType) {
-        self.track_device_idx = self.device_state.selected().unwrap_or(0);
-        let device_name = read_devices()[self.track_device_idx].clone().name;
+        let idx = self.device_state.selected().unwrap_or(0);
+        let device_name = match device_type {
+            DeviceType::Track => {
+                self.track_device_idx = idx;
+                read_devices()[self.track_device_idx].clone().name
+            }
+            DeviceType::Click => {
+                self.click_device_idx = idx;
+                read_devices()[self.click_device_idx].clone().name
+            }
+        };
+
         self.send_player_command(PlayerCommand::SetDevice(device_type, device_name));
     }
 
@@ -213,5 +234,9 @@ impl UiCommandTrait for App {
             }
         }
         self.send_player_command(PlayerCommand::ResetVolume(device_type));
+    }
+
+    fn do_shuffle_library(&mut self) {
+        self.library.as_mut().unwrap().shuffle();
     }
 }

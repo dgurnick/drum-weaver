@@ -43,6 +43,7 @@ impl UiEventTrait for App {
                         KeyCode::Char('5') => self.do_reset_volume(DeviceType::Click),
                         KeyCode::Char('6') => self.do_increase_volume(DeviceType::Click),
                         KeyCode::Char(' ') => self.do_pause(),
+                        KeyCode::Char('x') => self.do_shuffle_library(),
                         KeyCode::Enter => self.do_playback(),
                         KeyCode::Down => self.do_next(),
                         KeyCode::Up => self.do_previous(),
