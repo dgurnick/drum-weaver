@@ -11,7 +11,7 @@ use native_dialog::{MessageDialog, MessageType};
 use super::{
     devices::read_devices,
     events::UiEventTrait,
-    player::{PlayerCommand, SongStub},
+    player::{DeviceType, PlayerCommand, SongStub},
     ActiveFocus, App,
 };
 
@@ -28,10 +28,13 @@ pub trait UiCommandTrait {
     fn do_backward(&mut self);
     fn do_speedup(&mut self);
     fn do_slowdown(&mut self);
+    fn do_reset_speed(&mut self);
     fn do_next_device(&mut self);
     fn do_previous_device(&mut self);
-    fn do_track_device(&mut self);
-    fn do_click_device(&mut self);
+    fn do_set_device(&mut self, device_type: DeviceType);
+    fn do_increase_volume(&mut self, device_type: DeviceType);
+    fn do_decrease_volume(&mut self, device_type: DeviceType);
+    fn do_reset_volume(&mut self, device_type: DeviceType);
 }
 
 impl UiCommandTrait for App {
@@ -160,15 +163,25 @@ impl UiCommandTrait for App {
         self.device_state.select(Some(idx));
     }
 
-    fn do_track_device(&mut self) {
+    fn do_set_device(&mut self, device_type: DeviceType) {
         self.track_device_idx = self.device_state.selected().unwrap_or(0);
         let device_name = read_devices()[self.track_device_idx].clone().name;
-        self.send_player_command(PlayerCommand::SetTrackDevice(device_name));
+        self.send_player_command(PlayerCommand::SetDevice(device_type, device_name));
     }
 
-    fn do_click_device(&mut self) {
-        self.click_device_idx = self.device_state.selected().unwrap_or(0);
-        let device_name = read_devices()[self.click_device_idx].clone().name;
-        self.send_player_command(PlayerCommand::SetClickDevice(device_name));
+    fn do_reset_speed(&mut self) {
+        self.send_player_command(PlayerCommand::ResetSpeed);
+    }
+
+    fn do_increase_volume(&mut self, device_type: DeviceType) {
+        self.send_player_command(PlayerCommand::IncreaseVolume(device_type));
+    }
+
+    fn do_decrease_volume(&mut self, device_type: DeviceType) {
+        self.send_player_command(PlayerCommand::DecreaseVolume(device_type));
+    }
+
+    fn do_reset_volume(&mut self, device_type: DeviceType) {
+        self.send_player_command(PlayerCommand::ResetVolume(device_type));
     }
 }

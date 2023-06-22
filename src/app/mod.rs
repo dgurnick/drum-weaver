@@ -25,16 +25,12 @@ use crossterm::{
     ExecutableCommand,
 };
 
-use ratatui::{
-    backend::CrosstermBackend,
-    widgets::{ListState, TableState},
-    Terminal,
-};
+use ratatui::{backend::CrosstermBackend, widgets::TableState, Terminal};
 
 use self::{
     events::UiEventTrait,
     library::{Library, SongRecord},
-    player::{PlayerCommand, PlayerEvent},
+    player::{PlaybackStatus, PlayerCommand, PlayerEvent},
 };
 
 #[derive(PartialEq)]
@@ -52,6 +48,7 @@ pub enum PlayerStatus {
     Decompressing,
     Decompressed,
     Ended,
+    Error(String),
 }
 
 impl PlayerStatus {
@@ -64,6 +61,7 @@ impl PlayerStatus {
             PlayerStatus::Decompressing => "Decompressing".to_string(),
             PlayerStatus::Decompressed => "Decompressed".to_string(),
             PlayerStatus::Ended => "Ended".to_string(),
+            PlayerStatus::Error(s) => format!("Error loading song: {}", s),
         }
     }
 }
@@ -90,7 +88,7 @@ pub struct App {
     pub device_state: TableState,
     pub active_track: Option<Track>,
     pub is_exiting: bool,
-    pub current_position: Option<(Duration, Duration)>,
+    pub playback_status: Option<PlaybackStatus>,
     pub player_status: PlayerStatus,
     pub track_device_idx: usize,
     pub click_device_idx: usize,
@@ -151,7 +149,7 @@ impl App {
             queue: Vec::new(),
             active_track: None,
             is_exiting: false,
-            current_position: None,
+            playback_status: None,
             player_status: PlayerStatus::Ready,
             track_device_idx: 0,
             click_device_idx: 0,
@@ -190,7 +188,7 @@ impl App {
 
         // listen for position updates
         thread::spawn(move || loop {
-            player_command_sender_clone.send(PlayerCommand::GetPosition).unwrap();
+            player_command_sender_clone.send(PlayerCommand::GetStatus).unwrap();
             thread::sleep(Duration::from_millis(1000));
         });
 

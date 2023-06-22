@@ -21,6 +21,12 @@ pub struct Player {
     is_paused: Arc<Mutex<bool>>,
 }
 
+#[derive(PartialEq, Debug)]
+pub enum DeviceType {
+    Track,
+    Click,
+}
+
 #[derive(Debug, Clone)]
 pub struct SongStub {
     pub file_name: String,
@@ -28,6 +34,13 @@ pub struct SongStub {
     pub folder: String,
 }
 
+#[derive(Debug)]
+pub struct PlaybackStatus {
+    pub track_position: Option<Duration>,
+    pub track_duration: Option<Duration>,
+    pub track_volume: f32,
+    pub click_volume: f32,
+}
 impl SongStub {
     pub fn from_song_record(song_record: &SongRecord) -> Self {
         SongStub {
@@ -43,20 +56,23 @@ pub enum PlayerCommand {
     Pause,
     Stop,
     Quit,
-    GetPosition,
+    GetStatus,
     Forward,
     Backward,
     SpeedUp,
     SlowDown,
-    SetTrackDevice(String),
-    SetClickDevice(String),
+    SetDevice(DeviceType, String),
+    ResetSpeed,
+    IncreaseVolume(DeviceType),
+    DecreaseVolume(DeviceType),
+    ResetVolume(DeviceType),
 }
 
 #[derive(Debug)]
 pub enum PlayerEvent {
     Playing(SongStub),
     LoadFailure(SongStub),
-    Position(Option<(Duration, Duration)>),
+    Status(PlaybackStatus),
     Paused,
     Continuing(Option<SongStub>),
     Stopped,
@@ -162,9 +178,6 @@ impl Player {
                                     click_player.set_playing(true);
                                     current_stub = Some(stub.clone());
 
-                                    track_player.set_playback_speed(10.0);
-                                    click_player.set_playback_speed(10.0);
-
                                     player_event_sender.send(PlayerEvent::Playing(stub.clone())).unwrap();
                                 }
                                 (Err(track_err), _) => {
@@ -213,14 +226,22 @@ impl Player {
                             thread::sleep(std::time::Duration::from_millis(100)); // time for the exit to propagate
                             break;
                         }
-                        PlayerCommand::GetPosition => {
+                        PlayerCommand::GetStatus => {
+                            let mut status = PlaybackStatus {
+                                track_volume: track_player.get_volume_adjustment(),
+                                click_volume: click_player.get_volume_adjustment(),
+                                track_duration: None,
+                                track_position: None,
+                            };
+
                             if let Some((position, duration)) = track_player.get_playback_position() {
                                 if track_player.is_playing() {
-                                    player_event_sender.send(PlayerEvent::Position(Some((position, duration)))).unwrap();
-                                } else {
-                                    player_event_sender.send(PlayerEvent::Position(None)).unwrap();
+                                    status.track_position = Some(position);
+                                    status.track_duration = Some(duration);
                                 }
                             }
+
+                            player_event_sender.send(PlayerEvent::Status(status)).unwrap();
                         }
                         PlayerCommand::Forward => {
                             if current_stub.is_none() {
@@ -272,24 +293,51 @@ impl Player {
                             track_player.set_playback_speed(new_speed);
                             click_player.set_playback_speed(new_speed);
                         }
-                        PlayerCommand::SetTrackDevice(device_name) => {
+                        PlayerCommand::SetDevice(device_type, device_name) => {
                             track_player.stop();
                             click_player.stop();
 
-                            track_device = &available_devices.iter().find(|d| d.name().ok() == Some(device_name.clone())).unwrap();
+                            let device = &available_devices.iter().find(|d| d.name().ok() == Some(device_name.clone())).unwrap();
 
-                            track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
-                            track_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
+                            if device_type == DeviceType::Track {
+                                track_device = device;
+                                track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
+                                track_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
+                            } else {
+                                click_device = device;
+                                click_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
+                                click_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
+                            }
                         }
-                        PlayerCommand::SetClickDevice(device_name) => {
-                            track_player.stop();
-                            click_player.stop();
-
-                            click_device = &available_devices.iter().find(|d| d.name().ok() == Some(device_name.clone())).unwrap();
-
-                            click_player = AudioPlayer::new(None, click_device).expect("Could not create track player");
-                            click_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
+                        PlayerCommand::ResetSpeed => {
+                            track_player.set_playback_speed(1.0);
+                            click_player.set_playback_speed(1.0);
                         }
+                        PlayerCommand::IncreaseVolume(device_type) => match device_type {
+                            DeviceType::Track => {
+                                let current_volume = track_player.get_volume_adjustment();
+                                let new_volume = current_volume + 0.1;
+                                track_player.set_volume_adjustment(new_volume);
+                            }
+                            DeviceType::Click => {
+                                let current_volume = click_player.get_volume_adjustment();
+                                let new_volume = current_volume + 0.1;
+                                click_player.set_volume_adjustment(new_volume);
+                            }
+                        },
+                        PlayerCommand::DecreaseVolume(device_type) => match device_type {
+                            DeviceType::Track => {
+                                let current_volume = track_player.get_volume_adjustment();
+                                let new_volume = current_volume - 0.1;
+                                track_player.set_volume_adjustment(new_volume);
+                            }
+                            DeviceType::Click => {
+                                let current_volume = click_player.get_volume_adjustment();
+                                let new_volume = current_volume - 0.1;
+                                click_player.set_volume_adjustment(new_volume);
+                            }
+                        },
+                        PlayerCommand::ResetVolume(_) => todo!(),
                     },
                     Err(_err) => {}
                 }

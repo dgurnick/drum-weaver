@@ -6,10 +6,10 @@ use ratatui::{
     style::{Color, Modifier, Style},
     symbols,
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Cell, LineGauge, List, ListItem, Paragraph, Row, Table, Tabs},
+    widgets::{Block, BorderType, Borders, Cell, LineGauge, Paragraph, Row, Table, Tabs},
 };
 
-use super::{devices::read_devices, ActiveFocus, App, MenuItem};
+use super::{devices::read_devices, player::PlaybackStatus, ActiveFocus, App, MenuItem};
 
 pub trait UiRenderTrait {
     fn render_ui(&mut self);
@@ -319,17 +319,33 @@ impl UiRenderTrait for App {
         let start_color = (0, 255, 0);
         let end_color = (255, 0, 0);
 
-        let (position, song_length) = self.current_position.unwrap_or((Duration::from_secs(0), Duration::from_secs(1)));
+        let track_position = self
+            .playback_status
+            .as_ref()
+            .and_then(|status| status.track_position) // If PlaybackStatus exists, get track_position
+            .unwrap_or(Duration::from_secs(0)); // If it is None, default to 0 seconds
+
+        let track_duration = self
+            .playback_status
+            .as_ref()
+            .and_then(|status| status.track_duration) // If PlaybackStatus exists, get track_duration
+            .unwrap_or(Duration::from_secs(0)); // If it is None, default to 0 seconds
 
         // Calculate the progress ratio
-        let progress_ratio = position.as_secs_f64() / song_length.as_secs_f64();
+        let progress_ratio = track_position.as_secs_f64() / track_duration.as_secs_f64();
 
         let color = lerp_color(start_color, end_color, progress_ratio);
 
-        LineGauge::default()
+        let gauge = LineGauge::default()
             .gauge_style(Style::default().fg(color).bg(Color::White).add_modifier(Modifier::BOLD))
-            .line_set(symbols::line::THICK)
-            .ratio(progress_ratio)
+            .line_set(symbols::line::THICK);
+        //.ratio(progress_ratio)
+
+        if track_duration.as_secs() > 0 {
+            gauge.ratio(progress_ratio)
+        } else {
+            gauge
+        }
     }
 }
 

@@ -3,7 +3,11 @@ use log::{error, info};
 
 use crate::app::{player::PlayerCommand, PlayerStatus};
 
-use super::{commands::UiCommandTrait, player::PlayerEvent, App, MenuItem, UiEvent};
+use super::{
+    commands::UiCommandTrait,
+    player::{DeviceType, PlayerEvent},
+    App, MenuItem, UiEvent,
+};
 
 pub trait UiEventTrait {
     fn handle_ui_events(&mut self);
@@ -31,6 +35,7 @@ impl UiEventTrait for App {
                         KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
                         KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
                         KeyCode::Char('q') => self.do_exit(),
+                        KeyCode::Char('r') => self.do_reset_speed(),
                         KeyCode::Char(' ') => self.do_pause(),
                         KeyCode::Enter => self.do_playback(),
                         KeyCode::Down => self.do_next(),
@@ -49,8 +54,8 @@ impl UiEventTrait for App {
                         KeyCode::Char(' ') => self.do_pause(),
                         KeyCode::Down => self.do_next_device(),
                         KeyCode::Up => self.do_previous_device(),
-                        KeyCode::Char('t') => self.do_track_device(),
-                        KeyCode::Char('c') => self.do_click_device(),
+                        KeyCode::Char('t') => self.do_set_device(DeviceType::Track),
+                        KeyCode::Char('c') => self.do_set_device(DeviceType::Click),
                         _ => {}
                     },
 
@@ -96,10 +101,10 @@ impl UiEventTrait for App {
                 }
                 PlayerEvent::LoadFailure(stub) => {
                     error!("App received LoadFailure: {}", stub.title);
-                    // TODO: Remove song from list and queue
+                    self.player_status = PlayerStatus::Error(stub.title);
                 }
-                PlayerEvent::Position(optional_position) => {
-                    self.current_position = optional_position;
+                PlayerEvent::Status(status) => {
+                    self.playback_status = Some(status);
                 }
                 PlayerEvent::Ended => {
                     self.player_status = PlayerStatus::Ended;
