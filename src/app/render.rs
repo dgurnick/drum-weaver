@@ -311,8 +311,8 @@ impl UiRenderTrait for App {
     }
 
     fn render_footer(&mut self) -> Paragraph<'static> {
-        let track_volume = self.playback_status.as_ref().map(|status| status.track_volume).unwrap_or(0.0);
-        let click_volume = self.playback_status.as_ref().map(|status| status.click_volume).unwrap_or(0.0);
+        let track_volume = self.playback_status.as_ref().map(|status| status.track_volume).unwrap_or(0.0) * 100.;
+        let click_volume = self.playback_status.as_ref().map(|status| status.click_volume).unwrap_or(0.0) * 100.;
 
         let other_status = format!("Track: {} | Click: {}", track_volume, click_volume);
         let message = format!("{} | {}", self.player_status.as_string(), other_status);
