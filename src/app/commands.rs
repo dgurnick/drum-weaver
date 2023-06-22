@@ -7,7 +7,10 @@ use crossterm::{
 };
 use native_dialog::{MessageDialog, MessageType};
 
-use super::{player::PlayerCommand, ActiveFocus, App};
+use super::{
+    player::{PlayerCommand, SongStub},
+    ActiveFocus, App,
+};
 
 pub trait UiCommandTrait {
     fn do_exit(&mut self);
@@ -27,7 +30,7 @@ impl UiCommandTrait for App {
         match dialog_result {
             Ok(true) => {
                 self.player_command_sender.send(PlayerCommand::Quit).unwrap();
-                thread::sleep(Duration::from_millis(5000));
+                thread::sleep(Duration::from_millis(500));
                 std::process::exit(0);
             }
             _ => {
@@ -41,7 +44,15 @@ impl UiCommandTrait for App {
     }
 
     fn do_playback(&mut self) {
-        self.player_command_sender.send(PlayerCommand::Play("test2.mp3".to_string())).unwrap();
+        match self.active_focus {
+            ActiveFocus::Queue => {}
+            ActiveFocus::Library => {
+                let idx = self.library_state.selected().unwrap_or(0);
+                let song = self.get_songs()[idx].clone();
+
+                self.player_command_sender.send(PlayerCommand::Play(SongStub::from_song_record(&song))).unwrap();
+            }
+        }
     }
 
     fn on_exit(&mut self) {

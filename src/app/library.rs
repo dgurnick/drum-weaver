@@ -1,5 +1,9 @@
+use std::path::PathBuf;
+
 use log::info;
 use serde::{Deserialize, Serialize};
+
+use super::player::SongStub;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SongRecord {
@@ -31,11 +35,22 @@ impl Library {
         let mut reader = csv::Reader::from_reader(file_contents.as_bytes());
         self.songs.clear();
 
+        let base_path = self.path.clone();
+
         for result in reader.deserialize() {
-            let song: SongRecord = result.unwrap();
+            let mut song: SongRecord = result.unwrap();
+            let mut song_path = PathBuf::from(base_path.clone());
+            song_path.push(&song.folder);
+            song.folder = song_path.display().to_string();
             self.songs.push(song);
         }
 
         info!("Loaded {} songs from CSV", self.songs.len());
+    }
+
+    pub fn remove_song_by_stub(&mut self, stub: SongStub) {
+        if let Some(index) = self.songs.iter().position(|song| song.file_name == stub.file_name) {
+            self.songs.remove(index);
+        }
     }
 }

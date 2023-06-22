@@ -1,16 +1,18 @@
 use std::{
-    env,
+    clone, env,
+    error::Error,
+    path::PathBuf,
     sync::{Arc, Mutex},
     thread,
 };
 
 use cpal::traits::HostTrait;
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use log::info;
+use log::{error, info};
 
 use crate::app::audio::Song;
 
-use super::audio::AudioPlayer;
+use super::{audio::AudioPlayer, library::SongRecord};
 #[derive(Clone)]
 pub struct Player {
     player_command_receiver: Receiver<PlayerCommand>,
@@ -18,9 +20,25 @@ pub struct Player {
     is_paused: Arc<Mutex<bool>>,
 }
 
+#[derive(Debug, Clone)]
+pub struct SongStub {
+    pub file_name: String,
+    pub title: String,
+    pub folder: String,
+}
+
+impl SongStub {
+    pub fn from_song_record(song_record: &SongRecord) -> Self {
+        SongStub {
+            file_name: song_record.file_name.clone(),
+            title: song_record.title.clone(),
+            folder: song_record.folder.clone(),
+        }
+    }
+}
 #[derive(Debug)]
 pub enum PlayerCommand {
-    Play(String),
+    Play(SongStub),
     Pause,
     Stop,
     Quit,
@@ -28,8 +46,8 @@ pub enum PlayerCommand {
 
 #[derive(Debug)]
 pub enum PlayerEvent {
-    Playing(String),
-    LoadFailure(String),
+    Playing(SongStub),
+    LoadFailure(SongStub),
     Paused,
     Continuing,
     Stopped,
@@ -48,11 +66,11 @@ impl Player {
     }
 
     pub fn run(&mut self) {
-        let player_command_receiver = Arc::new(Mutex::new(self.player_command_receiver.clone()));
-        let player_event_sender = Arc::new(Mutex::new(self.player_event_sender.clone()));
         let is_paused = self.is_paused.clone();
         let host = cpal::default_host();
         let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
+        let player_event_sender = self.player_event_sender.clone();
+        let player_command_receiver = self.player_command_receiver.clone();
 
         thread::spawn(move || {
             let mut track_device = &available_devices[0];
@@ -65,42 +83,100 @@ impl Player {
             click_player.set_playback_speed(1.0);
 
             loop {
-                let player_command_receiver = player_command_receiver.lock().unwrap();
-                let player_event_sender = player_event_sender.lock().unwrap();
-
                 // See if any commands have been sent to the player
                 match player_command_receiver.try_recv() {
                     Ok(command) => match command {
-                        PlayerCommand::Play(file_name) => {
-                            info!("Player will load: {:?}", file_name);
+                        PlayerCommand::Play(stub) => {
+                            //info!("Player will load: {:?}", stub.file_name);4
+                            // 1. Check if the wav and click files exist. If not, decompress from the 7z file
+                            // 2. Load the wav and click files into the player
+                            // 3. Play the song
+                            let (track_path, click_path) = Self::get_file_paths(stub.folder.as_str(), stub.file_name.as_str());
+                            track_player.set_playing(false);
+                            click_player.set_playing(false);
 
-                            // todo: check if decompression is required and execute in a separate thread
-                            player_event_sender.send(PlayerEvent::Decompressing).unwrap();
-                            player_event_sender.send(PlayerEvent::Decompressed).unwrap();
+                            if !track_path.exists() {
+                                info!("Track file does not exist. Decompressing.");
+                                player_event_sender.send(PlayerEvent::Decompressing).unwrap();
+                                thread::sleep(std::time::Duration::from_millis(1000));
 
-                            match track_player.play_song_next(&Song::from_file(get_beep_file(), Some(0.5)).unwrap(), None) {
-                                Ok(_) => {
-                                    info!("Playing song: {:?}", file_name);
-                                    player_event_sender.send(PlayerEvent::Playing(file_name)).unwrap();
+                                match Self::decompress_files(stub.folder.as_str(), stub.file_name.as_str()) {
+                                    Ok(()) => {
+                                        info!("Decompression complete");
+                                        player_event_sender.send(PlayerEvent::Decompressed).unwrap();
+                                        thread::sleep(std::time::Duration::from_millis(1000));
+                                    }
+                                    Err(err) => {
+                                        info!("Decompression failed: {:?}", err);
+                                        player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
+                                        thread::sleep(std::time::Duration::from_millis(1000));
+                                        continue;
+                                    }
                                 }
-                                Err(err) => {
-                                    info!("Failed to play song: {:?}", err);
-                                    player_event_sender.send(PlayerEvent::LoadFailure(file_name)).unwrap();
+                            }
+
+                            let track_song = Song::from_file(track_path.clone(), None);
+                            let click_song = Song::from_file(click_path.clone(), None);
+
+                            if let Err(err) = track_song {
+                                error!("Failed to load song: {:?}", err);
+                                player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
+                                continue;
+                            }
+
+                            if let Err(err) = click_song {
+                                error!("Failed to load click: {:?}", err);
+                                player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
+                                continue;
+                            }
+
+                            let track_song = track_song.unwrap();
+                            let click_song = click_song.unwrap();
+
+                            track_player.stop();
+                            click_player.stop();
+
+                            let track_status = track_player.play_song_now(&track_song, None);
+                            let click_status = click_player.play_song_now(&click_song, None);
+
+                            match (track_status, click_status) {
+                                (Ok(_), Ok(_)) => {
+                                    // Both track and click songs were played successfully
+                                    track_player.set_playing(true);
+                                    click_player.set_playing(true);
+                                    player_event_sender.send(PlayerEvent::Playing(stub.clone())).unwrap();
+                                }
+                                (Err(track_err), _) => {
+                                    // Failed to play the track song
+                                    error!("Failed to play track song: {:?}", track_err);
+                                    player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
+                                    track_player.stop();
+                                    click_player.stop();
+                                    continue;
+                                }
+                                (_, Err(click_err)) => {
+                                    // Failed to play the click song
+                                    error!("Failed to play click song: {:?}", click_err);
+                                    player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
+                                    track_player.stop();
+                                    click_player.stop();
                                     continue;
                                 }
                             }
                         }
                         PlayerCommand::Pause => {
-                            let mut is_paused = is_paused.lock().unwrap();
+                            let is_playing = track_player.is_playing();
 
-                            if *is_paused {
+                            track_player.set_playing(!is_playing);
+                            click_player.set_playing(!is_playing);
+
+                            if !is_playing {
                                 info!("Player is continuing");
                                 player_event_sender.send(PlayerEvent::Continuing).unwrap();
                             } else {
                                 info!("Player is pausing");
                                 player_event_sender.send(PlayerEvent::Paused).unwrap();
                             }
-                            *is_paused = !*is_paused;
                         }
                         PlayerCommand::Stop => {
                             info!("Player will stop");
@@ -117,14 +193,50 @@ impl Player {
             }
         });
     }
-}
 
-fn get_beep_file() -> String {
-    let mut path = env::current_dir().expect("Failed to get current exe path");
+    fn get_beep_file() -> String {
+        let mut path = env::current_dir().expect("Failed to get current exe path");
 
-    // Append the relative path to your asset
-    path.push("assets");
-    path.push("beep.wav");
+        // Append the relative path to your asset
+        path.push("assets");
+        path.push("beep.wav");
 
-    path.display().to_string()
+        path.display().to_string()
+    }
+
+    // Helper that returns the full paths for the main and click files
+    // It does not check if they exist
+    fn get_file_paths(song_folder: &str, song_title: &str) -> (PathBuf, PathBuf) {
+        let mut track_path = PathBuf::new();
+        track_path.push(song_folder);
+        track_path.push(format!("{}.wav", song_title));
+
+        let mut click_path = PathBuf::new();
+        click_path.push(song_folder);
+        click_path.push(format!("{}_click.wav", song_title));
+
+        (track_path, click_path)
+    }
+
+    fn decompress_files(song_folder: &str, song_title: &str) -> Result<(), Box<dyn Error>> {
+        // if there's a 7z file with the same name, decompress it
+        //let archive_path = PathBuf::from(format!("{}/{}/{}.7z", music_folder, song.folder, song.file_name));
+        let mut archive_path = PathBuf::new();
+        archive_path.push(song_folder);
+        archive_path.push(format!("{}.7z", song_title));
+
+        let mut output_folder = PathBuf::new();
+        output_folder.push(song_folder);
+
+        match sevenz_rust::decompress_file(&archive_path, output_folder) {
+            Ok(_) => {
+                info!("Decompressed file: {:?}", archive_path);
+                Ok(())
+            }
+            Err(err) => {
+                error!("Failed to decompress file: {:?}", err);
+                Err(Box::new(err))
+            }
+        }
+    }
 }

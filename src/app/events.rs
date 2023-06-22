@@ -1,5 +1,5 @@
 use crossterm::event::KeyCode;
-use log::info;
+use log::{error, info};
 
 use crate::app::player::PlayerCommand;
 
@@ -15,6 +15,7 @@ impl UiEventTrait for App {
         // Handle UI events
         // This comes first since we want any interaction to
         // change state as a priority
+
         if let Ok(event) = self.ui_command_receiver.try_recv() {
             match event {
                 UiEvent::Input(input) => match input.code {
@@ -41,9 +42,8 @@ impl UiEventTrait for App {
                 PlayerEvent::Decompressed => {
                     info!("App received Decompressed signal");
                 }
-                PlayerEvent::Playing(file_name) => {
-                    info!("App received Playing signal: {}", file_name);
-                    self.player_command_sender.send(PlayerCommand::Pause).unwrap();
+                PlayerEvent::Playing(stub) => {
+                    info!("App received Playing signal: {}", stub.title);
                 }
                 PlayerEvent::Paused => {
                     info!("App received Paused signal");
@@ -60,10 +60,9 @@ impl UiEventTrait for App {
                     self.on_exit();
                     self.is_running = false;
                 }
-                PlayerEvent::LoadFailure(file_name) => {
-                    info!("App received LoadFailure: {}", file_name);
+                PlayerEvent::LoadFailure(stub) => {
+                    error!("App received LoadFailure: {}", stub.title);
                     // TODO: Remove song from list and queue
-                    self.player_command_sender.send(PlayerCommand::Play("test2.mp3".to_string())).unwrap();
                 }
             }
         }

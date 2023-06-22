@@ -35,9 +35,19 @@ impl UiSetupTrait for App {
         let tick_rate = Duration::from_millis(200);
         let ui_command_sender = Arc::new(Mutex::new(self.ui_command_sender.clone()));
 
+        // clear the event queue
+        let cleared = event::poll(Duration::from_millis(0));
+        match cleared {
+            Ok(true) => {
+                let _ = event::read();
+            }
+            _ => {}
+        }
+
         // create our transmit-receive loop
         thread::spawn(move || {
             let mut last_tick = Instant::now();
+
             loop {
                 let timeout = tick_rate.checked_sub(last_tick.elapsed()).unwrap_or_else(|| Duration::from_secs(0));
                 let ui_command_sender = ui_command_sender.lock().unwrap();

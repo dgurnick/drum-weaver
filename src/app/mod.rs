@@ -20,7 +20,6 @@ use crossterm::{
     ExecutableCommand,
 };
 
-use log::{error, info};
 use ratatui::{backend::CrosstermBackend, widgets::TableState, Terminal};
 
 use self::{

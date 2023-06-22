@@ -23,6 +23,8 @@ fn main() {
 }
 
 fn init_logging() {
+    // DELETE EXISTING LOGS
+    std::fs::remove_file("log/my.log").unwrap_or_default();
     if let Err(_err) = log4rs::init_file("logging_config.yml", Default::default()) {
         // Create the file appender
         let file_appender = RollingFileAppender::builder()
