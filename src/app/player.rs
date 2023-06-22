@@ -255,9 +255,11 @@ impl Player {
                                         // nope
                                     } else {
                                         track_player.seek(seek);
+                                        click_player.seek(seek);
                                     }
                                 } else {
                                     track_player.seek(Duration::from_micros(0));
+                                    click_player.seek(Duration::from_micros(0));
                                 }
                             }
                         }
@@ -269,8 +271,10 @@ impl Player {
                                 let new_position = position.checked_sub(Duration::from_secs(10));
                                 if let Some(seek) = new_position {
                                     track_player.seek(seek);
+                                    click_player.seek(seek);
                                 } else {
                                     track_player.seek(Duration::from_micros(0));
+                                    click_player.seek(Duration::from_micros(0));
                                 }
                             }
                         }
