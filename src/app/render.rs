@@ -28,6 +28,7 @@ impl UiRenderTrait for App {
         let menu_view = self.render_menu();
         let songs_view = self.render_songs();
         let queue_view = self.render_queue();
+        let footer_view = self.render_footer();
 
         self.terminal
             .draw(|frame| {
@@ -57,7 +58,9 @@ impl UiRenderTrait for App {
                     MenuItem::Help => {
                         //frame.render_widget(queue, chunks[1]);
                     }
-                }
+                } // end match
+
+                frame.render_widget(footer_view, chunks[2]);
             })
             .expect("Unable to draw UI");
     }
@@ -272,7 +275,15 @@ impl UiRenderTrait for App {
     }
 
     fn render_footer(&mut self) -> Paragraph<'static> {
-        Paragraph::new(format!("{} | {} | {}", "PAUSED STATUS", "DEVICE STATUS", "OTHER STATUS")).block(Block::default().borders(Borders::ALL))
+        let playback_position_text = match self.current_position {
+            Some((position, length)) => {
+                format!("{} / {}", position.as_secs(), length.as_secs())
+            }
+            None => "".to_string(),
+        };
+
+        let message = format!("{} | {} | {}", playback_position_text, self.player_status, "OTHER STATUS");
+        Paragraph::new(message).block(Block::default().borders(Borders::ALL))
     }
 
     //fn render_gauge(&mut self) -> LineGauge<'static> {

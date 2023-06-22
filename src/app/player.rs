@@ -3,7 +3,7 @@ use std::{
     error::Error,
     path::PathBuf,
     sync::{Arc, Mutex},
-    thread,
+    thread::{self, current},
     time::Duration,
 };
 
@@ -49,9 +49,9 @@ pub enum PlayerCommand {
 pub enum PlayerEvent {
     Playing(SongStub),
     LoadFailure(SongStub),
-    Position(Duration, Duration),
+    Position(Option<(Duration, Duration)>),
     Paused,
-    Continuing,
+    Continuing(Option<SongStub>),
     Stopped,
     Decompressing,
     Decompressed,
@@ -85,6 +85,8 @@ impl Player {
             let click_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
             track_player.set_playback_speed(1.0);
             click_player.set_playback_speed(1.0);
+
+            let mut current_stub: Option<SongStub> = None;
 
             loop {
                 // See if any commands have been sent to the player
@@ -125,12 +127,14 @@ impl Player {
                             if let Err(err) = track_song {
                                 error!("Failed to load song: {:?}", err);
                                 player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
+                                current_stub = None;
                                 continue;
                             }
 
                             if let Err(err) = click_song {
                                 error!("Failed to load click: {:?}", err);
                                 player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
+                                current_stub = None;
                                 continue;
                             }
 
@@ -148,6 +152,7 @@ impl Player {
                                     // Both track and click songs were played successfully
                                     track_player.set_playing(true);
                                     click_player.set_playing(true);
+                                    current_stub = Some(stub.clone());
 
                                     player_event_sender.send(PlayerEvent::Playing(stub.clone())).unwrap();
                                 }
@@ -157,6 +162,7 @@ impl Player {
                                     player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
                                     track_player.stop();
                                     click_player.stop();
+                                    current_stub = None;
                                     continue;
                                 }
                                 (_, Err(click_err)) => {
@@ -165,6 +171,7 @@ impl Player {
                                     player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
                                     track_player.stop();
                                     click_player.stop();
+                                    current_stub = None;
                                     continue;
                                 }
                             }
@@ -177,7 +184,7 @@ impl Player {
 
                             if !is_playing {
                                 info!("Player is continuing");
-                                player_event_sender.send(PlayerEvent::Continuing).unwrap();
+                                player_event_sender.send(PlayerEvent::Continuing(current_stub.clone())).unwrap();
                             } else {
                                 info!("Player is pausing");
                                 player_event_sender.send(PlayerEvent::Paused).unwrap();
@@ -197,7 +204,11 @@ impl Player {
                         }
                         PlayerCommand::GetPosition => {
                             if let Some((position, duration)) = track_player.get_playback_position() {
-                                player_event_sender.send(PlayerEvent::Position(position, duration)).unwrap();
+                                if track_player.is_playing() {
+                                    player_event_sender.send(PlayerEvent::Position(Some((position, duration)))).unwrap();
+                                } else {
+                                    player_event_sender.send(PlayerEvent::Position(None)).unwrap();
+                                }
                             }
                         }
                     },

@@ -41,18 +41,22 @@ impl UiEventTrait for App {
             match event {
                 PlayerEvent::Decompressing => {
                     info!("App received Decompressing signal");
+                    self.player_status = "Decompressing".to_string();
                 }
                 PlayerEvent::Decompressed => {
                     info!("App received Decompressed signal");
+                    self.player_status = "Decompressed".to_string();
                 }
                 PlayerEvent::Playing(stub) => {
                     info!("App received Playing signal: {}", stub.title);
+                    self.player_status = format!("Playing: {}", stub.title);
                 }
                 PlayerEvent::Paused => {
                     info!("App received Paused signal");
+                    self.player_status = "Paused".to_string();
                 }
-                PlayerEvent::Continuing => {
-                    info!("App received Continuing signal");
+                PlayerEvent::Continuing(stub) => {
+                    self.player_status = format!("Playing: {}", stub.unwrap().title);
                 }
                 PlayerEvent::Stopped => {
                     info!("App received Stopped signal");
@@ -66,8 +70,8 @@ impl UiEventTrait for App {
                     error!("App received LoadFailure: {}", stub.title);
                     // TODO: Remove song from list and queue
                 }
-                PlayerEvent::Position(position, length) => {
-                    println!("App received Position signal: {} / {}", position.as_secs(), length.as_secs());
+                PlayerEvent::Position(optional_position) => {
+                    self.current_position = optional_position;
                 }
             }
         }

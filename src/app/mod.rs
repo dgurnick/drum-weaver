@@ -11,7 +11,6 @@ use crate::app::setup::UiSetupTrait;
 
 use std::{
     io::{stdout, Stdout},
-    sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
@@ -60,6 +59,8 @@ pub struct App {
     pub queue_state: TableState,
     pub active_track: Option<Track>,
     pub is_exiting: bool,
+    pub current_position: Option<(Duration, Duration)>,
+    pub player_status: String,
 }
 
 pub enum UiEvent<I> {
@@ -116,6 +117,8 @@ impl App {
             queue: Vec::new(),
             active_track: None,
             is_exiting: false,
+            current_position: None,
+            player_status: String::from("Ready"),
         }
     }
 
