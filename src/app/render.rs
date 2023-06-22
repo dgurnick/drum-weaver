@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Cell, Row, Table, Tabs},
+    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, Tabs},
 };
 
 use super::{ActiveFocus, App, MenuItem};
@@ -15,6 +15,8 @@ pub trait UiRenderTrait {
     fn render_queue(&mut self) -> Table<'static>;
     fn render_status(&mut self);
     fn render_devices(&mut self) -> Table<'static>;
+    fn render_footer(&mut self) -> Paragraph<'static>;
+    //fn render_gauge(&mut self) -> LineGauge<'static>;
 }
 
 impl UiRenderTrait for App {
@@ -268,4 +270,22 @@ impl UiRenderTrait for App {
     fn render_devices(&mut self) -> Table<'static> {
         todo!()
     }
+
+    fn render_footer(&mut self) -> Paragraph<'static> {
+        Paragraph::new(format!("{} | {} | {}", "PAUSED STATUS", "DEVICE STATUS", "OTHER STATUS")).block(Block::default().borders(Borders::ALL))
+    }
+
+    //fn render_gauge(&mut self) -> LineGauge<'static> {
+    // let (position, song_length) = self.track_player.get_playback_position().unwrap_or((Duration::from_secs(0), Duration::from_secs(1)));
+
+    // // Calculate the progress ratio
+    // let progress_ratio = position.as_secs_f64() / song_length.as_secs_f64();
+
+    // let color = self.lerp_color(start_color, end_color, progress_ratio);
+
+    // LineGauge::default()
+    //     .gauge_style(Style::default().fg(color).bg(Color::White).add_modifier(Modifier::BOLD))
+    //     .line_set(symbols::line::THICK)
+    //     .ratio(progress_ratio)
+    //}
 }

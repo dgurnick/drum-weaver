@@ -9,7 +9,12 @@ pub mod setup;
 use crate::app::render::UiRenderTrait;
 use crate::app::setup::UiSetupTrait;
 
-use std::io::{stdout, Stdout};
+use std::{
+    io::{stdout, Stdout},
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use crossterm::{
@@ -115,7 +120,6 @@ impl App {
     }
 
     pub fn run(&mut self) {
-        self.setup_exit_handler();
         self.setup_ui_signal_loop();
         self.setup_library();
 
@@ -134,6 +138,14 @@ impl App {
                 0
             }
         };
+
+        let player_command_sender_clone = self.player_command_sender.clone();
+
+        // listen for position updates
+        thread::spawn(move || loop {
+            player_command_sender_clone.send(PlayerCommand::GetPosition).unwrap();
+            thread::sleep(Duration::from_millis(1000));
+        });
 
         while self.is_running {
             // Wait for the user to pick a folder

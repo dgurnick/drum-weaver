@@ -1,19 +1,19 @@
 use std::{
-    clone, env,
+    env,
     error::Error,
     path::PathBuf,
     sync::{Arc, Mutex},
     thread,
+    time::Duration,
 };
 
 use cpal::traits::HostTrait;
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender};
 use log::{error, info};
 
 use crate::app::audio::Song;
 
 use super::{audio::AudioPlayer, library::SongRecord};
-#[derive(Clone)]
 pub struct Player {
     player_command_receiver: Receiver<PlayerCommand>,
     player_event_sender: Sender<PlayerEvent>,
@@ -42,12 +42,14 @@ pub enum PlayerCommand {
     Pause,
     Stop,
     Quit,
+    GetPosition,
 }
 
 #[derive(Debug)]
 pub enum PlayerEvent {
     Playing(SongStub),
     LoadFailure(SongStub),
+    Position(Duration, Duration),
     Paused,
     Continuing,
     Stopped,
@@ -67,18 +69,20 @@ impl Player {
 
     pub fn run(&mut self) {
         let is_paused = self.is_paused.clone();
-        let host = cpal::default_host();
-        let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
+
         let player_event_sender = self.player_event_sender.clone();
         let player_command_receiver = self.player_command_receiver.clone();
 
         thread::spawn(move || {
-            let mut track_device = &available_devices[0];
-            let mut click_device = &available_devices[0];
+            let host = cpal::default_host();
+            let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
 
-            let mut track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
-            let mut click_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
+            // TODO: Devices from configuration
+            let track_device = &available_devices[0];
+            let click_device = &available_devices[0];
 
+            let track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
+            let click_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
             track_player.set_playback_speed(1.0);
             click_player.set_playback_speed(1.0);
 
@@ -144,6 +148,7 @@ impl Player {
                                     // Both track and click songs were played successfully
                                     track_player.set_playing(true);
                                     click_player.set_playing(true);
+
                                     player_event_sender.send(PlayerEvent::Playing(stub.clone())).unwrap();
                                 }
                                 (Err(track_err), _) => {
@@ -183,9 +188,17 @@ impl Player {
                             player_event_sender.send(PlayerEvent::Stopped).unwrap();
                         }
                         PlayerCommand::Quit => {
-                            info!("Player will quit. Exiting.");
+                            info!("Player received quit signal. Exiting.");
+                            track_player.stop();
+                            click_player.stop();
                             player_event_sender.send(PlayerEvent::Quit).unwrap();
+                            thread::sleep(std::time::Duration::from_millis(100)); // time for the exit to propagate
                             break;
+                        }
+                        PlayerCommand::GetPosition => {
+                            if let Some((position, duration)) = track_player.get_playback_position() {
+                                player_event_sender.send(PlayerEvent::Position(position, duration)).unwrap();
+                            }
                         }
                     },
                     Err(_err) => {}

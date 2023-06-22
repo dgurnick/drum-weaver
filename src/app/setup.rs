@@ -6,12 +6,11 @@ use std::{
 
 use crossterm::event::{self, Event as CrosstermEvent, KeyEventKind};
 
-use crate::app::{library::Library, player::PlayerCommand};
+use crate::app::{events::UiEventTrait, library::Library, player::PlayerCommand};
 
 use super::{App, UiEvent};
 
 pub trait UiSetupTrait {
-    fn setup_exit_handler(&mut self);
     fn setup_ui_signal_loop(&mut self);
     fn setup_library(&mut self);
     fn init_library(&mut self, path: String);
@@ -19,17 +18,6 @@ pub trait UiSetupTrait {
 
 impl UiSetupTrait for App {
     // We intercept ctrl+c and send a quit event to ensure clean shutdown
-    fn setup_exit_handler(&mut self) {
-        let player_command_sender = Arc::new(Mutex::new(self.player_command_sender.clone()));
-
-        ctrlc::set_handler(move || {
-            println!("BYE!");
-            let player_command_sender = player_command_sender.lock().unwrap();
-            player_command_sender.send(PlayerCommand::Quit).unwrap();
-        })
-        .expect("Error setting Ctrl+C handler");
-    }
-
     // We set up a thread to handle UI events
     fn setup_ui_signal_loop(&mut self) {
         let tick_rate = Duration::from_millis(200);

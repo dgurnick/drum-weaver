@@ -8,6 +8,7 @@ use super::{commands::UiCommandTrait, player::PlayerEvent, App, UiEvent};
 pub trait UiEventTrait {
     fn handle_ui_events(&mut self);
     fn handle_player_events(&mut self);
+    fn send_player_command(&mut self, command: PlayerCommand);
 }
 
 impl UiEventTrait for App {
@@ -16,18 +17,20 @@ impl UiEventTrait for App {
         // This comes first since we want any interaction to
         // change state as a priority
 
-        if let Ok(event) = self.ui_command_receiver.try_recv() {
-            match event {
-                UiEvent::Input(input) => match input.code {
-                    KeyCode::Char('q') => self.do_exit(),
-                    KeyCode::Char(' ') => self.do_pause(),
-                    KeyCode::Enter => self.do_playback(),
-                    KeyCode::Down => self.do_next(),
-                    KeyCode::Up => self.do_previous(),
-                    KeyCode::Tab => self.do_tab(),
-                    _ => {}
-                },
-                UiEvent::Tick => {}
+        if !self.is_exiting {
+            if let Ok(event) = self.ui_command_receiver.try_recv() {
+                match event {
+                    UiEvent::Input(input) => match input.code {
+                        KeyCode::Char('q') => self.do_exit(),
+                        KeyCode::Char(' ') => self.do_pause(),
+                        KeyCode::Enter => self.do_playback(),
+                        KeyCode::Down => self.do_next(),
+                        KeyCode::Up => self.do_previous(),
+                        KeyCode::Tab => self.do_tab(),
+                        _ => {}
+                    },
+                    UiEvent::Tick => {}
+                }
             }
         }
     }
@@ -56,7 +59,6 @@ impl UiEventTrait for App {
                 }
                 PlayerEvent::Quit => {
                     info!("App received Quit signal. Exiting.");
-                    self.do_exit();
                     self.on_exit();
                     self.is_running = false;
                 }
@@ -64,7 +66,16 @@ impl UiEventTrait for App {
                     error!("App received LoadFailure: {}", stub.title);
                     // TODO: Remove song from list and queue
                 }
+                PlayerEvent::Position(position, length) => {
+                    println!("App received Position signal: {} / {}", position.as_secs(), length.as_secs());
+                }
             }
         }
+    }
+
+    fn send_player_command(&mut self, command: PlayerCommand) {
+        info!("Sending player command: {:?}", command);
+        self.player_command_sender.send(command).unwrap();
+        info!("Sent player command");
     }
 }

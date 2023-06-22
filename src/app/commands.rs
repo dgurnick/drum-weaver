@@ -1,13 +1,15 @@
-use std::{io, thread, time::Duration};
+use std::io;
 
 use crossterm::{
     event::DisableMouseCapture,
     execute,
     terminal::{disable_raw_mode, LeaveAlternateScreen},
 };
+use log::info;
 use native_dialog::{MessageDialog, MessageType};
 
 use super::{
+    events::UiEventTrait,
     player::{PlayerCommand, SongStub},
     ActiveFocus, App,
 };
@@ -25,13 +27,13 @@ pub trait UiCommandTrait {
 impl UiCommandTrait for App {
     fn do_exit(&mut self) {
         self.is_exiting = true;
+        info!("Showing confirmation dialog");
         let dialog_result = MessageDialog::new().set_title("Confirm exit").set_text("Are you sure?").set_type(MessageType::Info).show_confirm();
 
         match dialog_result {
             Ok(true) => {
-                self.player_command_sender.send(PlayerCommand::Quit).unwrap();
-                thread::sleep(Duration::from_millis(500));
-                std::process::exit(0);
+                info!("User confirmed exit");
+                self.send_player_command(PlayerCommand::Quit);
             }
             _ => {
                 self.is_exiting = false;
@@ -40,7 +42,7 @@ impl UiCommandTrait for App {
     }
 
     fn do_pause(&mut self) {
-        self.player_command_sender.send(PlayerCommand::Pause).unwrap();
+        self.send_player_command(PlayerCommand::Pause);
     }
 
     fn do_playback(&mut self) {
@@ -50,7 +52,7 @@ impl UiCommandTrait for App {
                 let idx = self.library_state.selected().unwrap_or(0);
                 let song = self.get_songs()[idx].clone();
 
-                self.player_command_sender.send(PlayerCommand::Play(SongStub::from_song_record(&song))).unwrap();
+                self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
             }
         }
     }
@@ -58,6 +60,7 @@ impl UiCommandTrait for App {
     fn on_exit(&mut self) {
         disable_raw_mode().unwrap();
         execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+        std::process::exit(0);
     }
 
     fn do_next(&mut self) {
