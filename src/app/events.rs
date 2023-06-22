@@ -1,7 +1,7 @@
 use crossterm::event::KeyCode;
 use log::{error, info};
 
-use crate::app::player::PlayerCommand;
+use crate::app::{player::PlayerCommand, PlayerStatus};
 
 use super::{commands::UiCommandTrait, player::PlayerEvent, App, UiEvent};
 
@@ -27,9 +27,13 @@ impl UiEventTrait for App {
                         KeyCode::Down => self.do_next(),
                         KeyCode::Up => self.do_previous(),
                         KeyCode::Tab => self.do_tab(),
+                        KeyCode::Left => self.do_backward(),
+                        KeyCode::Right => self.do_forward(),
                         _ => {}
                     },
-                    UiEvent::Tick => {}
+                    UiEvent::Tick => {
+                        //self.do_autoplay();
+                    }
                 }
             }
         }
@@ -41,22 +45,22 @@ impl UiEventTrait for App {
             match event {
                 PlayerEvent::Decompressing => {
                     info!("App received Decompressing signal");
-                    self.player_status = "Decompressing".to_string();
+                    self.player_status = PlayerStatus::Decompressing;
                 }
                 PlayerEvent::Decompressed => {
                     info!("App received Decompressed signal");
-                    self.player_status = "Decompressed".to_string();
+                    self.player_status = PlayerStatus::Decompressed;
                 }
                 PlayerEvent::Playing(stub) => {
                     info!("App received Playing signal: {}", stub.title);
-                    self.player_status = format!("Playing: {}", stub.title);
+                    self.player_status = PlayerStatus::Playing(stub.title);
                 }
                 PlayerEvent::Paused => {
                     info!("App received Paused signal");
-                    self.player_status = "Paused".to_string();
+                    self.player_status = PlayerStatus::Paused;
                 }
                 PlayerEvent::Continuing(stub) => {
-                    self.player_status = format!("Playing: {}", stub.unwrap().title);
+                    self.player_status = PlayerStatus::Playing(stub.unwrap().title);
                 }
                 PlayerEvent::Stopped => {
                     info!("App received Stopped signal");
@@ -72,6 +76,10 @@ impl UiEventTrait for App {
                 }
                 PlayerEvent::Position(optional_position) => {
                     self.current_position = optional_position;
+                }
+                PlayerEvent::Ended => {
+                    self.player_status = PlayerStatus::Ended;
+                    self.do_autoplay();
                 }
             }
         }

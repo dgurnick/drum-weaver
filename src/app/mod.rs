@@ -38,6 +38,31 @@ pub enum ActiveFocus {
     Queue,
 }
 
+#[derive(PartialEq)]
+pub enum PlayerStatus {
+    Ready,
+    Playing(String),
+    Paused,
+    Stopped,
+    Decompressing,
+    Decompressed,
+    Ended,
+}
+
+impl PlayerStatus {
+    pub fn as_string(&self) -> String {
+        match self {
+            PlayerStatus::Ready => "Ready".to_string(),
+            PlayerStatus::Playing(s) => format!("Playing: {}", s),
+            PlayerStatus::Paused => "Paused".to_string(),
+            PlayerStatus::Stopped => "Stopped".to_string(),
+            PlayerStatus::Decompressing => "Decompressing".to_string(),
+            PlayerStatus::Decompressed => "Decompressed".to_string(),
+            PlayerStatus::Ended => "Ended".to_string(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Track {
     main_file: String,
@@ -60,7 +85,7 @@ pub struct App {
     pub active_track: Option<Track>,
     pub is_exiting: bool,
     pub current_position: Option<(Duration, Duration)>,
-    pub player_status: String,
+    pub player_status: PlayerStatus,
 }
 
 pub enum UiEvent<I> {
@@ -118,7 +143,7 @@ impl App {
             active_track: None,
             is_exiting: false,
             current_position: None,
-            player_status: String::from("Ready"),
+            player_status: PlayerStatus::Ready,
         }
     }
 

@@ -3,7 +3,7 @@ use std::{
     error::Error,
     path::PathBuf,
     sync::{Arc, Mutex},
-    thread::{self, current},
+    thread::{self},
     time::Duration,
 };
 
@@ -43,6 +43,8 @@ pub enum PlayerCommand {
     Stop,
     Quit,
     GetPosition,
+    Forward,
+    Backward,
 }
 
 #[derive(Debug)]
@@ -53,6 +55,7 @@ pub enum PlayerEvent {
     Paused,
     Continuing(Option<SongStub>),
     Stopped,
+    Ended,
     Decompressing,
     Decompressed,
     Quit,
@@ -87,6 +90,8 @@ impl Player {
             click_player.set_playback_speed(1.0);
 
             let mut current_stub: Option<SongStub> = None;
+
+            // run a thread that monitors the player and sends an Ended event to the UI thread when the song is complete. Used for autoplay
 
             loop {
                 // See if any commands have been sent to the player
@@ -154,6 +159,9 @@ impl Player {
                                     click_player.set_playing(true);
                                     current_stub = Some(stub.clone());
 
+                                    track_player.set_playback_speed(10.0);
+                                    click_player.set_playback_speed(10.0);
+
                                     player_event_sender.send(PlayerEvent::Playing(stub.clone())).unwrap();
                                 }
                                 (Err(track_err), _) => {
@@ -211,8 +219,49 @@ impl Player {
                                 }
                             }
                         }
+                        PlayerCommand::Forward => {
+                            if current_stub.is_none() {
+                                continue;
+                            }
+
+                            if let Some((position, duration)) = track_player.get_playback_position() {
+                                let new_position = position.checked_add(Duration::from_secs(10));
+                                if let Some(seek) = new_position {
+                                    if seek > duration {
+                                        // nope
+                                    } else {
+                                        track_player.seek(seek);
+                                    }
+                                } else {
+                                    track_player.seek(Duration::from_micros(0));
+                                }
+                            }
+                        }
+                        PlayerCommand::Backward => {
+                            if current_stub.is_none() {
+                                continue;
+                            }
+                            if let Some((position, _)) = track_player.get_playback_position() {
+                                let new_position = position.checked_sub(Duration::from_secs(10));
+                                if let Some(seek) = new_position {
+                                    track_player.seek(seek);
+                                } else {
+                                    track_player.seek(Duration::from_micros(0));
+                                }
+                            }
+                        }
                     },
                     Err(_err) => {}
+                }
+
+                // if we have a current_stub, but the player is not playing, then we need to send a stopped event
+                if let Some(_) = current_stub.clone() {
+                    if !track_player.has_current_song() {
+                        player_event_sender.send(PlayerEvent::Ended).unwrap();
+                        current_stub = None;
+                        track_player.stop();
+                        click_player.stop();
+                    }
                 }
             }
         });

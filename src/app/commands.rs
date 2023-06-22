@@ -11,7 +11,7 @@ use native_dialog::{MessageDialog, MessageType};
 use super::{
     events::UiEventTrait,
     player::{PlayerCommand, SongStub},
-    ActiveFocus, App,
+    ActiveFocus, App, PlayerStatus,
 };
 
 pub trait UiCommandTrait {
@@ -22,6 +22,9 @@ pub trait UiCommandTrait {
     fn do_next(&mut self);
     fn do_previous(&mut self);
     fn do_tab(&mut self);
+    fn do_autoplay(&mut self);
+    fn do_forward(&mut self);
+    fn do_backward(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -41,6 +44,12 @@ impl UiCommandTrait for App {
         }
     }
 
+    fn on_exit(&mut self) {
+        disable_raw_mode().unwrap();
+        execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+        std::process::exit(0);
+    }
+
     fn do_pause(&mut self) {
         self.send_player_command(PlayerCommand::Pause);
     }
@@ -55,12 +64,6 @@ impl UiCommandTrait for App {
                 self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
             }
         }
-    }
-
-    fn on_exit(&mut self) {
-        disable_raw_mode().unwrap();
-        execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
-        std::process::exit(0);
     }
 
     fn do_next(&mut self) {
@@ -97,5 +100,27 @@ impl UiCommandTrait for App {
         } else {
             self.active_focus = ActiveFocus::Library;
         }
+    }
+
+    fn do_autoplay(&mut self) {
+        if self.active_focus == ActiveFocus::Library {
+            let mut idx = self.library_state.selected().unwrap_or(0);
+            idx = idx + 1;
+            if idx > self.get_songs().len() - 1 {
+                idx = 0;
+            }
+            let song = self.get_songs()[idx].clone();
+            self.library_state.select(Some(idx));
+
+            self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
+        }
+    }
+
+    fn do_forward(&mut self) {
+        self.send_player_command(PlayerCommand::Forward);
+    }
+
+    fn do_backward(&mut self) {
+        self.send_player_command(PlayerCommand::Backward);
     }
 }

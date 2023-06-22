@@ -1,9 +1,12 @@
+use std::time::Duration;
+
 use log::info;
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
+    symbols,
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, Tabs},
+    widgets::{Block, BorderType, Borders, Cell, LineGauge, Paragraph, Row, Table, Tabs},
 };
 
 use super::{ActiveFocus, App, MenuItem};
@@ -16,7 +19,7 @@ pub trait UiRenderTrait {
     fn render_status(&mut self);
     fn render_devices(&mut self) -> Table<'static>;
     fn render_footer(&mut self) -> Paragraph<'static>;
-    //fn render_gauge(&mut self) -> LineGauge<'static>;
+    fn render_gauge(&mut self) -> LineGauge<'static>;
 }
 
 impl UiRenderTrait for App {
@@ -29,6 +32,7 @@ impl UiRenderTrait for App {
         let songs_view = self.render_songs();
         let queue_view = self.render_queue();
         let footer_view = self.render_footer();
+        let gauge_view = self.render_gauge();
 
         self.terminal
             .draw(|frame| {
@@ -61,6 +65,7 @@ impl UiRenderTrait for App {
                 } // end match
 
                 frame.render_widget(footer_view, chunks[2]);
+                frame.render_widget(gauge_view, chunks[3]);
             })
             .expect("Unable to draw UI");
     }
@@ -275,28 +280,40 @@ impl UiRenderTrait for App {
     }
 
     fn render_footer(&mut self) -> Paragraph<'static> {
-        let playback_position_text = match self.current_position {
-            Some((position, length)) => {
-                format!("{} / {}", position.as_secs(), length.as_secs())
-            }
-            None => "".to_string(),
-        };
-
-        let message = format!("{} | {} | {}", playback_position_text, self.player_status, "OTHER STATUS");
+        let message = format!("{} | {}", self.player_status.as_string(), "OTHER STATUS");
         Paragraph::new(message).block(Block::default().borders(Borders::ALL))
     }
 
-    //fn render_gauge(&mut self) -> LineGauge<'static> {
-    // let (position, song_length) = self.track_player.get_playback_position().unwrap_or((Duration::from_secs(0), Duration::from_secs(1)));
+    fn render_gauge(&mut self) -> LineGauge<'static> {
+        let start_color = (0, 255, 0);
+        let end_color = (255, 0, 0);
 
-    // // Calculate the progress ratio
-    // let progress_ratio = position.as_secs_f64() / song_length.as_secs_f64();
+        let (position, song_length) = self.current_position.unwrap_or((Duration::from_secs(0), Duration::from_secs(1)));
 
-    // let color = self.lerp_color(start_color, end_color, progress_ratio);
+        // Calculate the progress ratio
+        let progress_ratio = position.as_secs_f64() / song_length.as_secs_f64();
 
-    // LineGauge::default()
-    //     .gauge_style(Style::default().fg(color).bg(Color::White).add_modifier(Modifier::BOLD))
-    //     .line_set(symbols::line::THICK)
-    //     .ratio(progress_ratio)
-    //}
+        let color = lerp_color(start_color, end_color, progress_ratio);
+
+        LineGauge::default()
+            .gauge_style(Style::default().fg(color).bg(Color::White).add_modifier(Modifier::BOLD))
+            .line_set(symbols::line::THICK)
+            .ratio(progress_ratio)
+    }
+}
+
+// Function to perform linear interpolation (lerp) for colors
+fn lerp_color(start_color: (u8, u8, u8), end_color: (u8, u8, u8), t: f64) -> Color {
+    let (start_r, start_g, start_b) = start_color;
+    let (end_r, end_g, end_b) = end_color;
+
+    let r = lerp(start_r, end_r, t);
+    let g = lerp(start_g, end_g, t);
+    let b = lerp(start_b, end_b, t);
+
+    Color::Rgb(r, g, b)
+}
+
+fn lerp(start: u8, end: u8, t: f64) -> u8 {
+    (start as f64 + (end as f64 - start as f64) * t) as u8
 }
