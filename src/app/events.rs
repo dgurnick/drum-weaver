@@ -3,7 +3,7 @@ use log::{error, info};
 
 use crate::app::{player::PlayerCommand, PlayerStatus};
 
-use super::{commands::UiCommandTrait, player::PlayerEvent, App, UiEvent};
+use super::{commands::UiCommandTrait, player::PlayerEvent, App, MenuItem, UiEvent};
 
 pub trait UiEventTrait {
     fn handle_ui_events(&mut self);
@@ -26,6 +26,8 @@ impl UiEventTrait for App {
                         _ => {}
                     },
                     UiEvent::Input(input) => match input.code {
+                        KeyCode::Char('s') => self.active_menu_item = MenuItem::Songs,
+                        KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
                         KeyCode::Char('q') => self.do_exit(),
                         KeyCode::Char(' ') => self.do_pause(),
                         KeyCode::Enter => self.do_playback(),
