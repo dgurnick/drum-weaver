@@ -6,10 +6,10 @@ use ratatui::{
     style::{Color, Modifier, Style},
     symbols,
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Cell, LineGauge, Paragraph, Row, Table, Tabs},
+    widgets::{Block, BorderType, Borders, Cell, LineGauge, List, ListItem, Paragraph, Row, Table, Tabs},
 };
 
-use super::{ActiveFocus, App, MenuItem};
+use super::{devices::read_devices, ActiveFocus, App, MenuItem};
 
 pub trait UiRenderTrait {
     fn render_ui(&mut self);
@@ -29,8 +29,9 @@ impl UiRenderTrait for App {
         }
 
         let menu_view = self.render_menu();
-        let songs_view = self.render_songs();
-        let queue_view = self.render_queue();
+        let songs_view = if self.active_menu_item == MenuItem::Library { Some(self.render_songs()) } else { None };
+        let queue_view = if self.active_menu_item == MenuItem::Library { Some(self.render_songs()) } else { None };
+        let device_view = if self.active_menu_item == MenuItem::Devices { Some(self.render_devices()) } else { None };
         let footer_view = self.render_footer();
         let gauge_view = self.render_gauge();
 
@@ -46,20 +47,21 @@ impl UiRenderTrait for App {
                 frame.render_widget(menu_view, chunks[0]);
 
                 match self.active_menu_item {
-                    MenuItem::Songs => {
+                    MenuItem::Library => {
                         let songlist_chunks = Layout::default()
                             .direction(Direction::Horizontal)
                             .constraints([Constraint::Percentage(70), Constraint::Percentage(30)].as_ref())
                             .split(chunks[1]);
 
-                        frame.render_stateful_widget(songs_view, songlist_chunks[0], &mut self.library_state);
+                        frame.render_stateful_widget(songs_view.unwrap(), songlist_chunks[0], &mut self.library_state);
 
-                        frame.render_stateful_widget(queue_view, songlist_chunks[1], &mut self.queue_state);
+                        frame.render_stateful_widget(queue_view.unwrap(), songlist_chunks[1], &mut self.queue_state);
                     }
                     MenuItem::Devices => {
-                        //frame.render_widget(queue, chunks[1]);
+                        frame.render_stateful_widget(device_view.unwrap(), chunks[1], &mut self.device_state);
                     }
                     MenuItem::Help => {
+
                         //frame.render_widget(queue, chunks[1]);
                     }
                 } // end match
@@ -276,7 +278,36 @@ impl UiRenderTrait for App {
     }
 
     fn render_devices(&mut self) -> Table<'static> {
-        todo!()
+        let device_ui = Block::default()
+            .borders(Borders::ALL)
+            .style(Style::default().fg(Color::White))
+            .title("Devices")
+            .border_type(BorderType::Plain);
+
+        let mut rows = vec![];
+        let mut idx = 0;
+        for device in read_devices() {
+            let is_track = if self.track_device_idx == idx { "Yes" } else { "" };
+            let is_click = if self.click_device_idx == idx { "Yes" } else { "" };
+
+            let row = Row::new(vec![Cell::from(is_track), Cell::from(is_click), Cell::from(device.name.clone())]);
+            rows.push(row);
+            idx += 1;
+        }
+
+        let highlight_style = Style::default().bg(Color::Yellow).fg(Color::Black).add_modifier(Modifier::BOLD);
+
+        let device_table = Table::new(rows)
+            .block(device_ui)
+            .highlight_style(highlight_style)
+            .header(Row::new(vec![
+                Cell::from(Span::styled("Track?", Style::default().add_modifier(Modifier::BOLD))),
+                Cell::from(Span::styled("Click?", Style::default().add_modifier(Modifier::BOLD))),
+                Cell::from(Span::styled("Device", Style::default().add_modifier(Modifier::BOLD))),
+            ]))
+            .widths(&[Constraint::Length(10), Constraint::Length(10), Constraint::Percentage(45)]);
+
+        device_table
     }
 
     fn render_footer(&mut self) -> Paragraph<'static> {

@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod commands;
+pub mod devices;
 pub mod events;
 pub mod library;
 pub mod player;
@@ -24,7 +25,11 @@ use crossterm::{
     ExecutableCommand,
 };
 
-use ratatui::{backend::CrosstermBackend, widgets::TableState, Terminal};
+use ratatui::{
+    backend::CrosstermBackend,
+    widgets::{ListState, TableState},
+    Terminal,
+};
 
 use self::{
     events::UiEventTrait,
@@ -82,10 +87,13 @@ pub struct App {
     pub active_focus: ActiveFocus,
     pub library_state: TableState,
     pub queue_state: TableState,
+    pub device_state: TableState,
     pub active_track: Option<Track>,
     pub is_exiting: bool,
     pub current_position: Option<(Duration, Duration)>,
     pub player_status: PlayerStatus,
+    pub track_device_idx: usize,
+    pub click_device_idx: usize,
 }
 
 pub enum UiEvent<I> {
@@ -93,9 +101,9 @@ pub enum UiEvent<I> {
     Tick,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MenuItem {
-    Songs,
+    Library,
     Devices,
     Help,
 }
@@ -103,7 +111,7 @@ pub enum MenuItem {
 impl From<MenuItem> for usize {
     fn from(input: MenuItem) -> usize {
         match input {
-            MenuItem::Songs => 1,
+            MenuItem::Library => 1,
             MenuItem::Devices => 2,
             MenuItem::Help => 3,
         }
@@ -135,15 +143,18 @@ impl App {
             terminal,
             is_running: true,
             library: None,
-            active_menu_item: MenuItem::Songs,
+            active_menu_item: MenuItem::Library,
             active_focus: ActiveFocus::Library,
             library_state: TableState::default(),
             queue_state: TableState::default(),
+            device_state: TableState::default(),
             queue: Vec::new(),
             active_track: None,
             is_exiting: false,
             current_position: None,
             player_status: PlayerStatus::Ready,
+            track_device_idx: 0,
+            click_device_idx: 0,
         }
     }
 
@@ -163,6 +174,14 @@ impl App {
             Some(index) => index,
             None => {
                 self.library_state.select(Some(0));
+                0
+            }
+        };
+
+        match self.device_state.selected() {
+            Some(index) => index,
+            None => {
+                self.device_state.select(Some(0));
                 0
             }
         };

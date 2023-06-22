@@ -25,8 +25,10 @@ impl UiEventTrait for App {
                         KeyCode::Right => self.do_speedup(),
                         _ => {}
                     },
-                    UiEvent::Input(input) => match input.code {
-                        KeyCode::Char('s') => self.active_menu_item = MenuItem::Songs,
+
+                    // Commands for the library/queue
+                    UiEvent::Input(event) if self.active_menu_item == MenuItem::Library => match event.code {
+                        KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
                         KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
                         KeyCode::Char('q') => self.do_exit(),
                         KeyCode::Char(' ') => self.do_pause(),
@@ -38,9 +40,24 @@ impl UiEventTrait for App {
                         KeyCode::Right => self.do_forward(),
                         _ => {}
                     },
+
+                    // Commands for the device view
+                    UiEvent::Input(event) if self.active_menu_item == MenuItem::Devices => match event.code {
+                        KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
+                        KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
+                        KeyCode::Char('q') => self.do_exit(),
+                        KeyCode::Char(' ') => self.do_pause(),
+                        KeyCode::Down => self.do_next_device(),
+                        KeyCode::Up => self.do_previous_device(),
+                        KeyCode::Char('t') => self.do_track_device(),
+                        KeyCode::Char('c') => self.do_click_device(),
+                        _ => {}
+                    },
+
                     UiEvent::Tick => {
                         //self.do_autoplay();
                     }
+                    _ => {}
                 }
             }
         }

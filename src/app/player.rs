@@ -12,6 +12,7 @@ use crossbeam_channel::{Receiver, Sender};
 use log::{error, info};
 
 use crate::app::audio::Song;
+use cpal::traits::DeviceTrait;
 
 use super::{audio::AudioPlayer, library::SongRecord};
 pub struct Player {
@@ -47,6 +48,8 @@ pub enum PlayerCommand {
     Backward,
     SpeedUp,
     SlowDown,
+    SetTrackDevice(String),
+    SetClickDevice(String),
 }
 
 #[derive(Debug)]
@@ -73,8 +76,6 @@ impl Player {
     }
 
     pub fn run(&mut self) {
-        let is_paused = self.is_paused.clone();
-
         let player_event_sender = self.player_event_sender.clone();
         let player_command_receiver = self.player_command_receiver.clone();
 
@@ -83,11 +84,11 @@ impl Player {
             let available_devices = host.output_devices().unwrap().collect::<Vec<_>>();
 
             // TODO: Devices from configuration
-            let track_device = &available_devices[0];
-            let click_device = &available_devices[0];
+            let mut track_device = &available_devices[0];
+            let mut click_device = &available_devices[0];
 
-            let track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
-            let click_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
+            let mut track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
+            let mut click_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
             track_player.set_playback_speed(1.0);
             click_player.set_playback_speed(1.0);
 
@@ -270,6 +271,24 @@ impl Player {
                             info!("Player is slowing down");
                             track_player.set_playback_speed(new_speed);
                             click_player.set_playback_speed(new_speed);
+                        }
+                        PlayerCommand::SetTrackDevice(device_name) => {
+                            track_player.stop();
+                            click_player.stop();
+
+                            track_device = &available_devices.iter().find(|d| d.name().ok() == Some(device_name.clone())).unwrap();
+
+                            track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
+                            track_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
+                        }
+                        PlayerCommand::SetClickDevice(device_name) => {
+                            track_player.stop();
+                            click_player.stop();
+
+                            click_device = &available_devices.iter().find(|d| d.name().ok() == Some(device_name.clone())).unwrap();
+
+                            click_player = AudioPlayer::new(None, click_device).expect("Could not create track player");
+                            click_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
                         }
                     },
                     Err(_err) => {}

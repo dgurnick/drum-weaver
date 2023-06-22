@@ -6,7 +6,7 @@ use std::{
 
 use crossterm::event::{self, Event as CrosstermEvent, KeyEventKind};
 
-use crate::app::{events::UiEventTrait, library::Library, player::PlayerCommand};
+use crate::app::library::Library;
 
 use super::{App, UiEvent};
 

@@ -9,9 +9,10 @@ use log::info;
 use native_dialog::{MessageDialog, MessageType};
 
 use super::{
+    devices::read_devices,
     events::UiEventTrait,
     player::{PlayerCommand, SongStub},
-    ActiveFocus, App, PlayerStatus,
+    ActiveFocus, App,
 };
 
 pub trait UiCommandTrait {
@@ -27,6 +28,10 @@ pub trait UiCommandTrait {
     fn do_backward(&mut self);
     fn do_speedup(&mut self);
     fn do_slowdown(&mut self);
+    fn do_next_device(&mut self);
+    fn do_previous_device(&mut self);
+    fn do_track_device(&mut self);
+    fn do_click_device(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -134,5 +139,36 @@ impl UiCommandTrait for App {
     fn do_slowdown(&mut self) {
         info!("Slowing down");
         self.send_player_command(PlayerCommand::SlowDown);
+    }
+
+    fn do_next_device(&mut self) {
+        let mut idx = self.device_state.selected().unwrap_or(0);
+        let devices = read_devices();
+        idx += 1;
+        if idx > devices.len() - 1 {
+            idx = devices.len() - 1;
+        }
+        self.device_state.select(Some(idx));
+    }
+
+    fn do_previous_device(&mut self) {
+        let mut idx = self.device_state.selected().unwrap_or(0);
+        if idx == 0 {
+            return;
+        }
+        idx -= 1;
+        self.device_state.select(Some(idx));
+    }
+
+    fn do_track_device(&mut self) {
+        self.track_device_idx = self.device_state.selected().unwrap_or(0);
+        let device_name = read_devices()[self.track_device_idx].clone().name;
+        self.send_player_command(PlayerCommand::SetTrackDevice(device_name));
+    }
+
+    fn do_click_device(&mut self) {
+        self.click_device_idx = self.device_state.selected().unwrap_or(0);
+        let device_name = read_devices()[self.click_device_idx].clone().name;
+        self.send_player_command(PlayerCommand::SetClickDevice(device_name));
     }
 }
