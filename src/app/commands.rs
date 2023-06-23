@@ -20,8 +20,8 @@ pub trait UiCommandTrait {
     fn on_exit(&mut self);
     fn do_pause(&mut self);
     fn do_playback(&mut self);
-    fn do_next(&mut self);
-    fn do_previous(&mut self);
+    fn do_select_next(&mut self);
+    fn do_select_previous(&mut self);
     fn do_tab(&mut self);
     fn do_autoplay(&mut self);
     fn do_forward(&mut self);
@@ -36,6 +36,7 @@ pub trait UiCommandTrait {
     fn do_decrease_volume(&mut self, device_type: DeviceType);
     fn do_reset_volume(&mut self, device_type: DeviceType);
     fn do_shuffle_library(&mut self);
+    fn do_play_next(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -87,7 +88,7 @@ impl UiCommandTrait for App {
         }
     }
 
-    fn do_next(&mut self) {
+    fn do_select_next(&mut self) {
         match self.active_focus {
             ActiveFocus::Queue => {}
             ActiveFocus::Library => {
@@ -101,7 +102,7 @@ impl UiCommandTrait for App {
         }
     }
 
-    fn do_previous(&mut self) {
+    fn do_select_previous(&mut self) {
         match self.active_focus {
             ActiveFocus::Queue => {}
             ActiveFocus::Library => {
@@ -238,5 +239,24 @@ impl UiCommandTrait for App {
 
     fn do_shuffle_library(&mut self) {
         self.library.as_mut().unwrap().shuffle();
+    }
+
+    fn do_play_next(&mut self) {
+        match self.active_focus {
+            ActiveFocus::Queue => {}
+            ActiveFocus::Library => {
+                let mut idx = self.library_state.selected().unwrap_or(0);
+                idx = idx + 1;
+                if idx > self.library.as_ref().unwrap().get_songs().len() - 1 {
+                    idx = 0;
+                }
+
+                self.library_state.select(Some(idx));
+
+                let song = self.library.as_ref().unwrap().get_songs()[idx].clone();
+
+                self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
+            }
+        }
     }
 }

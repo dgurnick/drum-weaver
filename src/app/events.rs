@@ -43,10 +43,11 @@ impl UiEventTrait for App {
                         KeyCode::Char('5') => self.do_reset_volume(DeviceType::Click),
                         KeyCode::Char('6') => self.do_increase_volume(DeviceType::Click),
                         KeyCode::Char(' ') => self.do_pause(),
+                        KeyCode::Char('n') => self.do_play_next(),
                         KeyCode::Char('x') => self.do_shuffle_library(),
                         KeyCode::Enter => self.do_playback(),
-                        KeyCode::Down => self.do_next(),
-                        KeyCode::Up => self.do_previous(),
+                        KeyCode::Down => self.do_select_next(),
+                        KeyCode::Up => self.do_select_previous(),
                         KeyCode::Tab => self.do_tab(),
                         KeyCode::Left => self.do_backward(),
                         KeyCode::Right => self.do_forward(),
@@ -88,8 +89,10 @@ impl UiEventTrait for App {
                     self.player_status = PlayerStatus::Decompressed;
                 }
                 PlayerEvent::Playing(stub) => {
+                    let stub_clone = stub.clone();
                     info!("App received Playing signal: {}", stub.title);
                     self.player_status = PlayerStatus::Playing(stub.title);
+                    self.active_stub = Some(stub_clone);
                 }
                 PlayerEvent::Paused => {
                     info!("App received Paused signal");

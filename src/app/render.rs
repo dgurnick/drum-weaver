@@ -5,11 +5,11 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     symbols,
-    text::{Line, Span},
+    text::{Line, Span, Spans},
     widgets::{Block, BorderType, Borders, Cell, LineGauge, Paragraph, Row, Table, Tabs},
 };
 
-use super::{devices::read_devices, ActiveFocus, App, MenuItem};
+use super::{devices::read_devices, player::PlaybackStatus, status_bar::CustomGauge, ActiveFocus, App, MenuItem, PlayerStatus};
 
 pub trait UiRenderTrait {
     fn render_ui(&mut self);
@@ -33,16 +33,34 @@ impl UiRenderTrait for App {
         let queue_view = if self.active_menu_item == MenuItem::Library { Some(self.render_queue()) } else { None };
         let device_view = if self.active_menu_item == MenuItem::Devices { Some(self.render_devices()) } else { None };
         let footer_view = self.render_footer();
-        let gauge_view = self.render_gauge();
+        //let gauge_view = self.render_gauge();
+
+        let gauge_view = match &self.playback_status {
+            Some(status) => {
+                if status.track_position.is_some() && status.track_duration.is_some() {
+                    let gauge_view = CustomGauge::new(
+                        status.track_position.unwrap().as_secs() as f64,
+                        status.track_duration.unwrap().as_secs() as f64,
+                        Style::default().fg(Color::White).bg(Color::Black).add_modifier(Modifier::BOLD),
+                    );
+
+                    Some(gauge_view)
+                } else {
+                    None
+                }
+            }
+            None => None,
+        };
 
         self.terminal
             .draw(|frame| {
+                let constraints = match self.player_status {
+                    PlayerStatus::Playing(_) => [Constraint::Length(3), Constraint::Min(3), Constraint::Length(3), Constraint::Length(1)].as_ref(),
+                    _ => [Constraint::Length(3), Constraint::Min(3), Constraint::Length(3)].as_ref(),
+                };
+
                 let size = frame.size();
-                let chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .margin(2)
-                    .constraints([Constraint::Length(3), Constraint::Min(3), Constraint::Length(3), Constraint::Length(1)].as_ref())
-                    .split(size);
+                let chunks = Layout::default().direction(Direction::Vertical).margin(2).constraints(constraints).split(size);
 
                 frame.render_widget(menu_view, chunks[0]);
 
@@ -67,7 +85,14 @@ impl UiRenderTrait for App {
                 } // end match
 
                 frame.render_widget(footer_view, chunks[2]);
-                frame.render_widget(gauge_view, chunks[3]);
+                match self.player_status {
+                    PlayerStatus::Playing(_) => {
+                        if let Some(gauge_view) = gauge_view {
+                            frame.render_widget(gauge_view, chunks[3]);
+                        }
+                    }
+                    _ => {}
+                }
             })
             .expect("Unable to draw UI");
     }
@@ -309,9 +334,36 @@ impl UiRenderTrait for App {
     }
 
     fn render_footer(&mut self) -> Paragraph<'static> {
-        let other_status = format!("Track: {} | Click: {}", self.track_volume, self.click_volume);
-        let message = format!("{} | {}", self.player_status.as_string(), other_status);
-        Paragraph::new(message).block(Block::default().borders(Borders::ALL))
+        let mut status = vec![];
+        status.push(Span::styled(self.player_status.as_string().clone(), Style::default().fg(Color::LightBlue)));
+
+        match self.player_status {
+            PlayerStatus::Playing(_) => {
+                let stub = self.active_stub.as_ref().unwrap();
+                status.push(Span::raw(": "));
+                status.push(Span::styled(stub.title.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
+                status.push(Span::raw(" by "));
+                status.push(Span::styled(stub.artist.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
+            }
+            PlayerStatus::Paused => {
+                let stub = self.active_stub.as_ref().unwrap();
+                status.push(Span::raw(": "));
+                status.push(Span::styled(stub.title.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
+                status.push(Span::raw(" by "));
+                status.push(Span::styled(stub.artist.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
+            }
+            _ => {}
+        }
+
+        status.push(Span::raw(" | "));
+        status.push(Span::styled("Track Volume: ", Style::default().fg(Color::LightBlue)));
+        status.push(Span::raw(self.track_volume.to_string()));
+        status.push(Span::styled(" Click Volume: ", Style::default().fg(Color::LightBlue)));
+        status.push(Span::raw(self.click_volume.to_string()));
+
+        let spans = Line::from(status);
+
+        Paragraph::new(spans).block(Block::default().borders(Borders::ALL))
     }
 
     fn render_gauge(&mut self) -> LineGauge<'static> {

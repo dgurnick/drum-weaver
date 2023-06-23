@@ -31,6 +31,7 @@ pub enum DeviceType {
 pub struct SongStub {
     pub file_name: String,
     pub title: String,
+    pub artist: String,
     pub folder: String,
 }
 
@@ -47,6 +48,7 @@ impl SongStub {
             file_name: song_record.file_name.clone(),
             title: song_record.title.clone(),
             folder: song_record.folder.clone(),
+            artist: song_record.artist.clone(),
         }
     }
 }

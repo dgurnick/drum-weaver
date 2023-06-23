@@ -6,7 +6,7 @@ pub mod library;
 pub mod player;
 pub mod render;
 pub mod setup;
-
+pub mod status_bar;
 use crate::app::render::UiRenderTrait;
 use crate::app::setup::UiSetupTrait;
 
@@ -33,7 +33,7 @@ use self::{
     devices::read_devices,
     events::UiEventTrait,
     library::{Library, SongRecord},
-    player::{DeviceType, PlaybackStatus, PlayerCommand, PlayerEvent},
+    player::{DeviceType, PlaybackStatus, PlayerCommand, PlayerEvent, SongStub},
 };
 
 #[derive(PartialEq)]
@@ -58,7 +58,7 @@ impl PlayerStatus {
     pub fn as_string(&self) -> String {
         match self {
             PlayerStatus::Ready => "Ready".to_string(),
-            PlayerStatus::Playing(s) => format!("Playing: {}", s),
+            PlayerStatus::Playing(s) => "Playing".to_string(),
             PlayerStatus::Paused => "Paused".to_string(),
             PlayerStatus::Stopped => "Stopped".to_string(),
             PlayerStatus::Decompressing => "Decompressing".to_string(),
@@ -113,6 +113,7 @@ pub struct App {
     pub click_device_idx: usize,
     pub track_volume: usize,
     pub click_volume: usize,
+    pub active_stub: Option<SongStub>,
 }
 
 pub enum UiEvent<I> {
@@ -197,6 +198,7 @@ impl App {
             click_device_idx: click_device_idx,
             track_volume: 100,
             click_volume: 100,
+            active_stub: None,
         }
     }
 
