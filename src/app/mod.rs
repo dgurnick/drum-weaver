@@ -85,7 +85,7 @@ impl Display for AppConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Track {
     main_file: String,
     click_file: String,

@@ -28,21 +28,20 @@ impl Widget for CustomGauge {
         let gauge_width = ((area.width as f64) * (self.value / self.max_value)) as u16;
 
         for x in area.left()..gauge_width {
-            // Unicode solid block character
             buf.get_mut(x, area.top()).set_symbol("█").set_style(style);
+            buf.get_mut(x, area.top() + 1).set_symbol("█").set_style(style);
         }
 
-        //let pos_x = (area.width / 2) as u16;
-        let pos_x = area.left() + 1;
-        let pos_y = area.top();
+        // let pos_x = (area.width / 2) as u16;
+        // let pos_y = area.top();
 
-        // Format the percentage to a string
-        let percentage = (self.value / self.max_value * 100.0).ceil() as i32;
+        // // Format the percentage to a string
+        // let percentage = (self.value / self.max_value * 100.0).ceil() as i32;
 
-        let percentage_str = format!("{:.0}%", percentage);
+        // let percentage_str = format!("{:.0}%", percentage);
 
-        // Write the percentage to the buffer
-        buf.set_string(pos_x, pos_y, &percentage_str, style.bg(color.into()).fg(Color::Black));
+        // // Write the percentage to the buffer
+        // buf.set_string(pos_x, pos_y, &percentage_str, style.bg(color.into()).fg(Color::Black));
     }
 }
 

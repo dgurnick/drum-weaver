@@ -55,7 +55,7 @@ impl UiRenderTrait for App {
         self.terminal
             .draw(|frame| {
                 let constraints = match self.player_status {
-                    PlayerStatus::Playing(_) => [Constraint::Length(3), Constraint::Min(3), Constraint::Length(3), Constraint::Length(1)].as_ref(),
+                    PlayerStatus::Playing(_) => [Constraint::Length(3), Constraint::Min(3), Constraint::Length(3), Constraint::Length(2)].as_ref(),
                     _ => [Constraint::Length(3), Constraint::Min(3), Constraint::Length(3)].as_ref(),
                 };
 
@@ -137,8 +137,9 @@ impl UiRenderTrait for App {
         let mut rows = vec![];
         for song in self.library.as_ref().unwrap().get_songs() {
             let mut is_selected = false;
-            if let Some(active_track) = &self.active_track {
-                if active_track.main_file.contains(&song.title) {
+            if let Some(active_stub) = &self.active_stub {
+                info!("active_track: {:?}", active_stub);
+                if active_stub.file_name == song.file_name {
                     is_selected = true;
                 }
             }

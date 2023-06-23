@@ -45,6 +45,8 @@ impl UiEventTrait for App {
                         KeyCode::Char(' ') => self.do_pause(),
                         KeyCode::Char('n') => self.do_play_next(),
                         KeyCode::Char('x') => self.do_shuffle_library(),
+                        KeyCode::Delete => self.do_delete_queue(),
+                        KeyCode::Insert => self.do_insert_queue(),
                         KeyCode::Enter => self.do_playback(),
                         KeyCode::Down => self.do_select_next(),
                         KeyCode::Up => self.do_select_previous(),

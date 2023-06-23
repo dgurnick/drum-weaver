@@ -12,7 +12,7 @@ use super::{
     devices::read_devices,
     events::UiEventTrait,
     player::{DeviceType, PlayerCommand, SongStub},
-    ActiveFocus, App, AppConfig,
+    ActiveFocus, App, AppConfig, MenuItem,
 };
 
 pub trait UiCommandTrait {
@@ -37,6 +37,8 @@ pub trait UiCommandTrait {
     fn do_reset_volume(&mut self, device_type: DeviceType);
     fn do_shuffle_library(&mut self);
     fn do_play_next(&mut self);
+    fn do_delete_queue(&mut self);
+    fn do_insert_queue(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -78,7 +80,12 @@ impl UiCommandTrait for App {
 
     fn do_playback(&mut self) {
         match self.active_focus {
-            ActiveFocus::Queue => {}
+            ActiveFocus::Queue => {
+                let idx = self.queue_state.selected().unwrap_or(0);
+                let song = self.queue[idx].clone();
+
+                self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
+            }
             ActiveFocus::Library => {
                 let idx = self.library_state.selected().unwrap_or(0);
                 let song = self.library.as_ref().unwrap().get_songs()[idx].clone();
@@ -90,7 +97,14 @@ impl UiCommandTrait for App {
 
     fn do_select_next(&mut self) {
         match self.active_focus {
-            ActiveFocus::Queue => {}
+            ActiveFocus::Queue => {
+                let mut idx = self.queue_state.selected().unwrap_or(0);
+                idx += 1;
+                if idx > self.queue.len() - 1 {
+                    idx = 0;
+                }
+                self.queue_state.select(Some(idx));
+            }
             ActiveFocus::Library => {
                 let mut idx = self.library_state.selected().unwrap_or(0);
                 idx += 1;
@@ -104,7 +118,14 @@ impl UiCommandTrait for App {
 
     fn do_select_previous(&mut self) {
         match self.active_focus {
-            ActiveFocus::Queue => {}
+            ActiveFocus::Queue => {
+                let mut idx = self.queue_state.selected().unwrap_or(0) as i32;
+                idx -= 1;
+                if idx < 0 {
+                    idx = (self.queue.len() - 1) as i32;
+                }
+                self.queue_state.select(Some(idx as usize));
+            }
             ActiveFocus::Library => {
                 let mut idx = self.library_state.selected().unwrap_or(0) as i32;
                 idx -= 1;
@@ -242,6 +263,7 @@ impl UiCommandTrait for App {
     }
 
     fn do_play_next(&mut self) {
+        // TODO: this should be the next in the queue if there is one
         match self.active_focus {
             ActiveFocus::Queue => {}
             ActiveFocus::Library => {
@@ -256,6 +278,44 @@ impl UiCommandTrait for App {
                 let song = self.library.as_ref().unwrap().get_songs()[idx].clone();
 
                 self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
+            }
+        }
+    }
+
+    fn do_delete_queue(&mut self) {
+        if self.active_menu_item != MenuItem::Library {
+            return;
+        }
+
+        if self.queue.is_empty() {
+            return;
+        }
+
+        match self.active_focus {
+            ActiveFocus::Queue => {
+                let idx = self.queue_state.selected().unwrap_or(0);
+                self.queue.remove(idx);
+                self.queue_state.select(Some(idx));
+            }
+            ActiveFocus::Library => {}
+        }
+    }
+
+    fn do_insert_queue(&mut self) {
+        if self.active_menu_item != MenuItem::Library {
+            return;
+        }
+        match self.active_focus {
+            ActiveFocus::Queue => {}
+            ActiveFocus::Library => {
+                let idx = self.library_state.selected().unwrap_or(0);
+                let song = self.library.as_ref().unwrap().get_songs()[idx].clone();
+
+                if self.queue.contains(&song) {
+                    return;
+                }
+
+                self.queue.push(song);
             }
         }
     }
