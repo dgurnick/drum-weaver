@@ -104,7 +104,7 @@ impl Player {
 
             loop {
                 // See if any commands have been sent to the player
-                match player_command_receiver.try_recv() {
+                match player_command_receiver.recv() {
                     Ok(command) => match command {
                         PlayerCommand::Play(stub) => {
                             //info!("Player will load: {:?}", stub.file_name);4
