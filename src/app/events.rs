@@ -54,6 +54,10 @@ impl UiEventTrait for App {
                         KeyCode::Tab => self.do_tab(),
                         KeyCode::Left => self.do_backward(),
                         KeyCode::Right => self.do_forward(),
+                        KeyCode::Home => self.do_goto_first(),
+                        KeyCode::End => self.do_goto_last(),
+                        KeyCode::PageDown => self.do_page_down(),
+                        KeyCode::PageUp => self.do_page_up(),
                         _ => {}
                     },
 

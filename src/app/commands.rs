@@ -40,6 +40,10 @@ pub trait UiCommandTrait {
     fn do_delete_queue(&mut self);
     fn do_insert_queue(&mut self);
     fn do_empty_queue(&mut self);
+    fn do_goto_first(&mut self);
+    fn do_goto_last(&mut self);
+    fn do_page_down(&mut self);
+    fn do_page_up(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -331,6 +335,80 @@ impl UiCommandTrait for App {
 
     fn do_empty_queue(&mut self) {
         self.queue.clear();
-        self.send_player_command(PlayerCommand::Stop);
+    }
+
+    fn do_goto_first(&mut self) {
+        if self.active_menu_item != MenuItem::Library {
+            return;
+        }
+
+        match self.active_focus {
+            ActiveFocus::Queue => {
+                self.queue_state.select(Some(0));
+            }
+            ActiveFocus::Library => {
+                self.library_state.select(Some(0));
+            }
+        }
+    }
+
+    fn do_goto_last(&mut self) {
+        if self.active_menu_item != MenuItem::Library {
+            return;
+        }
+
+        match self.active_focus {
+            ActiveFocus::Queue => {
+                self.queue_state.select(Some(self.queue.len() - 1));
+            }
+            ActiveFocus::Library => {
+                self.library_state.select(Some(self.library.as_ref().unwrap().get_songs().len() - 1));
+            }
+        }
+    }
+
+    fn do_page_down(&mut self) {
+        if self.active_menu_item != MenuItem::Library {
+            return;
+        }
+
+        match self.active_focus {
+            ActiveFocus::Queue => {
+                let mut idx = self.queue_state.selected().unwrap_or(0);
+                idx += 10;
+                if idx > self.queue.len() - 1 {
+                    idx = self.queue.len() - 1;
+                }
+                self.queue_state.select(Some(idx));
+            }
+            ActiveFocus::Library => {
+                let library_length = self.library.as_ref().unwrap().get_songs().len();
+                let mut idx = self.library_state.selected().unwrap_or(0);
+                idx += 10;
+                if idx > library_length - 1 {
+                    idx = library_length - 1;
+                }
+                self.library_state.select(Some(idx));
+            }
+        }
+    }
+
+    fn do_page_up(&mut self) {
+        if self.active_menu_item != MenuItem::Library {
+            return;
+        }
+
+        match self.active_focus {
+            ActiveFocus::Queue => {
+                let mut idx = self.queue_state.selected().unwrap_or(0);
+                idx = idx.saturating_sub(10);
+                self.queue_state.select(Some(idx));
+            }
+            ActiveFocus::Library => {
+                let mut idx = self.library_state.selected().unwrap_or(0);
+                idx = idx.saturating_sub(10);
+                self.library_state.select(Some(idx));
+            }
+        }
     }
 }

@@ -113,7 +113,7 @@ impl UiRenderTrait for App {
 
         Tabs::new(menu)
             .select(self.active_menu_item.clone().into())
-            .block(Block::default().title("Menu").borders(Borders::ALL))
+            .block(Block::default().title("Menu").borders(Borders::ALL).border_type(BorderType::Rounded))
             .style(Style::default().fg(Color::LightBlue))
             //.highlight_style(Style::default().fg(Color::Yellow))
             .divider(Span::raw("|"))
@@ -123,15 +123,15 @@ impl UiRenderTrait for App {
         let songlist_ui = if self.active_focus == ActiveFocus::Library {
             Block::default()
                 .borders(Borders::ALL)
-                .style(Style::default().fg(Color::White))
+                .border_type(BorderType::Rounded)
+                .style(Style::default().fg(Color::Yellow))
                 .title(format!("Songs ({})", self.library.as_ref().unwrap().get_songs().len()))
-                .border_type(BorderType::Thick)
         } else {
             Block::default()
                 .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
                 .style(Style::default().fg(Color::Rgb(60, 60, 60)))
                 .title(format!("Songs ({})", self.library.as_ref().unwrap().get_songs().len()))
-                .border_type(BorderType::Plain)
         };
 
         let mut rows = vec![];
@@ -233,15 +233,15 @@ impl UiRenderTrait for App {
         let queue_ui = if self.active_focus == ActiveFocus::Queue {
             Block::default()
                 .borders(Borders::ALL)
-                .style(Style::default().fg(Color::White))
+                .border_type(BorderType::Rounded)
+                .style(Style::default().fg(Color::Yellow))
                 .title(format!("Queue ({})", self.queue.len()))
-                .border_type(BorderType::Thick)
         } else {
             Block::default()
                 .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
                 .style(Style::default().fg(Color::Rgb(60, 60, 60)))
                 .title(format!("Queue ({})", self.queue.len()))
-                .border_type(BorderType::Plain)
         };
 
         let mut rows = vec![];
@@ -364,7 +364,7 @@ impl UiRenderTrait for App {
 
         let spans = Line::from(status);
 
-        Paragraph::new(spans).block(Block::default().borders(Borders::ALL))
+        Paragraph::new(spans).block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded))
     }
 
     fn render_gauge(&mut self) -> LineGauge<'static> {
