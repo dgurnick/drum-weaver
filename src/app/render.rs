@@ -247,8 +247,8 @@ impl UiRenderTrait for App {
         let mut rows = vec![];
         for song in self.queue.clone() {
             let mut is_selected = false;
-            if let Some(active_track) = self.active_track.clone() {
-                if active_track.main_file.contains(&song.file_name) {
+            if let Some(stub) = self.active_stub.clone() {
+                if stub.file_name == song.file_name {
                     is_selected = true;
                 }
             }

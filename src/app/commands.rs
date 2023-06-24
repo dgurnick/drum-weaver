@@ -39,6 +39,7 @@ pub trait UiCommandTrait {
     fn do_play_next(&mut self);
     fn do_delete_queue(&mut self);
     fn do_insert_queue(&mut self);
+    fn do_empty_queue(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -263,22 +264,30 @@ impl UiCommandTrait for App {
     }
 
     fn do_play_next(&mut self) {
-        // TODO: this should be the next in the queue if there is one
-        match self.active_focus {
-            ActiveFocus::Queue => {}
-            ActiveFocus::Library => {
-                let mut idx = self.library_state.selected().unwrap_or(0);
-                idx = idx + 1;
-                if idx > self.library.as_ref().unwrap().get_songs().len() - 1 {
-                    idx = 0;
-                }
-
-                self.library_state.select(Some(idx));
-
-                let song = self.library.as_ref().unwrap().get_songs()[idx].clone();
-
-                self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
+        if !self.queue.is_empty() {
+            let mut idx = self.queue_state.selected().unwrap_or(0);
+            idx = idx + 1;
+            if idx > self.queue.len() - 1 {
+                idx = 0;
             }
+
+            self.queue_state.select(Some(idx));
+
+            let song = self.queue[idx].clone();
+
+            self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
+        } else {
+            let mut idx = self.library_state.selected().unwrap_or(0);
+            idx = idx + 1;
+            if idx > self.library.as_ref().unwrap().get_songs().len() - 1 {
+                idx = 0;
+            }
+
+            self.library_state.select(Some(idx));
+
+            let song = self.library.as_ref().unwrap().get_songs()[idx].clone();
+
+            self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
         }
     }
 
@@ -318,5 +327,10 @@ impl UiCommandTrait for App {
                 self.queue.push(song);
             }
         }
+    }
+
+    fn do_empty_queue(&mut self) {
+        self.queue.clear();
+        self.send_player_command(PlayerCommand::Stop);
     }
 }

@@ -217,6 +217,8 @@ impl Player {
                         }
                         PlayerCommand::Stop => {
                             info!("Player will stop");
+                            track_player.stop();
+                            click_player.stop();
                             player_event_sender.send(PlayerEvent::Stopped).unwrap();
                         }
                         PlayerCommand::Quit => {
