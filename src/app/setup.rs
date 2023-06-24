@@ -25,11 +25,8 @@ impl UiSetupTrait for App {
 
         // clear the event queue
         let cleared = event::poll(Duration::from_millis(0));
-        match cleared {
-            Ok(true) => {
-                let _ = event::read();
-            }
-            _ => {}
+        if let Ok(true) = cleared {
+            let _ = event::read();
         }
 
         // create our transmit-receive loop

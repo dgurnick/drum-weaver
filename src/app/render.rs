@@ -5,11 +5,11 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     symbols,
-    text::{Line, Span, Spans},
+    text::{Line, Span},
     widgets::{Block, BorderType, Borders, Cell, LineGauge, Paragraph, Row, Table, Tabs},
 };
 
-use super::{devices::read_devices, player::PlaybackStatus, status_bar::CustomGauge, ActiveFocus, App, MenuItem, PlayerStatus};
+use super::{devices::read_devices, status_bar::CustomGauge, ActiveFocus, App, MenuItem, PlayerStatus};
 
 pub trait UiRenderTrait {
     fn render_ui(&mut self);
@@ -20,6 +20,7 @@ pub trait UiRenderTrait {
     fn render_devices(&mut self) -> Table<'static>;
     fn render_footer(&mut self) -> Paragraph<'static>;
     fn render_gauge(&mut self) -> LineGauge<'static>;
+    fn render_search(&mut self) -> Paragraph<'static>;
 }
 
 impl UiRenderTrait for App {
@@ -29,6 +30,7 @@ impl UiRenderTrait for App {
         }
 
         let menu_view = self.render_menu();
+        let search_view = self.render_search();
         let songs_view = if self.active_menu_item == MenuItem::Library { Some(self.render_songs()) } else { None };
         let queue_view = if self.active_menu_item == MenuItem::Library { Some(self.render_queue()) } else { None };
         let device_view = if self.active_menu_item == MenuItem::Devices { Some(self.render_devices()) } else { None };
@@ -62,7 +64,11 @@ impl UiRenderTrait for App {
                 let size = frame.size();
                 let chunks = Layout::default().direction(Direction::Vertical).margin(2).constraints(constraints).split(size);
 
-                frame.render_widget(menu_view, chunks[0]);
+                if self.is_searching {
+                    frame.render_widget(search_view, chunks[0]);
+                } else {
+                    frame.render_widget(menu_view, chunks[0]);
+                }
 
                 match self.active_menu_item {
                     MenuItem::Library => {
@@ -85,13 +91,10 @@ impl UiRenderTrait for App {
                 } // end match
 
                 frame.render_widget(footer_view, chunks[2]);
-                match self.player_status {
-                    PlayerStatus::Playing(_) => {
-                        if let Some(gauge_view) = gauge_view {
-                            frame.render_widget(gauge_view, chunks[3]);
-                        }
+                if let PlayerStatus::Playing(_) = self.player_status {
+                    if let Some(gauge_view) = gauge_view {
+                        frame.render_widget(gauge_view, chunks[3]);
                     }
-                    _ => {}
                 }
             })
             .expect("Unable to draw UI");
@@ -112,7 +115,7 @@ impl UiRenderTrait for App {
             .collect();
 
         Tabs::new(menu)
-            .select(self.active_menu_item.clone().into())
+            .select(self.active_menu_item.into())
             .block(Block::default().title("Menu").borders(Borders::ALL).border_type(BorderType::Rounded))
             .style(Style::default().fg(Color::LightBlue))
             //.highlight_style(Style::default().fg(Color::Yellow))
@@ -309,14 +312,12 @@ impl UiRenderTrait for App {
             .border_type(BorderType::Plain);
 
         let mut rows = vec![];
-        let mut idx = 0;
-        for device in read_devices() {
+        for (idx, device) in read_devices().into_iter().enumerate() {
             let is_track = if self.track_device_idx == idx { "Yes" } else { "" };
             let is_click = if self.click_device_idx == idx { "Yes" } else { "" };
 
             let row = Row::new(vec![Cell::from(is_track), Cell::from(is_click), Cell::from(device.name.clone())]);
             rows.push(row);
-            idx += 1;
         }
 
         let highlight_style = Style::default().bg(Color::Yellow).fg(Color::Black).add_modifier(Modifier::BOLD);
@@ -335,23 +336,26 @@ impl UiRenderTrait for App {
     }
 
     fn render_footer(&mut self) -> Paragraph<'static> {
-        let mut status = vec![];
-        status.push(Span::styled(self.player_status.as_string().clone(), Style::default().fg(Color::LightBlue)));
+        let mut status = vec![Span::styled(self.player_status.as_string(), Style::default().fg(Color::LightBlue))];
 
         match self.player_status {
             PlayerStatus::Playing(_) => {
-                let stub = self.active_stub.as_ref().unwrap();
-                status.push(Span::raw(": "));
-                status.push(Span::styled(stub.title.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
-                status.push(Span::raw(" by "));
-                status.push(Span::styled(stub.artist.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
+                if self.active_stub.is_some() {
+                    let stub = self.active_stub.as_ref().unwrap();
+                    status.push(Span::raw(": "));
+                    status.push(Span::styled(stub.title.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
+                    status.push(Span::raw(" by "));
+                    status.push(Span::styled(stub.artist.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
+                }
             }
             PlayerStatus::Paused => {
-                let stub = self.active_stub.as_ref().unwrap();
-                status.push(Span::raw(": "));
-                status.push(Span::styled(stub.title.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
-                status.push(Span::raw(" by "));
-                status.push(Span::styled(stub.artist.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
+                if self.active_stub.is_some() {
+                    let stub = self.active_stub.as_ref().unwrap();
+                    status.push(Span::raw(": "));
+                    status.push(Span::styled(stub.title.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
+                    status.push(Span::raw(" by "));
+                    status.push(Span::styled(stub.artist.clone(), Style::default().add_modifier(Modifier::UNDERLINED)));
+                }
             }
             _ => {}
         }
@@ -398,6 +402,13 @@ impl UiRenderTrait for App {
         } else {
             gauge
         }
+    }
+
+    fn render_search(&mut self) -> Paragraph<'static> {
+        let items = vec![Span::styled("Search: ", Style::default().fg(Color::LightBlue)), Span::raw(self.search_query.clone())];
+
+        let spans = Line::from(items);
+        Paragraph::new(spans).block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded))
     }
 }
 

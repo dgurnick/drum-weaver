@@ -34,10 +34,3 @@ pub fn read_devices() -> Vec<DeviceDetail> {
 
     devices.clone()
 }
-
-pub fn dump_devices() {
-    println!("Available devices:");
-    for device in read_devices().iter() {
-        println!("Position: {} | Description: {}", device.position, device.name);
-    }
-}

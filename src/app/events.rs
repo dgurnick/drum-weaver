@@ -24,9 +24,31 @@ impl UiEventTrait for App {
         if !self.is_exiting {
             if let Ok(event) = self.ui_command_receiver.try_recv() {
                 match event {
-                    UiEvent::Input(event) if event.modifiers.contains(KeyModifiers::SHIFT) => match event.code {
+                    UiEvent::Input(event) if event.modifiers.contains(KeyModifiers::SHIFT) && !self.is_searching => match event.code {
                         KeyCode::Left => self.do_slowdown(),
                         KeyCode::Right => self.do_speedup(),
+                        _ => {}
+                    },
+
+                    // Commands for searching
+                    UiEvent::Input(event) if self.active_menu_item == MenuItem::Library && self.is_searching => match event.code {
+                        KeyCode::Char(char) => {
+                            self.search_query.push(char);
+                            self.do_search();
+                        }
+                        KeyCode::Backspace => {
+                            self.search_query.pop();
+                            self.do_search();
+                        }
+                        KeyCode::Esc => {
+                            self.is_searching = false;
+                            self.search_query.clear();
+                            self.do_cancel_search();
+                        }
+                        KeyCode::Enter => {
+                            self.is_searching = false;
+                            self.do_complete_search();
+                        }
                         _ => {}
                     },
 
@@ -46,6 +68,7 @@ impl UiEventTrait for App {
                         KeyCode::Char('n') => self.do_play_next(),
                         KeyCode::Char('x') => self.do_shuffle_library(),
                         KeyCode::Char('/') => self.do_empty_queue(),
+                        KeyCode::Char('g') => self.do_start_search(),
                         KeyCode::Delete => self.do_delete_queue(),
                         KeyCode::Insert => self.do_insert_queue(),
                         KeyCode::Enter => self.do_playback(),
@@ -108,9 +131,6 @@ impl UiEventTrait for App {
                 PlayerEvent::Continuing(stub) => {
                     self.player_status = PlayerStatus::Playing(stub.unwrap().title);
                 }
-                PlayerEvent::Stopped => {
-                    info!("App received Stopped signal");
-                }
                 PlayerEvent::Quit => {
                     info!("App received Quit signal. Exiting.");
                     self.on_exit();
@@ -118,6 +138,7 @@ impl UiEventTrait for App {
                 }
                 PlayerEvent::LoadFailure(stub) => {
                     error!("App received LoadFailure: {}", stub.title);
+                    self.library.as_mut().unwrap().remove_song_by_stub(stub.clone());
                     self.player_status = PlayerStatus::Error(stub.title);
                 }
                 PlayerEvent::Status(status) => {

@@ -23,6 +23,7 @@ pub struct SongRecord {
 pub struct Library {
     pub path: String, // the root path of the library (i.e. ...\Drumless)
     songs: Vec<SongRecord>,
+    original_songs: Vec<SongRecord>,
 }
 
 lazy_static! {
@@ -31,7 +32,11 @@ lazy_static! {
 
 impl Library {
     pub fn new(path: String) -> Self {
-        Library { path, songs: Vec::new() }
+        Library {
+            path,
+            songs: Vec::new(),
+            original_songs: Vec::new(),
+        }
     }
 
     // Reload the library from the embedded CSV file
@@ -50,6 +55,8 @@ impl Library {
             self.songs.push(song);
         }
 
+        self.original_songs = self.songs.clone();
+
         info!("Loaded {} songs from CSV", self.songs.len());
     }
 
@@ -67,5 +74,17 @@ impl Library {
         use rand::seq::SliceRandom;
         let mut rng = rand::thread_rng();
         self.songs.shuffle(&mut rng);
+    }
+
+    pub fn search(&mut self, query: &str) {
+        self.songs = self.original_songs.clone();
+
+        self.songs.retain(|song| {
+            song.title.to_lowercase().contains(&query.to_lowercase()) || song.artist.to_lowercase().contains(&query.to_lowercase()) || song.genre.to_lowercase().contains(&query.to_lowercase())
+        });
+    }
+
+    pub fn reset(&mut self) {
+        self.songs = self.original_songs.clone();
     }
 }

@@ -47,7 +47,6 @@ pub enum PlayerStatus {
     Ready,
     Playing(String),
     Paused,
-    Stopped,
     Decompressing,
     Decompressed,
     Ended,
@@ -58,9 +57,8 @@ impl PlayerStatus {
     pub fn as_string(&self) -> String {
         match self {
             PlayerStatus::Ready => "Ready".to_string(),
-            PlayerStatus::Playing(s) => "Playing".to_string(),
+            PlayerStatus::Playing(_) => "Playing".to_string(),
             PlayerStatus::Paused => "Paused".to_string(),
-            PlayerStatus::Stopped => "Stopped".to_string(),
             PlayerStatus::Decompressing => "Decompressing".to_string(),
             PlayerStatus::Decompressed => "Decompressed".to_string(),
             PlayerStatus::Ended => "Ended".to_string(),
@@ -85,12 +83,6 @@ impl Display for AppConfig {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Track {
-    main_file: String,
-    click_file: String,
-}
-
 pub struct App {
     pub player_command_sender: Sender<PlayerCommand>,
     pub player_event_receiver: Receiver<PlayerEvent>,
@@ -105,7 +97,6 @@ pub struct App {
     pub library_state: TableState,
     pub queue_state: TableState,
     pub device_state: TableState,
-    pub active_track: Option<Track>,
     pub is_exiting: bool,
     pub playback_status: Option<PlaybackStatus>,
     pub player_status: PlayerStatus,
@@ -114,6 +105,8 @@ pub struct App {
     pub track_volume: usize,
     pub click_volume: usize,
     pub active_stub: Option<SongStub>,
+    pub is_searching: bool,
+    pub search_query: String,
 }
 
 pub enum UiEvent<I> {
@@ -190,15 +183,16 @@ impl App {
             queue_state: TableState::default(),
             device_state: TableState::default(),
             queue: config.queue,
-            active_track: None,
             is_exiting: false,
             playback_status: None,
             player_status: PlayerStatus::Ready,
-            track_device_idx: track_device_idx,
-            click_device_idx: click_device_idx,
+            track_device_idx,
+            click_device_idx,
             track_volume: 100,
             click_volume: 100,
             active_stub: None,
+            is_searching: false,
+            search_query: String::new(),
         }
     }
 

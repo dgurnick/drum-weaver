@@ -1,9 +1,7 @@
-use log::info;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::Widget;
-use rodio::source::PeriodicAccess;
 
 pub struct CustomGauge {
     value: f64,
@@ -22,7 +20,7 @@ impl Widget for CustomGauge {
         let start_color = (0, 255, 0);
         let end_color = (255, 0, 0);
         let color = lerp_color(start_color, end_color, self.value / self.max_value);
-        let mut style = self.style.clone();
+        let mut style = self.style;
         style.fg = color.into();
 
         let gauge_width = ((area.width as f64) * (self.value / self.max_value)) as u16;

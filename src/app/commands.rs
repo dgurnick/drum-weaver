@@ -44,6 +44,10 @@ pub trait UiCommandTrait {
     fn do_goto_last(&mut self);
     fn do_page_down(&mut self);
     fn do_page_up(&mut self);
+    fn do_start_search(&mut self);
+    fn do_search(&mut self);
+    fn do_complete_search(&mut self);
+    fn do_cancel_search(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -72,7 +76,7 @@ impl UiCommandTrait for App {
             click_device_name: Some(click_device_name),
             queue: self.queue.clone(),
         };
-        confy::store("drum-weaver", None, config.clone()).expect("Unable to save configuration");
+        confy::store("drum-weaver", None, config).expect("Unable to save configuration");
 
         disable_raw_mode().unwrap();
         execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
@@ -151,17 +155,7 @@ impl UiCommandTrait for App {
     }
 
     fn do_autoplay(&mut self) {
-        if self.active_focus == ActiveFocus::Library {
-            let mut idx = self.library_state.selected().unwrap_or(0);
-            idx = idx + 1;
-            if idx > self.library.as_ref().unwrap().get_songs().len() - 1 {
-                idx = 0;
-            }
-            let song = self.library.as_ref().unwrap().get_songs()[idx].clone();
-            self.library_state.select(Some(idx));
-
-            self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
-        }
+        self.do_play_next()
     }
 
     fn do_forward(&mut self) {
@@ -264,13 +258,25 @@ impl UiCommandTrait for App {
     }
 
     fn do_shuffle_library(&mut self) {
-        self.library.as_mut().unwrap().shuffle();
+        if self.active_menu_item != MenuItem::Library {
+            return;
+        }
+        match self.active_focus {
+            ActiveFocus::Library => {
+                self.library.as_mut().unwrap().shuffle();
+            }
+            ActiveFocus::Queue => {
+                use rand::seq::SliceRandom;
+                let mut rng = rand::thread_rng();
+                self.queue.shuffle(&mut rng);
+            }
+        }
     }
 
     fn do_play_next(&mut self) {
         if !self.queue.is_empty() {
             let mut idx = self.queue_state.selected().unwrap_or(0);
-            idx = idx + 1;
+            idx += 1;
             if idx > self.queue.len() - 1 {
                 idx = 0;
             }
@@ -280,9 +286,13 @@ impl UiCommandTrait for App {
             let song = self.queue[idx].clone();
 
             self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
+
+            // select it in the library
+            let idx = self.library.as_ref().unwrap().get_songs().iter().position(|s| s.file_name == song.file_name).unwrap();
+            self.library_state.select(Some(idx));
         } else {
             let mut idx = self.library_state.selected().unwrap_or(0);
-            idx = idx + 1;
+            idx += 1;
             if idx > self.library.as_ref().unwrap().get_songs().len() - 1 {
                 idx = 0;
             }
@@ -410,5 +420,35 @@ impl UiCommandTrait for App {
                 self.library_state.select(Some(idx));
             }
         }
+    }
+
+    fn do_start_search(&mut self) {
+        if self.active_menu_item != MenuItem::Library {
+            return;
+        }
+
+        self.is_searching = true;
+    }
+
+    fn do_search(&mut self) {
+        info!("Searching for {}", self.search_query);
+        self.library.as_mut().unwrap().search(self.search_query.as_str());
+    }
+
+    fn do_complete_search(&mut self) {
+        self.is_searching = false;
+        for song in self.library.as_mut().unwrap().get_songs() {
+            if !self.queue.contains(song) {
+                self.queue.push(song.clone());
+            }
+        }
+        self.search_query.clear();
+        self.do_cancel_search();
+    }
+
+    fn do_cancel_search(&mut self) {
+        self.is_searching = false;
+        self.search_query.clear();
+        self.library.as_mut().unwrap().reset();
     }
 }

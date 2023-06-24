@@ -2,7 +2,6 @@ use std::{
     env,
     error::Error,
     path::PathBuf,
-    sync::{Arc, Mutex},
     thread::{self},
     time::Duration,
 };
@@ -18,7 +17,6 @@ use super::{audio::AudioPlayer, library::SongRecord};
 pub struct Player {
     player_command_receiver: Receiver<PlayerCommand>,
     player_event_sender: Sender<PlayerEvent>,
-    is_paused: Arc<Mutex<bool>>,
 }
 
 #[derive(PartialEq, Debug)]
@@ -56,7 +54,6 @@ impl SongStub {
 pub enum PlayerCommand {
     Play(SongStub),
     Pause,
-    Stop,
     Quit,
     GetStatus,
     Forward,
@@ -76,7 +73,6 @@ pub enum PlayerEvent {
     Status(PlaybackStatus),
     Paused,
     Continuing(Option<SongStub>),
-    Stopped,
     Ended,
     Decompressing,
     Decompressed,
@@ -88,7 +84,6 @@ impl Player {
         Player {
             player_command_receiver,
             player_event_sender,
-            is_paused: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -215,12 +210,6 @@ impl Player {
                                 player_event_sender.send(PlayerEvent::Paused).unwrap();
                             }
                         }
-                        PlayerCommand::Stop => {
-                            info!("Player will stop");
-                            track_player.stop();
-                            click_player.stop();
-                            player_event_sender.send(PlayerEvent::Stopped).unwrap();
-                        }
                         PlayerCommand::Quit => {
                             info!("Player received quit signal. Exiting.");
                             track_player.stop();
@@ -342,13 +331,11 @@ impl Player {
                 }
 
                 // if we have a current_stub, but the player is not playing, then we need to send a stopped event
-                if let Some(_) = current_stub.clone() {
-                    if !track_player.has_current_song() {
-                        player_event_sender.send(PlayerEvent::Ended).unwrap();
-                        current_stub = None;
-                        track_player.stop();
-                        click_player.stop();
-                    }
+                if current_stub.clone().is_some() && !track_player.has_current_song() {
+                    player_event_sender.send(PlayerEvent::Ended).unwrap();
+                    current_stub = None;
+                    track_player.stop();
+                    click_player.stop();
                 }
             }
         });
