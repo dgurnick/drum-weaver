@@ -276,7 +276,10 @@ impl UiCommandTrait for App {
     fn do_play_next(&mut self) {
         if !self.queue.is_empty() {
             let mut idx = self.queue_state.selected().unwrap_or(0);
-            idx += 1;
+            if self.active_stub.is_some() {
+                idx += 1; // when we first start, we should play the first song. ;)
+            }
+
             if idx > self.queue.len() - 1 {
                 idx = 0;
             }
@@ -292,7 +295,10 @@ impl UiCommandTrait for App {
             self.library_state.select(Some(idx));
         } else {
             let mut idx = self.library_state.selected().unwrap_or(0);
-            idx += 1;
+            if self.active_stub.is_some() {
+                idx += 1; // when we first start, we should play the first song. ;)
+            }
+
             if idx > self.library.as_ref().unwrap().get_songs().len() - 1 {
                 idx = 0;
             }
