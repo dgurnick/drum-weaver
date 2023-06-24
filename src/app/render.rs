@@ -138,7 +138,7 @@ impl UiRenderTrait for App {
         };
 
         let mut rows = vec![];
-        for song in self.library.as_ref().unwrap().get_songs() {
+        for song in self.library.as_mut().unwrap().get_songs() {
             let mut is_selected = false;
             if let Some(active_stub) = &self.active_stub {
                 info!("active_track: {:?}", active_stub);
