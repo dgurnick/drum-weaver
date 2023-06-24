@@ -442,13 +442,11 @@ impl UiCommandTrait for App {
                 self.queue.push(song.clone());
             }
         }
-        self.search_query.clear();
         self.do_cancel_search();
     }
 
     fn do_cancel_search(&mut self) {
         self.is_searching = false;
-        self.search_query.clear();
         self.library.as_mut().unwrap().reset();
     }
 }

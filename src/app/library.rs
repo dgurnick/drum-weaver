@@ -79,9 +79,21 @@ impl Library {
     pub fn search(&mut self, query: &str) {
         self.songs = self.original_songs.clone();
 
+        let terms: Vec<&str> = query.split('!').collect();
+
+        let include_term = terms[0].trim().to_lowercase();
+        let exclude_terms: Vec<String> = terms[1..].iter().map(|term| term.trim().to_lowercase()).collect();
+
         self.songs.retain(|song| {
-            song.title.to_lowercase().contains(&query.to_lowercase()) || song.artist.to_lowercase().contains(&query.to_lowercase()) || song.genre.to_lowercase().contains(&query.to_lowercase())
+            (song.title.to_lowercase().contains(&include_term) || song.artist.to_lowercase().contains(&include_term) || song.genre.to_lowercase().contains(&include_term))
+                && exclude_terms
+                    .iter()
+                    .all(|term| !song.title.to_lowercase().contains(term) && !song.artist.to_lowercase().contains(term) && !song.genre.to_lowercase().contains(term))
         });
+
+        // self.songs.retain(|song| {
+        //     song.title.to_lowercase().contains(&query.to_lowercase()) || song.artist.to_lowercase().contains(&query.to_lowercase()) || song.genre.to_lowercase().contains(&query.to_lowercase())
+        // });
     }
 
     pub fn reset(&mut self) {
