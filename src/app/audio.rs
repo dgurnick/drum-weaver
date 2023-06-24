@@ -11,10 +11,7 @@ use std::time::Duration;
 
 use color_eyre::eyre::{ensure, Report, Result};
 use cpal::traits::{DeviceTrait, StreamTrait};
-use cpal::{
-    Device, FrameCount, FromSample, OutputCallbackInfo, Sample, SampleFormat, SizedSample, Stream,
-    StreamConfig, SupportedBufferSize, SupportedStreamConfigRange,
-};
+use cpal::{Device, FrameCount, FromSample, OutputCallbackInfo, Sample, SampleFormat, SizedSample, Stream, StreamConfig, SupportedBufferSize, SupportedStreamConfigRange};
 use log::{debug, error, info, warn};
 use rubato::{InterpolationParameters, InterpolationType, Resampler, SincFixedOut, WindowFunction};
 use symphonia::core::audio::SampleBuffer;
@@ -64,14 +61,7 @@ const MINIMUM_PLAYBACK_SPEED: f64 = 1.0 / MAXIMUM_SPEED_ADJUSTMENT_FACTOR;
 const MAXIMUM_PLAYBACK_SPEED: f64 = 1.0 * MAXIMUM_SPEED_ADJUSTMENT_FACTOR;
 
 impl DecodingSong {
-    fn new(
-        song: &Song,
-        initial_pos: Duration,
-        player_sample_rate: usize,
-        player_channel_count: usize,
-        expected_buffer_size: usize,
-        initial_playback_speed: f64,
-    ) -> Result<DecodingSong> {
+    fn new(song: &Song, initial_pos: Duration, player_sample_rate: usize, player_channel_count: usize, expected_buffer_size: usize, initial_playback_speed: f64) -> Result<DecodingSong> {
         let frames = song.samples.clone();
         let song_channel_count = song.channel_count;
         if player_channel_count != song_channel_count {
@@ -137,18 +127,14 @@ impl DecodingSong {
 
                 // adjust position based on seek
                 if let Some((new_pos, new_skip_count)) = request.frame {
-                    let new_frame = (song_sample_rate * new_pos.as_secs()
-                        + song_sample_rate * new_pos.subsec_nanos() as u64 / 1_000_000_000)
-                        as usize;
+                    let new_frame = (song_sample_rate * new_pos.as_secs() + song_sample_rate * new_pos.subsec_nanos() as u64 / 1_000_000_000) as usize;
                     current_frame = new_frame.min(total_frames);
                     skip_count = new_skip_count;
                 }
 
                 // adjust the speed if it has changed
                 if request.speed != last_request_speed {
-                    resampler
-                        .set_resample_ratio_relative(1.0 / request.speed)
-                        .unwrap();
+                    resampler.set_resample_ratio_relative(1.0 / request.speed).unwrap();
                     last_request_speed = request.speed;
                 }
 
@@ -170,31 +156,28 @@ impl DecodingSong {
                 let end_pos = Self::frame_to_duration(current_frame, song_sample_rate);
 
                 // resample the frames and convert into interleaved samples
-                let processed_samples =
-                    match resampler.process_into_buffer(&input_buffer, &mut output_buffer, None) {
-                        Ok(()) => {
-                            let frame_count = if frames_we_have < frames_wanted_by_resampler {
-                                frames_per_resample * frames_we_have / frames_wanted_by_resampler
-                            } else {
-                                frames_per_resample
+                let processed_samples = match resampler.process_into_buffer(&input_buffer, &mut output_buffer, None) {
+                    Ok(()) => {
+                        let frame_count = if frames_we_have < frames_wanted_by_resampler {
+                            frames_per_resample * frames_we_have / frames_wanted_by_resampler
+                        } else {
+                            frames_per_resample
+                        };
+                        let mut samples = vec![0.0; player_channel_count * frame_count];
+                        for chan in 0..player_channel_count {
+                            if chan < 2 || chan < output_buffer.len() {
+                                for sample in 0..frame_count {
+                                    samples[sample * player_channel_count + chan] = output_buffer[chan % output_buffer.len()][sample] * volume_adjustment
+                                }
                             };
-                            let mut samples = vec![0.0; player_channel_count * frame_count];
-                            for chan in 0..player_channel_count {
-                                if chan < 2 || chan < output_buffer.len() {
-                                    for sample in 0..frame_count {
-                                        samples[sample * player_channel_count + chan] =
-                                            output_buffer[chan % output_buffer.len()][sample]
-                                                * volume_adjustment
-                                    }
-                                };
-                            }
-                            samples
                         }
-                        Err(e) => {
-                            error!("Error converting sample rate: {e}");
-                            vec![0.0; expected_buffer_size]
-                        }
-                    };
+                        samples
+                    }
+                    Err(e) => {
+                        error!("Error converting sample rate: {e}");
+                        vec![0.0; expected_buffer_size]
+                    }
+                };
 
                 // send the data out over the channel
                 // Dropping the other end of the channel will cause this to error, which will stop decoding.
@@ -236,13 +219,7 @@ impl DecodingSong {
             skip_count,
         })
     }
-    fn read_samples(
-        &mut self,
-        pos: Duration,
-        count: usize,
-        playback_speed: f64,
-        volume_adjustment: f32,
-    ) -> (Vec<f32>, Duration, bool) {
+    fn read_samples(&mut self, pos: Duration, count: usize, playback_speed: f64, volume_adjustment: f32) -> (Vec<f32>, Duration, bool) {
         // if they want another position, we're seeking, so reset the buffer
         if pos != self.expected_pos {
             self.had_output = false;
@@ -259,10 +236,7 @@ impl DecodingSong {
             self.pending_requests = 1;
         }
 
-        while count
-            > self.buffer.len()
-                + self.pending_requests * self.frames_per_resample * self.channel_count
-        {
+        while count > self.buffer.len() + self.pending_requests * self.frames_per_resample * self.channel_count {
             if self
                 .requests_channel
                 .send(SampleRequest {
@@ -284,12 +258,7 @@ impl DecodingSong {
             loop {
                 let got = channel.try_recv();
                 match got {
-                    Ok(SampleResult {
-                        samples,
-                        skip_count,
-                        end_pos,
-                        done,
-                    }) => {
+                    Ok(SampleResult { samples, skip_count, end_pos, done }) => {
                         if self.skip_count == skip_count {
                             self.pending_requests -= 1;
                             self.buffer.append(&mut VecDeque::from(samples));
@@ -333,10 +302,7 @@ impl DecodingSong {
     }
     fn frame_to_duration(frame: usize, song_sample_rate: u64) -> Duration {
         let sub_second_samples = frame as u64 % song_sample_rate;
-        Duration::new(
-            frame as u64 / song_sample_rate,
-            (1_000_000_000 * sub_second_samples / song_sample_rate) as u32,
-        )
+        Duration::new(frame as u64 / song_sample_rate, (1_000_000_000 * sub_second_samples / song_sample_rate) as u32)
     }
 }
 
@@ -387,26 +353,14 @@ impl PlayerState {
             if let Some((decoding_song, sample_pos)) = playback.as_mut() {
                 let mut neg_offset = 0;
                 let data_len = data.len();
-                let (mut samples, mut new_pos, mut is_final) = decoding_song.read_samples(
-                    *sample_pos,
-                    data_len,
-                    playback_speed,
-                    volume_adjustment,
-                );
+                let (mut samples, mut new_pos, mut is_final) = decoding_song.read_samples(*sample_pos, data_len, playback_speed, volume_adjustment);
                 for (i, sample) in data.iter_mut().enumerate() {
                     if i >= samples.len() {
-                        if let Some((next_samples, next_pos)) =
-                            self.next_samples.write().unwrap().take()
-                        {
+                        if let Some((next_samples, next_pos)) = self.next_samples.write().unwrap().take() {
                             *decoding_song = next_samples;
                             neg_offset = i;
                             *sample_pos = next_pos;
-                            (samples, new_pos, is_final) = decoding_song.read_samples(
-                                *sample_pos,
-                                data_len - neg_offset,
-                                playback_speed,
-                                volume_adjustment,
-                            );
+                            (samples, new_pos, is_final) = decoding_song.read_samples(*sample_pos, data_len - neg_offset, playback_speed, volume_adjustment);
                         } else {
                             break;
                         }
@@ -422,18 +376,10 @@ impl PlayerState {
         }
     }
     fn decode_song(&self, song: &Song, initial_pos: Duration) -> Result<DecodingSong> {
-        DecodingSong::new(
-            song,
-            initial_pos,
-            self.sample_rate,
-            self.channel_count,
-            self.buffer_size as usize,
-            *self.playback_speed.read().unwrap(),
-        )
+        DecodingSong::new(song, initial_pos, self.sample_rate, self.channel_count, self.buffer_size as usize, *self.playback_speed.read().unwrap())
     }
     fn set_playback_speed(&self, speed: f64) {
-        *self.playback_speed.write().unwrap() =
-            speed.clamp(MINIMUM_PLAYBACK_SPEED, MAXIMUM_PLAYBACK_SPEED);
+        *self.playback_speed.write().unwrap() = speed.clamp(MINIMUM_PLAYBACK_SPEED, MAXIMUM_PLAYBACK_SPEED);
     }
     fn set_volume_adjustment(&self, volume: f32) {
         *self.volume_adjustment.write().unwrap() = volume;
@@ -468,17 +414,10 @@ impl PlayerState {
         *self.playing.write().unwrap() = playing;
     }
     fn get_position(&self) -> Option<(Duration, Duration)> {
-        self.playback
-            .read()
-            .unwrap()
-            .as_ref()
-            .map(|(samples, pos)| (*pos, samples.song_length))
+        self.playback.read().unwrap().as_ref().map(|(samples, pos)| (*pos, samples.song_length))
     }
     fn seek(&self, time: Duration) -> bool {
-        let (mut playback, mut next_song) = (
-            self.playback.write().unwrap(),
-            self.next_samples.write().unwrap(),
-        );
+        let (mut playback, mut next_song) = (self.playback.write().unwrap(), self.next_samples.write().unwrap());
         if let Some((_, pos)) = playback.as_mut() {
             *pos = time;
             true
@@ -491,10 +430,7 @@ impl PlayerState {
     }
     #[allow(dead_code)]
     fn force_remove_next_song(&self) {
-        let (mut playback, mut next_song) = (
-            self.playback.write().unwrap(),
-            self.next_samples.write().unwrap(),
-        );
+        let (mut playback, mut next_song) = (self.playback.write().unwrap(), self.next_samples.write().unwrap());
         if next_song.is_some() {
             *next_song = None;
         } else {
@@ -504,12 +440,12 @@ impl PlayerState {
 }
 
 /// Manages playback of [Song]s through [cpal] and sample conversion through [rubato].
-pub struct Player {
+pub struct AudioPlayer {
     _stream: Box<dyn StreamTrait>,
     player_state: PlayerState,
 }
 
-impl Player {
+impl AudioPlayer {
     /// Creates a new [Player] to play [Song]s. If specified, the player will attempt to use one of
     /// the specified sampling rates. If not specified or the list is empty, the preferred rates
     /// are 48000 and 44100.
@@ -518,11 +454,9 @@ impl Player {
     /// first preferred rate will be selected.
     ///
     /// On Linux, this prefers `pipewire`, `jack`, and `pulseaudio` devices over `alsa`.
-    pub fn new(preferred_sampling_rates: Option<Vec<u32>>, device: &Device) -> Result<Player> {
+    pub fn new(preferred_sampling_rates: Option<Vec<u32>>, device: &Device) -> Result<AudioPlayer> {
         let mut supported_configs = device.supported_output_configs()?.collect::<Vec<_>>();
-        let preferred_sampling_rates = preferred_sampling_rates
-            .filter(|given_rates| !given_rates.is_empty())
-            .unwrap_or(vec![48000, 44100]);
+        let preferred_sampling_rates = preferred_sampling_rates.filter(|given_rates| !given_rates.is_empty()).unwrap_or(vec![48000, 44100]);
         let preferred_sampling_rate = preferred_sampling_rates[0];
         let rank_supported_config = |config: &SupportedStreamConfigRange| {
             let chans = config.channels() as u32;
@@ -533,36 +467,17 @@ impl Player {
                 4 => 3,
                 _ => 2,
             };
-            let min_sample_rank = if config.min_sample_rate().0 <= preferred_sampling_rate {
-                3
-            } else {
-                0
-            };
-            let max_sample_rank = if config.max_sample_rate().0 >= preferred_sampling_rate {
-                3
-            } else {
-                0
-            };
-            let sample_format_rank = if config.sample_format() == SampleFormat::F32 {
-                4
-            } else {
-                0
-            };
+            let min_sample_rank = if config.min_sample_rate().0 <= preferred_sampling_rate { 3 } else { 0 };
+            let max_sample_rank = if config.max_sample_rate().0 >= preferred_sampling_rate { 3 } else { 0 };
+            let sample_format_rank = if config.sample_format() == SampleFormat::F32 { 4 } else { 0 };
             channel_rank + min_sample_rank + max_sample_rank + sample_format_rank
         };
         supported_configs.sort_by_key(|c_2| std::cmp::Reverse(rank_supported_config(c_2)));
 
-        let supported_config = supported_configs
-            .into_iter()
-            .next()
-            .ok_or_else(|| Report::msg("No supported output config."))?;
+        let supported_config = supported_configs.into_iter().next().ok_or_else(|| Report::msg("No supported output config."))?;
 
-        let sample_rate_range =
-            supported_config.min_sample_rate().0..supported_config.max_sample_rate().0;
-        let supported_config = if let Some(selected_rate) = preferred_sampling_rates
-            .into_iter()
-            .find(|rate| sample_rate_range.contains(rate))
-        {
+        let sample_rate_range = supported_config.min_sample_rate().0..supported_config.max_sample_rate().0;
+        let supported_config = if let Some(selected_rate) = preferred_sampling_rates.into_iter().find(|rate| sample_rate_range.contains(rate)) {
             supported_config.with_sample_rate(cpal::SampleRate(selected_rate))
         } else if sample_rate_range.end <= preferred_sampling_rate {
             supported_config.with_sample_rate(cpal::SampleRate(sample_rate_range.end))
@@ -578,25 +493,13 @@ impl Player {
         };
         let config = supported_config.into();
         let player_state = PlayerState::new(channel_count as u32, sample_rate, buffer_size)?;
-        info!(
-            "SR, CC, SF: {}, {}, {:?}",
-            sample_rate, channel_count, sample_format
-        );
-        fn build_stream<T>(
-            device: &Device,
-            config: &StreamConfig,
-            player_state: PlayerState,
-        ) -> Result<Stream>
+        info!("SR, CC, SF: {}, {}, {:?}", sample_rate, channel_count, sample_format);
+        fn build_stream<T>(device: &Device, config: &StreamConfig, player_state: PlayerState) -> Result<Stream>
         where
             T: SizedSample + FromSample<f32>,
         {
             let err_fn = |err| error!("A playback error has occurred! {}", err);
-            let stream = device.build_output_stream(
-                config,
-                move |data, info| player_state.write_samples::<T>(data, info),
-                err_fn,
-                None,
-            )?;
+            let stream = device.build_output_stream(config, move |data, info| player_state.write_samples::<T>(data, info), err_fn, None)?;
             // Not all platforms (*cough cough* windows *cough*) automatically run the stream upon creation, so do that here.
             stream.play()?;
             Ok(stream)
@@ -614,12 +517,10 @@ impl Player {
                 SampleFormat::U64 => build_stream::<u64>(device, &config, player_state)?,
                 SampleFormat::F32 => build_stream::<f32>(device, &config, player_state)?,
                 SampleFormat::F64 => build_stream::<f64>(device, &config, player_state)?,
-                sample_format => Err(Report::msg(format!(
-                    "Unsupported sample format '{sample_format}'"
-                )))?,
+                sample_format => Err(Report::msg(format!("Unsupported sample format '{sample_format}'")))?,
             }
         };
-        Ok(Player {
+        Ok(AudioPlayer {
             _stream: Box::new(stream),
             player_state,
         })
@@ -720,27 +621,13 @@ impl Player {
     /// This should always be queried before calling [`play_song_next`](Player::play_song_next) if you do not intend on replacing the song currently in the queue.
     #[allow(dead_code)]
     pub fn has_next_song(&self) -> bool {
-        self.player_state
-            .next_samples
-            .read()
-            .expect("Next song mutex poisoned.")
-            .is_some()
+        self.player_state.next_samples.read().expect("Next song mutex poisoned.").is_some()
     }
     /// Returns whether there is a song currently playing (or about to start playing next audio frame)
     ///
     /// Note that this **does not** indicate whether the current song is actively being played or paused, for that functionality you can use [is_playing](Self::is_playing).
     pub fn has_current_song(&self) -> bool {
-        self.player_state
-            .playback
-            .read()
-            .expect("Current song mutex poisoned.")
-            .is_some()
-            || self
-                .player_state
-                .next_samples
-                .read()
-                .expect("Next song mutex poisoned.")
-                .is_some()
+        self.player_state.playback.read().expect("Current song mutex poisoned.").is_some() || self.player_state.next_samples.read().expect("Next song mutex poisoned.").is_some()
     }
 }
 
@@ -757,13 +644,8 @@ pub struct Song {
 
 impl Song {
     /// Creates a new song using a reader of some kind and a type hint (the Symphonia hint type has been reexported at the crate root for convenience), as well as an optional volume adjustment (used for e.g. replay gain).
-    pub fn new(
-        reader: Box<dyn MediaSource>,
-        hint: &Hint,
-        volume_adjustment: Option<f32>,
-    ) -> Result<Song> {
-        let media_source_stream =
-            MediaSourceStream::new(reader, MediaSourceStreamOptions::default());
+    pub fn new(reader: Box<dyn MediaSource>, hint: &Hint, volume_adjustment: Option<f32>) -> Result<Song> {
+        let media_source_stream = MediaSourceStream::new(reader, MediaSourceStreamOptions::default());
         let mut probe_result = default::get_probe().format(
             hint,
             media_source_stream,
@@ -774,11 +656,7 @@ impl Song {
             &MetadataOptions::default(),
         )?;
         let mut decoder = default::get_codecs().make(
-            &probe_result
-                .format
-                .default_track()
-                .ok_or_else(|| Report::msg("No default track in media file."))?
-                .codec_params,
+            &probe_result.format.default_track().ok_or_else(|| Report::msg("No default track in media file."))?.codec_params,
             &DecoderOptions::default(),
         )?;
         let mut song: Option<(Vec<Vec<f32>>, u32, usize)> = None;
@@ -787,25 +665,14 @@ impl Song {
                 Ok(packet) => {
                     let decoded = decoder.decode(&packet)?;
                     let spec = *decoded.spec();
-                    let song_samples =
-                        if let Some((samples, sample_rate, channel_count)) = &mut song {
-                            ensure!(
-                                spec.rate == *sample_rate,
-                                "Sample rate of decoded does not match previous sample rate."
-                            );
-                            ensure!(
-                                spec.channels.count() == *channel_count,
-                                "Channel count of decoded does not match previous channel count."
-                            );
-                            samples
-                        } else {
-                            song = Some((
-                                vec![Vec::new(); spec.channels.count()],
-                                spec.rate,
-                                spec.channels.count(),
-                            ));
-                            &mut song.as_mut().unwrap().0
-                        };
+                    let song_samples = if let Some((samples, sample_rate, channel_count)) = &mut song {
+                        ensure!(spec.rate == *sample_rate, "Sample rate of decoded does not match previous sample rate.");
+                        ensure!(spec.channels.count() == *channel_count, "Channel count of decoded does not match previous channel count.");
+                        samples
+                    } else {
+                        song = Some((vec![Vec::new(); spec.channels.count()], spec.rate, spec.channels.count()));
+                        &mut song.as_mut().unwrap().0
+                    };
                     if decoded.frames() > 0 {
                         let mut samples = SampleBuffer::new(decoded.frames() as u64, spec);
                         samples.copy_interleaved_ref(decoded);
@@ -831,19 +698,12 @@ impl Song {
         .ok_or_else(|| Report::msg("No song data decoded."))
     }
     /// Creates a [Song] by reading data from a file and using the file's extension as a format type hint. Takes an optional volume adjustment (used for e.g. replay gain)
-    pub fn from_file<P: AsRef<std::path::Path>>(
-        path: P,
-        volume_adjustment: Option<f32>,
-    ) -> Result<Song> {
+    pub fn from_file<P: AsRef<std::path::Path>>(path: P, volume_adjustment: Option<f32>) -> Result<Song> {
         let mut hint = Hint::new();
         if let Some(extension) = path.as_ref().extension().and_then(|s| s.to_str()) {
             hint.with_extension(extension);
         }
-        Self::new(
-            Box::new(std::fs::File::open(path)?),
-            &hint,
-            volume_adjustment,
-        )
+        Self::new(Box::new(std::fs::File::open(path)?), &hint, volume_adjustment)
     }
 
     pub fn get_volume_adjustment(&self) -> f32 {
@@ -851,26 +711,14 @@ impl Song {
     }
 }
 
-#[cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd"
-))]
+#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd"))]
 fn block_alsa_output() {
     use std::os::raw::{c_char, c_int};
 
     use alsa_sys::snd_lib_error_set_handler;
     use log::trace;
 
-    unsafe extern "C" fn error_handler(
-        file: *const c_char,
-        line: c_int,
-        function: *const c_char,
-        err: c_int,
-        format: *const c_char,
-        mut format_args: ...
-    ) {
+    unsafe extern "C" fn error_handler(file: *const c_char, line: c_int, function: *const c_char, err: c_int, format: *const c_char, mut format_args: ...) {
         use std::ffi::CStr;
         let file = String::from_utf8_lossy(CStr::from_ptr(file).to_bytes());
         let function = String::from_utf8_lossy(CStr::from_ptr(function).to_bytes());
@@ -882,10 +730,7 @@ fn block_alsa_output() {
             .flat_map(|(m, s)| {
                 let res = [
                     format[last_m..m].to_string(),
-                    String::from_utf8_lossy(
-                        CStr::from_ptr(format_args.arg::<*const c_char>()).to_bytes(),
-                    )
-                    .to_string(),
+                    String::from_utf8_lossy(CStr::from_ptr(format_args.arg::<*const c_char>()).to_bytes()).to_string(),
                 ];
                 last_m = m + s.len();
                 res

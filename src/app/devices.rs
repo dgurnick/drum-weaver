@@ -1,6 +1,7 @@
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use lazy_static::lazy_static;
+use log::info;
 use serde::Deserialize;
 use std::sync::Mutex;
 #[derive(Debug, Deserialize, Clone)]
@@ -27,18 +28,9 @@ pub fn read_devices() -> Vec<DeviceDetail> {
                 position,
             };
             devices.push(detail);
+            info!("Found device: {}", device.name().unwrap());
         }
     }
 
     devices.clone()
-}
-
-pub fn dump_devices() {
-    println!("Available devices:");
-    for device in read_devices().iter() {
-        println!(
-            "Position: {} | Description: {}",
-            device.position, device.name
-        );
-    }
 }

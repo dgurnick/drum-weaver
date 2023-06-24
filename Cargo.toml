@@ -1,6 +1,6 @@
 [package]
 name = "drum_weaver"
-version = "1.0.3"
+version = "2.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,6 +14,7 @@ cpal = "0.15.2"
 crossbeam-channel = "0.5.8"
 crossterm = { version = "0.26.1", features = ["serde"] }
 csv = "1.2.1"
+ctrlc = "3.4.0"
 dialog = "0.3.0"
 lazy_static = "1.4.0"
 log = "0.4.17"
