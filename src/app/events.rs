@@ -52,10 +52,34 @@ impl UiEventTrait for App {
                         _ => {}
                     },
 
+                    // Commands for the help view
+                    UiEvent::Input(event) if self.active_menu_item == MenuItem::Help => match event.code {
+                        KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
+                        KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
+                        KeyCode::Char('h') => self.active_menu_item = MenuItem::Help,
+                        KeyCode::Char('q') => self.do_exit(),
+                        _ => {}
+                    },
+
+                    // Commands for the device view
+                    UiEvent::Input(event) if self.active_menu_item == MenuItem::Devices => match event.code {
+                        KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
+                        KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
+                        KeyCode::Char('h') => self.active_menu_item = MenuItem::Help,
+                        KeyCode::Char('q') => self.do_exit(),
+                        KeyCode::Char(' ') => self.do_pause(),
+                        KeyCode::Down => self.do_next_device(),
+                        KeyCode::Up => self.do_previous_device(),
+                        KeyCode::Char('t') => self.do_set_device(DeviceType::Track),
+                        KeyCode::Char('c') => self.do_set_device(DeviceType::Click),
+                        _ => {}
+                    },
+
                     // Commands for the library/queue
                     UiEvent::Input(event) if self.active_menu_item == MenuItem::Library => match event.code {
                         KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
                         KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
+                        KeyCode::Char('h') => self.active_menu_item = MenuItem::Help,
                         KeyCode::Char('q') => self.do_exit(),
                         KeyCode::Char('r') => self.do_reset_speed(),
                         KeyCode::Char('1') => self.do_decrease_volume(DeviceType::Track),
@@ -81,19 +105,6 @@ impl UiEventTrait for App {
                         KeyCode::End => self.do_goto_last(),
                         KeyCode::PageDown => self.do_page_down(),
                         KeyCode::PageUp => self.do_page_up(),
-                        _ => {}
-                    },
-
-                    // Commands for the device view
-                    UiEvent::Input(event) if self.active_menu_item == MenuItem::Devices => match event.code {
-                        KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
-                        KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
-                        KeyCode::Char('q') => self.do_exit(),
-                        KeyCode::Char(' ') => self.do_pause(),
-                        KeyCode::Down => self.do_next_device(),
-                        KeyCode::Up => self.do_previous_device(),
-                        KeyCode::Char('t') => self.do_set_device(DeviceType::Track),
-                        KeyCode::Char('c') => self.do_set_device(DeviceType::Click),
                         _ => {}
                     },
 
