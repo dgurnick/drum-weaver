@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyModifiers};
-use log::{error, info};
+use log::error;
 
 use crate::app::{player::PlayerCommand, PlayerStatus};
 
@@ -52,10 +52,34 @@ impl UiEventTrait for App {
                         _ => {}
                     },
 
+                    // Commands for the help view
+                    UiEvent::Input(event) if self.active_menu_item == MenuItem::Help => match event.code {
+                        KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
+                        KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
+                        KeyCode::Char('h') => self.active_menu_item = MenuItem::Help,
+                        KeyCode::Char('q') => self.do_exit(),
+                        _ => {}
+                    },
+
+                    // Commands for the device view
+                    UiEvent::Input(event) if self.active_menu_item == MenuItem::Devices => match event.code {
+                        KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
+                        KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
+                        KeyCode::Char('h') => self.active_menu_item = MenuItem::Help,
+                        KeyCode::Char('q') => self.do_exit(),
+                        KeyCode::Char(' ') => self.do_pause(),
+                        KeyCode::Down => self.do_next_device(),
+                        KeyCode::Up => self.do_previous_device(),
+                        KeyCode::Char('t') => self.do_set_device(DeviceType::Track),
+                        KeyCode::Char('c') => self.do_set_device(DeviceType::Click),
+                        _ => {}
+                    },
+
                     // Commands for the library/queue
                     UiEvent::Input(event) if self.active_menu_item == MenuItem::Library => match event.code {
                         KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
                         KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
+                        KeyCode::Char('h') => self.active_menu_item = MenuItem::Help,
                         KeyCode::Char('q') => self.do_exit(),
                         KeyCode::Char('r') => self.do_reset_speed(),
                         KeyCode::Char('1') => self.do_decrease_volume(DeviceType::Track),
@@ -84,19 +108,6 @@ impl UiEventTrait for App {
                         _ => {}
                     },
 
-                    // Commands for the device view
-                    UiEvent::Input(event) if self.active_menu_item == MenuItem::Devices => match event.code {
-                        KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
-                        KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
-                        KeyCode::Char('q') => self.do_exit(),
-                        KeyCode::Char(' ') => self.do_pause(),
-                        KeyCode::Down => self.do_next_device(),
-                        KeyCode::Up => self.do_previous_device(),
-                        KeyCode::Char('t') => self.do_set_device(DeviceType::Track),
-                        KeyCode::Char('c') => self.do_set_device(DeviceType::Click),
-                        _ => {}
-                    },
-
                     UiEvent::Tick => {
                         //self.do_autoplay();
                     }
@@ -111,28 +122,23 @@ impl UiEventTrait for App {
         if let Ok(event) = self.player_event_receiver.try_recv() {
             match event {
                 PlayerEvent::Decompressing => {
-                    info!("App received Decompressing signal");
                     self.player_status = PlayerStatus::Decompressing;
                 }
                 PlayerEvent::Decompressed => {
-                    info!("App received Decompressed signal");
                     self.player_status = PlayerStatus::Decompressed;
                 }
                 PlayerEvent::Playing(stub) => {
                     let stub_clone = stub.clone();
-                    info!("App received Playing signal: {}", stub.title);
                     self.player_status = PlayerStatus::Playing(stub.title);
                     self.active_stub = Some(stub_clone);
                 }
                 PlayerEvent::Paused => {
-                    info!("App received Paused signal");
                     self.player_status = PlayerStatus::Paused;
                 }
                 PlayerEvent::Continuing(stub) => {
                     self.player_status = PlayerStatus::Playing(stub.unwrap().title);
                 }
                 PlayerEvent::Quit => {
-                    info!("App received Quit signal. Exiting.");
                     self.on_exit();
                     self.is_running = false;
                 }
@@ -153,8 +159,6 @@ impl UiEventTrait for App {
     }
 
     fn send_player_command(&mut self, command: PlayerCommand) {
-        info!("Sending player command: {:?}", command);
         self.player_command_sender.send(command).unwrap();
-        info!("Sent player command");
     }
 }

@@ -14,7 +14,6 @@ cpal = "0.15.2"
 crossbeam-channel = "0.5.8"
 crossterm = { version = "0.26.1", features = ["serde"] }
 csv = "1.2.1"
-ctrlc = "3.4.0"
 dialog = "0.3.0"
 lazy_static = "1.4.0"
 log = "0.4.17"
@@ -39,9 +38,9 @@ thiserror = "1.0.40"
 [dev-dependencies]
 simplelog = "0.12"
 
-#[profile.release]
+[profile.release]
 #debug = 1
-#opt-level = 0
+opt-level = 0
 
 #[rust]
 #debuginfo-level = 1

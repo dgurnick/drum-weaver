@@ -21,6 +21,7 @@ pub trait UiRenderTrait {
     fn render_footer(&mut self) -> Paragraph<'static>;
     fn render_gauge(&mut self) -> LineGauge<'static>;
     fn render_search(&mut self) -> Paragraph<'static>;
+    fn render_help(&mut self) -> Paragraph<'static>;
 }
 
 impl UiRenderTrait for App {
@@ -35,7 +36,7 @@ impl UiRenderTrait for App {
         let queue_view = if self.active_menu_item == MenuItem::Library { Some(self.render_queue()) } else { None };
         let device_view = if self.active_menu_item == MenuItem::Devices { Some(self.render_devices()) } else { None };
         let footer_view = self.render_footer();
-        //let gauge_view = self.render_gauge();
+        let help_view = self.render_help();
 
         let gauge_view = match &self.playback_status {
             Some(status) => {
@@ -85,8 +86,7 @@ impl UiRenderTrait for App {
                         frame.render_stateful_widget(device_view.unwrap(), chunks[1], &mut self.device_state);
                     }
                     MenuItem::Help => {
-
-                        //frame.render_widget(queue, chunks[1]);
+                        frame.render_widget(help_view, chunks[1]);
                     }
                 } // end match
 
@@ -141,7 +141,6 @@ impl UiRenderTrait for App {
         for song in self.library.as_ref().unwrap().get_songs() {
             let mut is_selected = false;
             if let Some(active_stub) = &self.active_stub {
-                info!("active_track: {:?}", active_stub);
                 if active_stub.file_name == song.file_name {
                     is_selected = true;
                 }
@@ -248,7 +247,7 @@ impl UiRenderTrait for App {
         };
 
         let mut rows = vec![];
-        for song in self.queue.clone() {
+        for song in &self.queue {
             let mut is_selected = false;
             if let Some(stub) = self.active_stub.clone() {
                 if stub.file_name == song.file_name {
@@ -409,6 +408,65 @@ impl UiRenderTrait for App {
 
         let spans = Line::from(items);
         Paragraph::new(spans).block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded))
+    }
+
+    fn render_help(&mut self) -> Paragraph<'static> {
+        let header_style = Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow);
+
+        let help_content = vec![
+            Line::from(Span::styled("General Commands", header_style)),
+            Line::from(vec![Span::styled("q", Style::default().fg(Color::LightCyan)), Span::raw(": Quit (boo!).")]),
+            Line::from(vec![
+                Span::styled("d", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Show device selection. You can pick output devices for tracks and clicks separately."),
+            ]),
+            Line::from(vec![Span::styled("s", Style::default().fg(Color::LightCyan)), Span::raw(": Show the song list.")]),
+            Line::from(vec![Span::styled("h", Style::default().fg(Color::LightCyan)), Span::raw(": Show this help screen.")]),
+            Line::from("\n"),
+            Line::from(Span::styled("Song list Commands", header_style)),
+            Line::from(vec![
+                Span::styled("n", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Move to the next song in the queue or song list."),
+            ]),
+            Line::from(vec![
+                Span::styled("Left or Right Arrow", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Move forward or backward in the current song."),
+            ]),
+            Line::from(vec![
+                Span::styled("Shift Right or Shift Left Arrow", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Speed up or slow down the playback."),
+            ]),
+            Line::from(vec![Span::styled("r", Style::default().fg(Color::LightCyan)), Span::raw(": Reset the playback speed.")]),
+            Line::from(vec![
+                Span::styled("SPACE", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Pause or continue the song that is playing"),
+            ]),
+            Line::from(vec![
+                Span::styled("HOME or END", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Move to the first or last song in the queue or song list."),
+            ]),
+            Line::from(vec![Span::styled("x", Style::default().fg(Color::LightCyan)), Span::raw(": Shuffle or un-shuffle the playlist")]),
+            Line::from(vec![Span::styled("1 or 4", Style::default().fg(Color::LightCyan)), Span::raw(": Lower the track or click volume")]),
+            Line::from(vec![Span::styled("2 or 5", Style::default().fg(Color::LightCyan)), Span::raw(": Reset the track or click volume")]),
+            Line::from(vec![Span::styled("3 or 6", Style::default().fg(Color::LightCyan)), Span::raw(": Increase the track or click volume")]),
+            Line::from(vec![
+                Span::styled("g", Style::default().fg(Color::LightCyan)),
+                Span::raw(": start filtering for a specific song or artist."),
+            ]),
+            Line::from("\n"),
+            Line::from("When searching, hit ESC to cancel the search. Enter confirms."),
+            Line::from("\n"),
+            Line::from(Span::styled("Queue Commands", header_style)),
+            Line::from(vec![Span::styled("INSERT", Style::default().fg(Color::LightCyan)), Span::raw(": Adds the selected song to the queue")]),
+            Line::from(vec![
+                Span::styled("DELETE", Style::default().fg(Color::LightCyan)),
+                Span::raw(": Removes the selected song from the queue"),
+            ]),
+            Line::from(vec![Span::styled("/", Style::default().fg(Color::LightCyan)), Span::raw(": Clears the current playlist")]),
+        ];
+
+        // Create a Paragraph with the help screen content
+        Paragraph::new(help_content.clone()).style(Style::default()).block(Block::default().borders(Borders::ALL).title("Help"))
     }
 }
 

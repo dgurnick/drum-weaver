@@ -229,7 +229,7 @@ impl App {
         // listen for position updates
         thread::spawn(move || loop {
             player_command_sender_clone.send(PlayerCommand::GetStatus).unwrap();
-            thread::sleep(Duration::from_millis(1000));
+            thread::sleep(Duration::from_millis(2000));
         });
 
         while self.is_running {

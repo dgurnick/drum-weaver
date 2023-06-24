@@ -1,10 +1,4 @@
-use std::{
-    env,
-    error::Error,
-    path::PathBuf,
-    thread::{self},
-    time::Duration,
-};
+use std::{env, error::Error, path::PathBuf, thread, time::Duration};
 
 use cpal::traits::HostTrait;
 use crossbeam_channel::{Receiver, Sender};
@@ -110,7 +104,7 @@ impl Player {
 
             loop {
                 // See if any commands have been sent to the player
-                match player_command_receiver.try_recv() {
+                match player_command_receiver.recv() {
                     Ok(command) => match command {
                         PlayerCommand::Play(stub) => {
                             //info!("Player will load: {:?}", stub.file_name);4
@@ -203,10 +197,8 @@ impl Player {
                             click_player.set_playing(!is_playing);
 
                             if !is_playing {
-                                info!("Player is continuing");
                                 player_event_sender.send(PlayerEvent::Continuing(current_stub.clone())).unwrap();
                             } else {
-                                info!("Player is pausing");
                                 player_event_sender.send(PlayerEvent::Paused).unwrap();
                             }
                         }
@@ -271,7 +263,6 @@ impl Player {
                             }
                         }
                         PlayerCommand::SpeedUp => {
-                            info!("Player is speeding up");
                             let current_speed = track_player.get_playback_speed();
                             let new_speed = current_speed + 0.1;
                             track_player.set_playback_speed(new_speed);
@@ -281,11 +272,9 @@ impl Player {
                             let current_speed = track_player.get_playback_speed();
                             let new_speed = current_speed - 0.1;
                             if new_speed < 0.1 {
-                                info!("Player is slowing down too much, stopping");
                                 continue;
                             }
 
-                            info!("Player is slowing down");
                             track_player.set_playback_speed(new_speed);
                             click_player.set_playback_speed(new_speed);
                         }
