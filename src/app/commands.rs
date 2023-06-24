@@ -5,7 +5,6 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, LeaveAlternateScreen},
 };
-use log::info;
 use native_dialog::{MessageDialog, MessageType};
 
 use super::{
@@ -53,12 +52,10 @@ pub trait UiCommandTrait {
 impl UiCommandTrait for App {
     fn do_exit(&mut self) {
         self.is_exiting = true;
-        info!("Showing confirmation dialog");
         let dialog_result = MessageDialog::new().set_title("Confirm exit").set_text("Are you sure?").set_type(MessageType::Info).show_confirm();
 
         match dialog_result {
             Ok(true) => {
-                info!("User confirmed exit");
                 self.send_player_command(PlayerCommand::Quit);
             }
             _ => {
@@ -167,12 +164,10 @@ impl UiCommandTrait for App {
     }
 
     fn do_speedup(&mut self) {
-        info!("Speeding up");
         self.send_player_command(PlayerCommand::SpeedUp);
     }
 
     fn do_slowdown(&mut self) {
-        info!("Slowing down");
         self.send_player_command(PlayerCommand::SlowDown);
     }
 
@@ -437,7 +432,6 @@ impl UiCommandTrait for App {
     }
 
     fn do_search(&mut self) {
-        info!("Searching for {}", self.search_query);
         self.library.as_mut().unwrap().search(self.search_query.as_str());
     }
 

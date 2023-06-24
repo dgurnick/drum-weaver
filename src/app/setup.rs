@@ -20,7 +20,7 @@ impl UiSetupTrait for App {
     // We intercept ctrl+c and send a quit event to ensure clean shutdown
     // We set up a thread to handle UI events
     fn setup_ui_signal_loop(&mut self) {
-        let tick_rate = Duration::from_millis(200);
+        let tick_rate = Duration::from_millis(500);
         let ui_command_sender = Arc::new(Mutex::new(self.ui_command_sender.clone()));
 
         // clear the event queue

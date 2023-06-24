@@ -23,3 +23,4 @@
 3. Consider egui for the frontend. (I tried and failed a couple of times. #rookie)
 4. Consider a configuration option to remove 7z after files are decompressed
 5. Consider a configuration option to remove unzipped files.
+6. Some settings. For example, being able to hide columns in the library makes sense for larger font sizes.c 
