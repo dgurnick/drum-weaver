@@ -42,7 +42,7 @@ pub enum ActiveFocus {
     Queue,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum PlayerStatus {
     Ready,
     Playing(String),
@@ -51,6 +51,7 @@ pub enum PlayerStatus {
     Decompressed,
     Ended,
     Error(String),
+    Waiting,
 }
 
 impl PlayerStatus {
@@ -59,10 +60,11 @@ impl PlayerStatus {
             PlayerStatus::Ready => "Ready".to_string(),
             PlayerStatus::Playing(_) => "Playing".to_string(),
             PlayerStatus::Paused => "Paused".to_string(),
-            PlayerStatus::Decompressing => "Decompressing".to_string(),
+            PlayerStatus::Decompressing => "Decompressing ...".to_string(),
             PlayerStatus::Decompressed => "Decompressed".to_string(),
             PlayerStatus::Ended => "Ended".to_string(),
             PlayerStatus::Error(s) => format!("Error loading song: {}", s),
+            PlayerStatus::Waiting => "Waiting ...".to_string(),
         }
     }
 }

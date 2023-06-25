@@ -11,7 +11,7 @@ use super::{
     devices::read_devices,
     events::UiEventTrait,
     player::{DeviceType, PlayerCommand, SongStub},
-    ActiveFocus, App, AppConfig, MenuItem,
+    ActiveFocus, App, AppConfig, MenuItem, PlayerStatus,
 };
 
 pub trait UiCommandTrait {
@@ -89,6 +89,7 @@ impl UiCommandTrait for App {
     }
 
     fn do_playback(&mut self) {
+        self.player_status = PlayerStatus::Waiting;
         match self.active_focus {
             ActiveFocus::Queue => {
                 let idx = self.queue_state.selected().unwrap_or(0);
@@ -273,6 +274,7 @@ impl UiCommandTrait for App {
     }
 
     fn do_play_next(&mut self) {
+        self.player_status = PlayerStatus::Waiting;
         if !self.queue.is_empty() {
             let mut idx = self.queue_state.selected().unwrap_or(0);
             if self.active_stub.is_some() {
@@ -308,6 +310,8 @@ impl UiCommandTrait for App {
 
             self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
         }
+
+        self.active_stub = None; // dangerous if the play commands execute first. But they shouldn't.
     }
 
     fn do_delete_queue(&mut self) {

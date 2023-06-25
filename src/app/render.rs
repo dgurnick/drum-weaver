@@ -1,12 +1,14 @@
-use std::time::Duration;
+use std::{process::Stdio, time::Duration};
 
 use log::info;
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     symbols,
-    text::{Line, Span},
+    text::{Line, Span, Text},
     widgets::{Block, BorderType, Borders, Cell, LineGauge, Paragraph, Row, Table, Tabs},
+    Terminal,
 };
 
 use super::{devices::read_devices, status_bar::CustomGauge, ActiveFocus, App, MenuItem, PlayerStatus};
@@ -22,6 +24,7 @@ pub trait UiRenderTrait {
     fn render_gauge(&mut self) -> LineGauge<'static>;
     fn render_search(&mut self) -> Paragraph<'static>;
     fn render_help(&mut self) -> Paragraph<'static>;
+    fn render_wait(&mut self) -> Paragraph<'static>;
 }
 
 impl UiRenderTrait for App {
@@ -35,6 +38,10 @@ impl UiRenderTrait for App {
         let songs_view = if self.active_menu_item == MenuItem::Library { Some(self.render_songs()) } else { None };
         let queue_view = if self.active_menu_item == MenuItem::Library { Some(self.render_queue()) } else { None };
         let device_view = if self.active_menu_item == MenuItem::Devices { Some(self.render_devices()) } else { None };
+        let wait_view = match self.player_status {
+            PlayerStatus::Waiting | PlayerStatus::Decompressing | PlayerStatus::Decompressed => Some(self.render_wait()),
+            _ => None,
+        };
         let footer_view = self.render_footer();
         let help_view = self.render_help();
 
@@ -95,6 +102,16 @@ impl UiRenderTrait for App {
                     if let Some(gauge_view) = gauge_view {
                         frame.render_widget(gauge_view, chunks[3]);
                     }
+                }
+
+                if matches!(self.player_status, PlayerStatus::Waiting | PlayerStatus::Decompressing | PlayerStatus::Decompressed) {
+                    let dialog_width = 30;
+                    let dialog_height = 3;
+                    let dialog_x = (size.width - dialog_width) / 2; // Center horizontally
+                    let dialog_y = (size.height - dialog_height) / 2; // Center vertically
+
+                    //let layout = Layout::default().direction(Direction::Vertical).constraints([Constraint::Min(0)].as_ref()).split(size);
+                    frame.render_widget(wait_view.unwrap(), Rect::new(dialog_x, dialog_y, dialog_width, dialog_height));
                 }
             })
             .expect("Unable to draw UI");
@@ -467,6 +484,12 @@ impl UiRenderTrait for App {
 
         // Create a Paragraph with the help screen content
         Paragraph::new(help_content.clone()).style(Style::default()).block(Block::default().borders(Borders::ALL).title("Help"))
+    }
+
+    fn render_wait(&mut self) -> Paragraph<'static> {
+        let dialog = Block::default().borders(Borders::ALL).style(Style::default().fg(Color::White).bg(Color::Blue));
+        let text = Text::styled("Please wait...                    ", Style::default().fg(Color::Blue));
+        Paragraph::new(text).block(dialog)
     }
 }
 

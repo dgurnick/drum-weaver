@@ -20,9 +20,11 @@ impl UiEventTrait for App {
         // Handle UI events
         // This comes first since we want any interaction to
         // change state as a priority
-
         if !self.is_exiting {
-            if let Ok(event) = self.ui_command_receiver.try_recv() {
+            if let Ok(event) = self.ui_command_receiver.recv() {
+                if matches!(self.player_status, PlayerStatus::Waiting | PlayerStatus::Decompressing | PlayerStatus::Decompressed) {
+                    return;
+                }
                 match event {
                     UiEvent::Input(event) if event.modifiers.contains(KeyModifiers::ALT) && self.active_menu_item == MenuItem::Library && self.is_searching => match event.code {
                         KeyCode::Enter => self.do_replace_queue(),
