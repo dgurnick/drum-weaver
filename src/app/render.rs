@@ -149,7 +149,7 @@ impl UiRenderTrait for App {
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .style(Style::default().fg(Color::Rgb(60, 60, 60)))
-                .title(format!("Songs ({})", self.library.as_ref().unwrap().get_songs().len()))
+                .title(format!("Songs ({})", self.library.as_mut().unwrap().get_songs().len()))
         };
 
         let mut rows = vec![];
