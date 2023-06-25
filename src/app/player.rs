@@ -118,18 +118,15 @@ impl Player {
                             if !track_path.exists() {
                                 info!("Track file does not exist. Decompressing.");
                                 player_event_sender.send(PlayerEvent::Decompressing).unwrap();
-                                thread::sleep(std::time::Duration::from_millis(1000));
 
                                 match Self::decompress_files(stub.folder.as_str(), stub.file_name.as_str()) {
                                     Ok(()) => {
                                         info!("Decompression complete");
                                         player_event_sender.send(PlayerEvent::Decompressed).unwrap();
-                                        thread::sleep(std::time::Duration::from_millis(1000));
                                     }
                                     Err(err) => {
                                         info!("Decompression failed: {:?}", err);
                                         player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
-                                        thread::sleep(std::time::Duration::from_millis(1000));
                                         continue;
                                     }
                                 }

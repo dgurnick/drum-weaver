@@ -11,7 +11,7 @@ use super::{
     devices::read_devices,
     events::UiEventTrait,
     player::{DeviceType, PlayerCommand, SongStub},
-    ActiveFocus, App, AppConfig, MenuItem,
+    ActiveFocus, App, AppConfig, MenuItem, PlayerStatus,
 };
 
 pub trait UiCommandTrait {
@@ -47,6 +47,7 @@ pub trait UiCommandTrait {
     fn do_search(&mut self);
     fn do_complete_search(&mut self);
     fn do_cancel_search(&mut self);
+    fn do_replace_queue(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -71,6 +72,9 @@ impl UiCommandTrait for App {
         let config = AppConfig {
             track_device_name: Some(track_device_name),
             click_device_name: Some(click_device_name),
+            track_volume: Some(self.track_volume),
+            click_volume: Some(self.click_volume),
+            search_query: Some(self.search_query.clone()),
             queue: self.queue.clone(),
         };
         confy::store("drum-weaver", None, config).expect("Unable to save configuration");
@@ -85,6 +89,7 @@ impl UiCommandTrait for App {
     }
 
     fn do_playback(&mut self) {
+        self.player_status = PlayerStatus::Waiting;
         match self.active_focus {
             ActiveFocus::Queue => {
                 let idx = self.queue_state.selected().unwrap_or(0);
@@ -269,6 +274,7 @@ impl UiCommandTrait for App {
     }
 
     fn do_play_next(&mut self) {
+        self.player_status = PlayerStatus::Waiting;
         if !self.queue.is_empty() {
             let mut idx = self.queue_state.selected().unwrap_or(0);
             if self.active_stub.is_some() {
@@ -304,6 +310,8 @@ impl UiCommandTrait for App {
 
             self.send_player_command(PlayerCommand::Play(SongStub::from_song_record(&song)));
         }
+
+        self.active_stub = None; // dangerous if the play commands execute first. But they shouldn't.
     }
 
     fn do_delete_queue(&mut self) {
@@ -442,13 +450,17 @@ impl UiCommandTrait for App {
                 self.queue.push(song.clone());
             }
         }
-        self.search_query.clear();
         self.do_cancel_search();
     }
 
     fn do_cancel_search(&mut self) {
         self.is_searching = false;
-        self.search_query.clear();
         self.library.as_mut().unwrap().reset();
+    }
+
+    fn do_replace_queue(&mut self) {
+        self.do_search();
+        self.queue.clear();
+        self.do_complete_search();
     }
 }
