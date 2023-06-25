@@ -21,7 +21,7 @@ impl UiEventTrait for App {
         // This comes first since we want any interaction to
         // change state as a priority
         if !self.is_exiting {
-            if let Ok(event) = self.ui_command_receiver.recv() {
+            if let Ok(event) = self.ui_command_receiver.try_recv() {
                 if matches!(self.player_status, PlayerStatus::Waiting | PlayerStatus::Decompressing | PlayerStatus::Decompressed) {
                     return;
                 }
