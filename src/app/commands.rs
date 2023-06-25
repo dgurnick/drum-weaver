@@ -47,6 +47,7 @@ pub trait UiCommandTrait {
     fn do_search(&mut self);
     fn do_complete_search(&mut self);
     fn do_cancel_search(&mut self);
+    fn do_replace_queue(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -71,6 +72,9 @@ impl UiCommandTrait for App {
         let config = AppConfig {
             track_device_name: Some(track_device_name),
             click_device_name: Some(click_device_name),
+            track_volume: Some(self.track_volume),
+            click_volume: Some(self.click_volume),
+            search_query: Some(self.search_query.clone()),
             queue: self.queue.clone(),
         };
         confy::store("drum-weaver", None, config).expect("Unable to save configuration");
@@ -448,5 +452,11 @@ impl UiCommandTrait for App {
     fn do_cancel_search(&mut self) {
         self.is_searching = false;
         self.library.as_mut().unwrap().reset();
+    }
+
+    fn do_replace_queue(&mut self) {
+        self.do_search();
+        self.queue.clear();
+        self.do_complete_search();
     }
 }

@@ -63,7 +63,7 @@ impl UiRenderTrait for App {
                 };
 
                 let size = frame.size();
-                let chunks = Layout::default().direction(Direction::Vertical).margin(2).constraints(constraints).split(size);
+                let chunks = Layout::default().direction(Direction::Vertical).margin(0).constraints(constraints).split(size);
 
                 if self.is_searching {
                     frame.render_widget(search_view, chunks[0]);
@@ -138,7 +138,7 @@ impl UiRenderTrait for App {
         };
 
         let mut rows = vec![];
-        for song in self.library.as_ref().unwrap().get_songs() {
+        for song in self.library.as_mut().unwrap().get_songs() {
             let mut is_selected = false;
             if let Some(active_stub) = &self.active_stub {
                 if active_stub.file_name == song.file_name {

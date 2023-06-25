@@ -24,6 +24,11 @@ impl UiEventTrait for App {
         if !self.is_exiting {
             if let Ok(event) = self.ui_command_receiver.try_recv() {
                 match event {
+                    UiEvent::Input(event) if event.modifiers.contains(KeyModifiers::ALT) && self.active_menu_item == MenuItem::Library && self.is_searching => match event.code {
+                        KeyCode::Enter => self.do_replace_queue(),
+                        _ => {}
+                    },
+
                     UiEvent::Input(event) if event.modifiers.contains(KeyModifiers::SHIFT) && !self.is_searching => match event.code {
                         KeyCode::Left => self.do_slowdown(),
                         KeyCode::Right => self.do_speedup(),

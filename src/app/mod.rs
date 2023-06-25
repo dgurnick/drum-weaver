@@ -71,6 +71,9 @@ impl PlayerStatus {
 struct AppConfig {
     track_device_name: Option<String>,
     click_device_name: Option<String>,
+    track_volume: Option<usize>,
+    click_volume: Option<usize>,
+    search_query: Option<String>,
     queue: Vec<SongRecord>,
 }
 
@@ -188,11 +191,11 @@ impl App {
             player_status: PlayerStatus::Ready,
             track_device_idx,
             click_device_idx,
-            track_volume: 100,
-            click_volume: 100,
+            track_volume: config.track_volume.unwrap_or(100),
+            click_volume: config.click_volume.unwrap_or(100),
             active_stub: None,
             is_searching: false,
-            search_query: String::new(),
+            search_query: config.search_query.unwrap_or_default(),
         }
     }
 
