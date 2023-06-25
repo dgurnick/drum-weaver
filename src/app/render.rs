@@ -486,7 +486,7 @@ impl UiRenderTrait for App {
 
     fn render_wait(&mut self) -> Paragraph<'static> {
         let dialog = Block::default().borders(Borders::ALL).style(Style::default().fg(Color::White).bg(Color::Blue));
-        let text = Text::styled("Please wait...                    ", Style::default().fg(Color::Blue));
+        let text = Text::styled("Please wait...              ", Style::default().fg(Color::Blue));
         Paragraph::new(text).block(dialog)
     }
 }

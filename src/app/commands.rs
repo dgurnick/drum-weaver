@@ -48,6 +48,7 @@ pub trait UiCommandTrait {
     fn do_complete_search(&mut self);
     fn do_cancel_search(&mut self);
     fn do_replace_queue(&mut self);
+    fn do_restart_song(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -462,5 +463,9 @@ impl UiCommandTrait for App {
         self.do_search();
         self.queue.clear();
         self.do_complete_search();
+    }
+
+    fn do_restart_song(&mut self) {
+        self.send_player_command(PlayerCommand::Restart);
     }
 }

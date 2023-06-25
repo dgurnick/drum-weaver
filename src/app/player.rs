@@ -58,6 +58,7 @@ pub enum PlayerCommand {
     ResetSpeed,
     SetVolume(DeviceType, usize),
     ResetVolume(DeviceType),
+    Restart,
 }
 
 #[derive(Debug)]
@@ -311,6 +312,10 @@ impl Player {
                         PlayerCommand::ResetVolume(_) => {
                             track_player.set_volume_adjustment(1.0);
                             click_player.set_volume_adjustment(1.0);
+                        }
+                        PlayerCommand::Restart => {
+                            track_player.seek(Duration::from_micros(0));
+                            click_player.seek(Duration::from_micros(0));
                         }
                     },
                     Err(_err) => {}
