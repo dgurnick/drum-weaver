@@ -1,14 +1,12 @@
-use std::{process::Stdio, time::Duration};
+use std::time::Duration;
 
 use log::info;
 use ratatui::{
-    backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     symbols,
     text::{Line, Span, Text},
     widgets::{Block, BorderType, Borders, Cell, LineGauge, Paragraph, Row, Table, Tabs},
-    Terminal,
 };
 
 use super::{devices::read_devices, status_bar::CustomGauge, ActiveFocus, App, MenuItem, PlayerStatus};

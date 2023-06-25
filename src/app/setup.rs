@@ -8,7 +8,7 @@ use crossterm::event::{self, Event as CrosstermEvent, KeyEventKind};
 
 use crate::app::library::Library;
 
-use super::{App, PlayerStatus, UiEvent};
+use super::{App, UiEvent};
 
 pub trait UiSetupTrait {
     fn setup_ui_signal_loop(&mut self);
