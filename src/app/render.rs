@@ -16,7 +16,6 @@ pub trait UiRenderTrait {
     fn render_menu(&mut self) -> Tabs<'static>;
     fn render_songs(&mut self) -> Table<'static>;
     fn render_queue(&mut self) -> Table<'static>;
-    fn render_status(&mut self);
     fn render_devices(&mut self) -> Table<'static>;
     fn render_footer(&mut self) -> Paragraph<'static>;
     fn render_gauge(&mut self) -> LineGauge<'static>;
@@ -46,11 +45,14 @@ impl UiRenderTrait for App {
         let gauge_view = match &self.playback_status {
             Some(status) => {
                 if status.track_position.is_some() && status.track_duration.is_some() {
+                    let block = Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).style(Style::default().fg(Color::Gray));
+
                     let gauge_view = CustomGauge::new(
                         status.track_position.unwrap().as_secs() as f64,
                         status.track_duration.unwrap().as_secs() as f64,
                         Style::default().fg(Color::White).bg(Color::Black).add_modifier(Modifier::BOLD),
-                    );
+                    )
+                    .block(block);
 
                     Some(gauge_view)
                 } else {
@@ -63,7 +65,7 @@ impl UiRenderTrait for App {
         self.terminal
             .draw(|frame| {
                 let constraints = match self.player_status {
-                    PlayerStatus::Playing(_) => [Constraint::Length(3), Constraint::Min(3), Constraint::Length(3), Constraint::Length(2)].as_ref(),
+                    PlayerStatus::Playing(_) => [Constraint::Length(3), Constraint::Min(3), Constraint::Length(3), Constraint::Length(4)].as_ref(),
                     _ => [Constraint::Length(3), Constraint::Min(3), Constraint::Length(3)].as_ref(),
                 };
 
@@ -84,6 +86,8 @@ impl UiRenderTrait for App {
                             .split(chunks[1]);
 
                         frame.render_stateful_widget(songs_view.unwrap(), songlist_chunks[0], &mut self.library_state);
+
+                        self.page_size = (songlist_chunks[0].height as usize) - 3;
 
                         frame.render_stateful_widget(queue_view.unwrap(), songlist_chunks[1], &mut self.queue_state);
                     }
@@ -314,10 +318,6 @@ impl UiRenderTrait for App {
         queue_table
     }
 
-    fn render_status(&mut self) {
-        info!("rendering status");
-    }
-
     fn render_devices(&mut self) -> Table<'static> {
         let device_ui = Block::default()
             .borders(Borders::ALL)
@@ -377,8 +377,12 @@ impl UiRenderTrait for App {
         status.push(Span::raw(" | "));
         status.push(Span::styled("Track Volume: ", Style::default().fg(Color::LightBlue)));
         status.push(Span::raw(self.track_volume.to_string()));
+        status.push(Span::raw(" | "));
         status.push(Span::styled(" Click Volume: ", Style::default().fg(Color::LightBlue)));
         status.push(Span::raw(self.click_volume.to_string()));
+        status.push(Span::raw(" | "));
+        status.push(Span::styled(" Repeat: ", Style::default().fg(Color::LightBlue)));
+        status.push(Span::raw(if self.is_repeating { "On" } else { "Off" }));
 
         let spans = Line::from(status);
 
@@ -486,7 +490,9 @@ impl UiRenderTrait for App {
 
     fn render_wait(&mut self) -> Paragraph<'static> {
         let dialog = Block::default().borders(Borders::ALL).style(Style::default().fg(Color::White).bg(Color::Blue));
-        let text = Text::styled("Please wait...              ", Style::default().fg(Color::Blue));
+
+        let text = Text::styled("Please wait...              ", Style::default().fg(Color::White));
+
         Paragraph::new(text).block(dialog)
     }
 }

@@ -112,6 +112,8 @@ pub struct App {
     pub active_stub: Option<SongStub>,
     pub is_searching: bool,
     pub search_query: String,
+    pub is_repeating: bool,
+    pub page_size: usize, // calculated off number of visible rows. Used in paging.
 }
 
 pub enum UiEvent<I> {
@@ -198,6 +200,8 @@ impl App {
             active_stub: None,
             is_searching: false,
             search_query: config.search_query.unwrap_or_default(),
+            is_repeating: false,
+            page_size: 10,
         }
     }
 

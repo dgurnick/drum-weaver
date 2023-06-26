@@ -38,9 +38,9 @@ thiserror = "1.0.40"
 [dev-dependencies]
 simplelog = "0.12"
 
-[profile.release]
+#[profile.release]
 #debug = 1
-opt-level = 0
+#opt-level = 0
 
 #[rust]
 #debuginfo-level = 1

@@ -49,6 +49,7 @@ pub trait UiCommandTrait {
     fn do_cancel_search(&mut self);
     fn do_replace_queue(&mut self);
     fn do_restart_song(&mut self);
+    fn do_set_repeat(&mut self);
 }
 
 impl UiCommandTrait for App {
@@ -158,7 +159,11 @@ impl UiCommandTrait for App {
     }
 
     fn do_autoplay(&mut self) {
-        self.do_play_next()
+        if self.is_repeating && self.active_stub.is_some() {
+            self.send_player_command(PlayerCommand::Play(self.active_stub.clone().unwrap()));
+        } else {
+            self.do_play_next()
+        }
     }
 
     fn do_forward(&mut self) {
@@ -395,7 +400,7 @@ impl UiCommandTrait for App {
         match self.active_focus {
             ActiveFocus::Queue => {
                 let mut idx = self.queue_state.selected().unwrap_or(0);
-                idx += 10;
+                idx += self.page_size - 1;
                 if idx > self.queue.len() - 1 {
                     idx = self.queue.len() - 1;
                 }
@@ -404,7 +409,7 @@ impl UiCommandTrait for App {
             ActiveFocus::Library => {
                 let library_length = self.library.as_ref().unwrap().get_songs().len();
                 let mut idx = self.library_state.selected().unwrap_or(0);
-                idx += 10;
+                idx += self.page_size - 1;
                 if idx > library_length - 1 {
                     idx = library_length - 1;
                 }
@@ -421,12 +426,12 @@ impl UiCommandTrait for App {
         match self.active_focus {
             ActiveFocus::Queue => {
                 let mut idx = self.queue_state.selected().unwrap_or(0);
-                idx = idx.saturating_sub(10);
+                idx = idx.saturating_sub(self.page_size - 1);
                 self.queue_state.select(Some(idx));
             }
             ActiveFocus::Library => {
                 let mut idx = self.library_state.selected().unwrap_or(0);
-                idx = idx.saturating_sub(10);
+                idx = idx.saturating_sub(self.page_size - 1);
                 self.library_state.select(Some(idx));
             }
         }
@@ -467,5 +472,9 @@ impl UiCommandTrait for App {
 
     fn do_restart_song(&mut self) {
         self.send_player_command(PlayerCommand::Restart);
+    }
+
+    fn do_set_repeat(&mut self) {
+        self.is_repeating = !self.is_repeating;
     }
 }

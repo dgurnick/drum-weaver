@@ -90,6 +90,7 @@ impl UiEventTrait for App {
                         KeyCode::Char('h') => self.active_menu_item = MenuItem::Help,
                         KeyCode::Char('q') => self.do_exit(),
                         KeyCode::Char('r') => self.do_reset_speed(),
+                        KeyCode::Char('a') => self.do_set_repeat(),
                         KeyCode::Char('z') => self.do_restart_song(),
                         KeyCode::Char('1') => self.do_decrease_volume(DeviceType::Track),
                         KeyCode::Char('2') => self.do_reset_volume(DeviceType::Track),
