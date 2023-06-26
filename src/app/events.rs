@@ -1,5 +1,5 @@
-use crossterm::event::{KeyCode, KeyModifiers, ModifierKeyCode, MouseButton, MouseEvent, MouseEventKind};
-use log::{error, info};
+use crossterm::event::{KeyCode, KeyModifiers};
+use log::error;
 
 use crate::app::{player::PlayerCommand, PlayerStatus};
 
