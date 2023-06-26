@@ -594,7 +594,7 @@ impl AudioPlayer {
     }
 
     pub fn set_volume_adjustment(&self, volume: f32) {
-        if (0.1..=2.0).contains(&volume) {
+        if (0.0..=2.0).contains(&volume) {
             self.player_state.set_volume_adjustment(volume);
         }
     }

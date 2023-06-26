@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use log::info;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -380,6 +379,9 @@ impl UiRenderTrait for App {
         status.push(Span::raw(" | "));
         status.push(Span::styled(" Click Volume: ", Style::default().fg(Color::LightBlue)));
         status.push(Span::raw(self.click_volume.to_string()));
+        status.push(Span::raw(" | "));
+        status.push(Span::styled(" Bleed Volume: ", Style::default().fg(Color::LightBlue)));
+        status.push(Span::raw(self.bleed_volume.to_string()));
         status.push(Span::raw(" | "));
         status.push(Span::styled(" Repeat: ", Style::default().fg(Color::LightBlue)));
         status.push(Span::raw(if self.is_repeating { "On" } else { "Off" }));

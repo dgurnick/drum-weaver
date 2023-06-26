@@ -76,6 +76,7 @@ impl UiCommandTrait for App {
             click_device_name: Some(click_device_name),
             track_volume: Some(self.track_volume),
             click_volume: Some(self.click_volume),
+            bleed_volume: Some(self.bleed_volume),
             search_query: Some(self.search_query.clone()),
             queue: self.queue.clone(),
         };
@@ -212,6 +213,7 @@ impl UiCommandTrait for App {
                 self.click_device_idx = idx;
                 read_devices()[self.click_device_idx].clone().name
             }
+            DeviceType::Bleed => read_devices()[self.click_device_idx].clone().name,
         };
 
         self.send_player_command(PlayerCommand::SetDevice(device_type, device_name));
@@ -231,6 +233,10 @@ impl UiCommandTrait for App {
                 self.click_volume = std::cmp::min(self.click_volume + 1, 200);
                 self.click_volume
             }
+            DeviceType::Bleed => {
+                self.bleed_volume = std::cmp::min(self.bleed_volume + 1, 200);
+                self.bleed_volume
+            }
         };
 
         self.send_player_command(PlayerCommand::SetVolume(device_type, volume));
@@ -246,6 +252,10 @@ impl UiCommandTrait for App {
                 self.click_volume = std::cmp::max(self.click_volume.saturating_sub(1), 0);
                 self.click_volume
             }
+            DeviceType::Bleed => {
+                self.bleed_volume = std::cmp::max(self.bleed_volume.saturating_sub(1), 0);
+                self.bleed_volume
+            }
         };
 
         self.send_player_command(PlayerCommand::SetVolume(device_type, volume));
@@ -258,6 +268,9 @@ impl UiCommandTrait for App {
             }
             DeviceType::Click => {
                 self.click_volume = 100;
+            }
+            DeviceType::Bleed => {
+                self.bleed_volume = 100;
             }
         }
         self.send_player_command(PlayerCommand::ResetVolume(device_type));
@@ -443,6 +456,7 @@ impl UiCommandTrait for App {
         }
 
         self.is_searching = true;
+        self.do_search();
     }
 
     fn do_search(&mut self) {
