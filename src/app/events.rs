@@ -37,6 +37,12 @@ impl UiEventTrait for App {
                                 _ => {}
                             },
 
+                            // CTRL events in the library
+                            InputEvent::Key(event) if event.modifiers.contains(KeyModifiers::CONTROL) && self.active_menu_item == MenuItem::Library && !self.is_searching => match event.code {
+                                KeyCode::Char('f') => self.do_start_search(),
+                                _ => {}
+                            },
+
                             InputEvent::Key(event) if event.modifiers.contains(KeyModifiers::ALT) && self.active_menu_item == MenuItem::Library && self.is_searching => {
                                 if event.code == KeyCode::Enter {
                                     self.do_replace_queue()
@@ -99,7 +105,6 @@ impl UiEventTrait for App {
                                 KeyCode::Char('n') => self.do_play_next(),
                                 KeyCode::Char('x') => self.do_shuffle_library(),
                                 KeyCode::Char('/') => self.do_empty_queue(),
-                                KeyCode::Char('g') => self.do_start_search(),
                                 KeyCode::Delete => self.do_delete_queue(),
                                 KeyCode::Insert => self.do_insert_queue(),
                                 KeyCode::Enter => self.do_playback(),
