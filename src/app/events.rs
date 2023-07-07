@@ -29,27 +29,17 @@ impl UiEventTrait for App {
                     UiEvent::Input(input_event) => {
                         match input_event {
                             // Commands for the help view
-                            InputEvent::Key(event) if event.modifiers.contains(KeyModifiers::ALT) => match event.code {
-                                KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
-                                KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
-                                KeyCode::Char('h') => self.active_menu_item = MenuItem::Help,
-                                KeyCode::Char('q') => self.do_exit(),
-                                _ => {}
-                            },
-
-                            // CTRL events in the library
-                            InputEvent::Key(event) if event.modifiers.contains(KeyModifiers::CONTROL) && self.active_menu_item == MenuItem::Library && !self.is_searching => match event.code {
-                                KeyCode::Char('f') => self.do_start_search(),
-                                _ => {}
-                            },
-
                             InputEvent::Key(event) if event.modifiers.contains(KeyModifiers::ALT) && self.active_menu_item == MenuItem::Library && self.is_searching => {
-                                if event.code == KeyCode::Enter {
+                                if event.code == KeyCode::Char('r') {
                                     self.do_replace_queue()
                                 }
                             }
 
                             InputEvent::Key(event) if event.modifiers.contains(KeyModifiers::SHIFT) && !self.is_searching => match event.code {
+                                KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
+                                KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
+                                KeyCode::Char('h') => self.active_menu_item = MenuItem::Help,
+                                KeyCode::Char('q') => self.do_exit(),
                                 KeyCode::Left => self.do_slowdown(),
                                 KeyCode::Right => self.do_speedup(),
                                 _ => {}
@@ -79,6 +69,10 @@ impl UiEventTrait for App {
 
                             // Commands for the device view
                             InputEvent::Key(event) if self.active_menu_item == MenuItem::Devices => match event.code {
+                                KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
+                                KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
+                                KeyCode::Char('h') => self.active_menu_item = MenuItem::Help,
+                                KeyCode::Char('q') => self.do_exit(),
                                 KeyCode::Char(' ') => self.do_pause(),
                                 KeyCode::Down => self.do_next_device(),
                                 KeyCode::Up => self.do_previous_device(),
@@ -89,6 +83,10 @@ impl UiEventTrait for App {
 
                             // Commands for the library/queue
                             InputEvent::Key(event) if self.active_menu_item == MenuItem::Library => match event.code {
+                                KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
+                                KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
+                                KeyCode::Char('h') => self.active_menu_item = MenuItem::Help,
+                                KeyCode::Char('q') => self.do_exit(),
                                 KeyCode::Char('r') => self.do_reset_speed(),
                                 KeyCode::Char('a') => self.do_set_repeat(),
                                 KeyCode::Char('z') => self.do_restart_song(),
@@ -101,6 +99,7 @@ impl UiEventTrait for App {
                                 KeyCode::Char('7') => self.do_decrease_volume(DeviceType::Bleed),
                                 KeyCode::Char('8') => self.do_reset_volume(DeviceType::Bleed),
                                 KeyCode::Char('9') => self.do_increase_volume(DeviceType::Bleed),
+                                KeyCode::Char('g') => self.do_start_search(),
                                 KeyCode::Char(' ') => self.do_pause(),
                                 KeyCode::Char('n') => self.do_play_next(),
                                 KeyCode::Char('x') => self.do_shuffle_library(),

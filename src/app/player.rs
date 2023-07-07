@@ -1,13 +1,17 @@
-use std::{env, error::Error, path::PathBuf, thread, time::Duration};
+use std::{error::Error, path::PathBuf, thread, time::Duration};
 
 use cpal::traits::HostTrait;
 use crossbeam_channel::{Receiver, Sender};
 use log::{error, info};
+use symphonia::core::{
+    io::{MediaSourceStream, MediaSourceStreamOptions},
+    probe::Hint,
+};
 
-use crate::app::audio::Song;
+use crate::app::{audio::Song, AppConfig};
 use cpal::traits::DeviceTrait;
 
-use super::{audio::AudioPlayer, library::SongRecord};
+use super::{audio::AudioPlayer, beep::BeepMediaSource, library::SongRecord};
 pub struct Player {
     player_command_receiver: Receiver<PlayerCommand>,
     player_event_sender: Sender<PlayerEvent>,
@@ -75,6 +79,8 @@ pub enum PlayerEvent {
     Decompressed,
     Quit,
 }
+
+const BEEP_BYTES: &[u8] = include_bytes!("../../assets/beep.wav");
 
 impl Player {
     pub fn new(player_command_receiver: Receiver<PlayerCommand>, player_event_sender: Sender<PlayerEvent>) -> Self {
@@ -302,17 +308,35 @@ impl Player {
                             click_player.stop();
                             bleed_player.stop();
 
-                            let device = &available_devices.iter().find(|d| d.name().ok() == Some(device_name.clone())).unwrap();
+                            let device = available_devices.iter().find(|d| d.name().ok() == Some(device_name.clone()));
 
-                            if device_type == DeviceType::Track {
-                                track_device = device;
-                                track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
-                                track_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
-                            } else {
-                                click_device = device;
-                                click_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
-                                bleed_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
-                                click_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
+                            let beep_source = Box::new(BeepMediaSource::new(BEEP_BYTES));
+                            let beep_options = MediaSourceStreamOptions { buffer_len: 64 * 1024 };
+
+                            let beep_stream = MediaSourceStream::new(beep_source, beep_options);
+                            let beep_song = Song::new(Box::new(beep_stream), &Hint::new(), None).unwrap();
+
+                            match device {
+                                Some(device) => {
+                                    if device_type == DeviceType::Track {
+                                        track_device = device;
+                                        track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
+                                        track_player.play_song_now(&beep_song, None).expect("Could not play beep on track player");
+                                        //track_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
+                                    } else {
+                                        click_device = device;
+                                        click_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
+                                        bleed_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
+                                        //click_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
+                                        click_player.play_song_now(&beep_song, None).expect("Could not play beep on click player");
+                                    }
+                                }
+                                None => {
+                                    error!("Could not find device with name {}", device_name);
+                                    error!("This is unrecoverable. Resetting configuration. Please restart the application.");
+                                    confy::store("drum-weaver", None, AppConfig::default()).unwrap();
+                                    std::process::exit(1);
+                                }
                             }
                         }
                         PlayerCommand::ResetSpeed => {
@@ -366,16 +390,6 @@ impl Player {
                 }
             }
         });
-    }
-
-    fn get_beep_file() -> String {
-        let mut path = env::current_dir().expect("Failed to get current exe path");
-
-        // Append the relative path to your asset
-        path.push("assets");
-        path.push("beep.wav");
-
-        path.display().to_string()
     }
 
     // Helper that returns the full paths for the main and click files

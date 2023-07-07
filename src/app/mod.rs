@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod beep;
 pub mod commands;
 pub mod devices;
 pub mod events;
