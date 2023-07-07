@@ -119,7 +119,7 @@ impl UiRenderTrait for App {
     }
 
     fn render_menu(&mut self) -> Tabs<'static> {
-        let menu_titles = vec!["Songs", "Devices", "Help", "Quit"];
+        let menu_titles = ["Songs", "Devices", "Help", "Quit"];
 
         let menu = menu_titles
             .iter()
