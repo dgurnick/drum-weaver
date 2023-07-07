@@ -153,7 +153,9 @@ impl UiEventTrait for App {
                     self.player_status = PlayerStatus::Paused;
                 }
                 PlayerEvent::Continuing(stub) => {
-                    self.player_status = PlayerStatus::Playing(stub.unwrap().title);
+                    if self.active_stub.is_some() {
+                        self.player_status = PlayerStatus::Playing(stub.unwrap().title);
+                    }
                 }
                 PlayerEvent::Quit => {
                     self.on_exit();

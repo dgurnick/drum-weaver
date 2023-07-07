@@ -343,7 +343,7 @@ impl UiRenderTrait for App {
                 Cell::from(Span::styled("Click?", Style::default().add_modifier(Modifier::BOLD))),
                 Cell::from(Span::styled("Device", Style::default().add_modifier(Modifier::BOLD))),
             ]))
-            .widths(&[Constraint::Length(10), Constraint::Length(10), Constraint::Percentage(45)]);
+            .widths(&[Constraint::Length(10), Constraint::Length(10), Constraint::Percentage(100)]);
 
         device_table
     }

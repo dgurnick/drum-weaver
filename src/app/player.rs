@@ -1,4 +1,10 @@
-use std::{error::Error, path::PathBuf, thread, time::Duration};
+use std::{
+    error::Error,
+    path::PathBuf,
+    process::{exit, Command},
+    thread,
+    time::Duration,
+};
 
 use cpal::traits::HostTrait;
 use crossbeam_channel::{Receiver, Sender};
@@ -111,6 +117,12 @@ impl Player {
             bleed_player.set_playback_speed(1.0);
 
             let mut current_stub: Option<SongStub> = None;
+
+            let beep_source = Box::new(BeepMediaSource::new(BEEP_BYTES));
+            let beep_options = MediaSourceStreamOptions { buffer_len: 64 * 1024 };
+
+            let beep_stream = MediaSourceStream::new(beep_source, beep_options);
+            let beep_song = Song::new(Box::new(beep_stream), &Hint::new(), None).unwrap();
 
             // run a thread that monitors the player and sends an Ended event to the UI thread when the song is complete. Used for autoplay
 
@@ -310,12 +322,6 @@ impl Player {
 
                             let device = available_devices.iter().find(|d| d.name().ok() == Some(device_name.clone()));
 
-                            let beep_source = Box::new(BeepMediaSource::new(BEEP_BYTES));
-                            let beep_options = MediaSourceStreamOptions { buffer_len: 64 * 1024 };
-
-                            let beep_stream = MediaSourceStream::new(beep_source, beep_options);
-                            let beep_song = Song::new(Box::new(beep_stream), &Hint::new(), None).unwrap();
-
                             match device {
                                 Some(device) => {
                                     if device_type == DeviceType::Track {
@@ -334,8 +340,37 @@ impl Player {
                                 None => {
                                     error!("Could not find device with name {}", device_name);
                                     error!("This is unrecoverable. Resetting configuration. Please restart the application.");
-                                    confy::store("drum-weaver", None, AppConfig::default()).unwrap();
-                                    std::process::exit(1);
+
+                                    // load the current configuration, reset the device names to the default device, and save it
+                                    let mut config: AppConfig = match confy::load("drum-weaver", None) {
+                                        Ok(c) => c,
+                                        Err(e) => {
+                                            error!("Error loading config: {}", e);
+                                            AppConfig::default()
+                                        }
+                                    };
+
+                                    let host = cpal::default_host();
+                                    let default_device = host.default_output_device();
+                                    if let Some(device) = default_device {
+                                        let default_device_name = device.name().unwrap();
+                                        config.track_device_name = Some(default_device_name.clone());
+                                        config.click_device_name = Some(default_device_name);
+                                    }
+
+                                    confy::store("drum-weaver", None, config).unwrap();
+
+                                    // Spawn a new instance of the application
+                                    let status = Command::new(std::env::args().next().unwrap()).status();
+
+                                    // Check if the new instance was successfully spawned
+                                    if let Err(err) = status {
+                                        eprintln!("Failed to restart the application: {}", err);
+                                        exit(1);
+                                    }
+
+                                    // Terminate the current instance
+                                    exit(0);
                                 }
                             }
                         }
