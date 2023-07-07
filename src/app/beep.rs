@@ -1,3 +1,4 @@
+// enables beeping directly from the binary
 use std::io::{Cursor, Read, Seek};
 
 use symphonia::core::io::MediaSource;
