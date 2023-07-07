@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod beep;
 pub mod commands;
 pub mod devices;
 pub mod events;
@@ -20,7 +21,7 @@ use std::{
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use crossterm::{
     event::EnableMouseCapture,
-    event::KeyEvent,
+    event::{KeyEvent, MouseEvent},
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen, SetTitle},
     ExecutableCommand,
@@ -75,6 +76,7 @@ struct AppConfig {
     click_device_name: Option<String>,
     track_volume: Option<usize>,
     click_volume: Option<usize>,
+    bleed_volume: Option<usize>,
     search_query: Option<String>,
     queue: Vec<SongRecord>,
 }
@@ -91,8 +93,8 @@ impl Display for AppConfig {
 pub struct App {
     pub player_command_sender: Sender<PlayerCommand>,
     pub player_event_receiver: Receiver<PlayerEvent>,
-    pub ui_command_receiver: Receiver<UiEvent<KeyEvent>>,
-    pub ui_command_sender: Sender<UiEvent<KeyEvent>>,
+    pub ui_command_receiver: Receiver<UiEvent<InputEvent>>,
+    pub ui_command_sender: Sender<UiEvent<InputEvent>>,
     pub terminal: Terminal<CrosstermBackend<Stdout>>,
     pub library: Option<Library>,
     pub queue: Vec<SongRecord>,
@@ -109,14 +111,21 @@ pub struct App {
     pub click_device_idx: usize,
     pub track_volume: usize,
     pub click_volume: usize,
+    pub bleed_volume: usize,
     pub active_stub: Option<SongStub>,
     pub is_searching: bool,
     pub search_query: String,
+    pub is_repeating: bool,
+    pub page_size: usize, // calculated off number of visible rows. Used in paging.
 }
 
+pub enum InputEvent {
+    Key(KeyEvent),
+    Mouse(MouseEvent),
+    Tick,
+}
 pub enum UiEvent<I> {
     Input(I),
-    Tick,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -195,9 +204,12 @@ impl App {
             click_device_idx,
             track_volume: config.track_volume.unwrap_or(100),
             click_volume: config.click_volume.unwrap_or(100),
+            bleed_volume: config.bleed_volume.unwrap_or(100),
             active_stub: None,
             is_searching: false,
             search_query: config.search_query.unwrap_or_default(),
+            is_repeating: false,
+            page_size: 10,
         }
     }
 
@@ -231,10 +243,15 @@ impl App {
 
         let player_command_sender_clone = self.player_command_sender.clone();
 
+        // set the initial volumes
+        self.send_player_command(PlayerCommand::SetVolume(DeviceType::Track, self.track_volume));
+        self.send_player_command(PlayerCommand::SetVolume(DeviceType::Click, self.click_volume));
+        self.send_player_command(PlayerCommand::SetVolume(DeviceType::Bleed, self.bleed_volume));
+
         // listen for position updates
         thread::spawn(move || loop {
             player_command_sender_clone.send(PlayerCommand::GetStatus).unwrap();
-            thread::sleep(Duration::from_millis(2000));
+            thread::sleep(Duration::from_millis(500));
         });
 
         while self.is_running {

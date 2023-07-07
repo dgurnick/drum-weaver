@@ -4,11 +4,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crossterm::event::{self, Event as CrosstermEvent, KeyEventKind};
+use crossterm::event::{self, Event as CrosstermEvent, KeyEventKind, MouseButton, MouseEventKind};
 
 use crate::app::library::Library;
 
-use super::{App, UiEvent};
+use super::{App, InputEvent, UiEvent};
 
 pub trait UiSetupTrait {
     fn setup_ui_signal_loop(&mut self);
@@ -38,14 +38,23 @@ impl UiSetupTrait for App {
                 let ui_command_sender = ui_command_sender.lock().unwrap();
 
                 if event::poll(timeout).expect("Polling works") {
-                    if let CrosstermEvent::Key(key) = event::read().expect("can read events") {
-                        if key.kind == KeyEventKind::Release {
-                            ui_command_sender.send(UiEvent::Input(key)).expect("can send events");
+                    match event::read().expect("can read events") {
+                        CrosstermEvent::Key(key) => {
+                            if key.kind == KeyEventKind::Release {
+                                ui_command_sender.send(UiEvent::Input(InputEvent::Key(key))).expect("can send events");
+                            }
                         }
+                        CrosstermEvent::Mouse(me) => {
+                            if me.kind == MouseEventKind::Up(MouseButton::Left) {
+                                ui_command_sender.send(UiEvent::Input(InputEvent::Mouse(me))).expect("can send events");
+                            }
+                        }
+                        // handle other types of events if needed
+                        _ => {}
                     }
                 }
 
-                if last_tick.elapsed() >= tick_rate && ui_command_sender.send(UiEvent::Tick).is_ok() {
+                if last_tick.elapsed() >= tick_rate && ui_command_sender.send(UiEvent::Input(InputEvent::Tick)).is_ok() {
                     last_tick = Instant::now();
                 }
             }

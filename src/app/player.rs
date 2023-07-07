@@ -1,13 +1,17 @@
-use std::{env, error::Error, path::PathBuf, thread, time::Duration};
+use std::{error::Error, path::PathBuf, thread, time::Duration};
 
 use cpal::traits::HostTrait;
 use crossbeam_channel::{Receiver, Sender};
 use log::{error, info};
+use symphonia::core::{
+    io::{MediaSourceStream, MediaSourceStreamOptions},
+    probe::Hint,
+};
 
-use crate::app::audio::Song;
+use crate::app::{audio::Song, AppConfig};
 use cpal::traits::DeviceTrait;
 
-use super::{audio::AudioPlayer, library::SongRecord};
+use super::{audio::AudioPlayer, beep::BeepMediaSource, library::SongRecord};
 pub struct Player {
     player_command_receiver: Receiver<PlayerCommand>,
     player_event_sender: Sender<PlayerEvent>,
@@ -17,6 +21,7 @@ pub struct Player {
 pub enum DeviceType {
     Track,
     Click,
+    Bleed,
 }
 
 #[derive(Debug, Clone)]
@@ -33,6 +38,7 @@ pub struct PlaybackStatus {
     pub track_duration: Option<Duration>,
     pub track_volume: f32,
     pub click_volume: f32,
+    pub bleed_volume: f32,
 }
 impl SongStub {
     pub fn from_song_record(song_record: &SongRecord) -> Self {
@@ -58,6 +64,7 @@ pub enum PlayerCommand {
     ResetSpeed,
     SetVolume(DeviceType, usize),
     ResetVolume(DeviceType),
+    Restart,
 }
 
 #[derive(Debug)]
@@ -72,6 +79,8 @@ pub enum PlayerEvent {
     Decompressed,
     Quit,
 }
+
+const BEEP_BYTES: &[u8] = include_bytes!("../../assets/beep.wav");
 
 impl Player {
     pub fn new(player_command_receiver: Receiver<PlayerCommand>, player_event_sender: Sender<PlayerEvent>) -> Self {
@@ -95,8 +104,11 @@ impl Player {
 
             let mut track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
             let mut click_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
+            let mut bleed_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
+
             track_player.set_playback_speed(1.0);
             click_player.set_playback_speed(1.0);
+            bleed_player.set_playback_speed(1.0);
 
             let mut current_stub: Option<SongStub> = None;
 
@@ -104,7 +116,7 @@ impl Player {
 
             loop {
                 // See if any commands have been sent to the player
-                match player_command_receiver.recv() {
+                match player_command_receiver.try_recv() {
                     Ok(command) => match command {
                         PlayerCommand::Play(stub) => {
                             //info!("Player will load: {:?}", stub.file_name);4
@@ -114,6 +126,7 @@ impl Player {
                             let (track_path, click_path) = Self::get_file_paths(stub.folder.as_str(), stub.file_name.as_str());
                             track_player.set_playing(false);
                             click_player.set_playing(false);
+                            bleed_player.set_playing(false);
 
                             if !track_path.exists() {
                                 info!("Track file does not exist. Decompressing.");
@@ -134,6 +147,7 @@ impl Player {
 
                             let track_song = Song::from_file(track_path.clone(), None);
                             let click_song = Song::from_file(click_path.clone(), None);
+                            let bleed_song = Song::from_file(track_path.clone(), None);
 
                             if let Err(err) = track_song {
                                 error!("Failed to load song: {:?}", err);
@@ -151,18 +165,22 @@ impl Player {
 
                             let track_song = track_song.unwrap();
                             let click_song = click_song.unwrap();
+                            let bleed_song = bleed_song.unwrap();
 
                             track_player.stop();
                             click_player.stop();
+                            bleed_player.stop();
 
                             let track_status = track_player.play_song_now(&track_song, None);
                             let click_status = click_player.play_song_now(&click_song, None);
+                            bleed_player.play_song_now(&bleed_song, None).expect("Unable to play bleed");
 
                             match (track_status, click_status) {
                                 (Ok(_), Ok(_)) => {
                                     // Both track and click songs were played successfully
                                     track_player.set_playing(true);
                                     click_player.set_playing(true);
+                                    bleed_player.set_playing(true);
                                     current_stub = Some(stub.clone());
 
                                     player_event_sender.send(PlayerEvent::Playing(stub.clone())).unwrap();
@@ -173,6 +191,7 @@ impl Player {
                                     player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
                                     track_player.stop();
                                     click_player.stop();
+                                    bleed_player.stop();
                                     current_stub = None;
                                     continue;
                                 }
@@ -182,6 +201,7 @@ impl Player {
                                     player_event_sender.send(PlayerEvent::LoadFailure(stub.clone())).unwrap();
                                     track_player.stop();
                                     click_player.stop();
+                                    bleed_player.stop();
                                     current_stub = None;
                                     continue;
                                 }
@@ -192,6 +212,7 @@ impl Player {
 
                             track_player.set_playing(!is_playing);
                             click_player.set_playing(!is_playing);
+                            bleed_player.set_playing(!is_playing);
 
                             if !is_playing {
                                 player_event_sender.send(PlayerEvent::Continuing(current_stub.clone())).unwrap();
@@ -203,6 +224,7 @@ impl Player {
                             info!("Player received quit signal. Exiting.");
                             track_player.stop();
                             click_player.stop();
+                            bleed_player.stop();
                             player_event_sender.send(PlayerEvent::Quit).unwrap();
                             thread::sleep(std::time::Duration::from_millis(100)); // time for the exit to propagate
                             break;
@@ -211,6 +233,7 @@ impl Player {
                             let mut status = PlaybackStatus {
                                 track_volume: track_player.get_volume_adjustment(),
                                 click_volume: click_player.get_volume_adjustment(),
+                                bleed_volume: bleed_player.get_volume_adjustment(),
                                 track_duration: None,
                                 track_position: None,
                             };
@@ -241,6 +264,7 @@ impl Player {
                                 } else {
                                     track_player.seek(Duration::from_micros(0));
                                     click_player.seek(Duration::from_micros(0));
+                                    bleed_player.seek(Duration::from_micros(0));
                                 }
                             }
                         }
@@ -253,9 +277,11 @@ impl Player {
                                 if let Some(seek) = new_position {
                                     track_player.seek(seek);
                                     click_player.seek(seek);
+                                    bleed_player.seek(seek);
                                 } else {
                                     track_player.seek(Duration::from_micros(0));
                                     click_player.seek(Duration::from_micros(0));
+                                    bleed_player.seek(Duration::from_micros(0));
                                 }
                             }
                         }
@@ -264,6 +290,7 @@ impl Player {
                             let new_speed = current_speed + 0.1;
                             track_player.set_playback_speed(new_speed);
                             click_player.set_playback_speed(new_speed);
+                            bleed_player.set_playback_speed(new_speed);
                         }
                         PlayerCommand::SlowDown => {
                             let current_speed = track_player.get_playback_speed();
@@ -274,26 +301,48 @@ impl Player {
 
                             track_player.set_playback_speed(new_speed);
                             click_player.set_playback_speed(new_speed);
+                            bleed_player.set_playback_speed(new_speed);
                         }
                         PlayerCommand::SetDevice(device_type, device_name) => {
                             track_player.stop();
                             click_player.stop();
+                            bleed_player.stop();
 
-                            let device = &available_devices.iter().find(|d| d.name().ok() == Some(device_name.clone())).unwrap();
+                            let device = available_devices.iter().find(|d| d.name().ok() == Some(device_name.clone()));
 
-                            if device_type == DeviceType::Track {
-                                track_device = device;
-                                track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
-                                track_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
-                            } else {
-                                click_device = device;
-                                click_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
-                                click_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
+                            let beep_source = Box::new(BeepMediaSource::new(BEEP_BYTES));
+                            let beep_options = MediaSourceStreamOptions { buffer_len: 64 * 1024 };
+
+                            let beep_stream = MediaSourceStream::new(beep_source, beep_options);
+                            let beep_song = Song::new(Box::new(beep_stream), &Hint::new(), None).unwrap();
+
+                            match device {
+                                Some(device) => {
+                                    if device_type == DeviceType::Track {
+                                        track_device = device;
+                                        track_player = AudioPlayer::new(None, track_device).expect("Could not create track player");
+                                        track_player.play_song_now(&beep_song, None).expect("Could not play beep on track player");
+                                        //track_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
+                                    } else {
+                                        click_device = device;
+                                        click_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
+                                        bleed_player = AudioPlayer::new(None, click_device).expect("Could not create click player");
+                                        //click_player.play_song_now(&Song::from_file(Self::get_beep_file(), None).unwrap(), None).unwrap();
+                                        click_player.play_song_now(&beep_song, None).expect("Could not play beep on click player");
+                                    }
+                                }
+                                None => {
+                                    error!("Could not find device with name {}", device_name);
+                                    error!("This is unrecoverable. Resetting configuration. Please restart the application.");
+                                    confy::store("drum-weaver", None, AppConfig::default()).unwrap();
+                                    std::process::exit(1);
+                                }
                             }
                         }
                         PlayerCommand::ResetSpeed => {
                             track_player.set_playback_speed(1.0);
                             click_player.set_playback_speed(1.0);
+                            bleed_player.set_playback_speed(1.0);
                         }
                         PlayerCommand::SetVolume(device_type, volume) => {
                             let new_volume = volume as f32 / 100.0;
@@ -305,12 +354,27 @@ impl Player {
                                 DeviceType::Click => {
                                     click_player.set_volume_adjustment(new_volume);
                                 }
+                                DeviceType::Bleed => {
+                                    bleed_player.set_volume_adjustment(new_volume);
+                                }
                             }
                         }
 
-                        PlayerCommand::ResetVolume(_) => {
-                            track_player.set_volume_adjustment(1.0);
-                            click_player.set_volume_adjustment(1.0);
+                        PlayerCommand::ResetVolume(device_type) => match device_type {
+                            DeviceType::Track => {
+                                track_player.set_volume_adjustment(1.0);
+                            }
+                            DeviceType::Click => {
+                                click_player.set_volume_adjustment(1.0);
+                            }
+                            DeviceType::Bleed => {
+                                bleed_player.set_volume_adjustment(1.0);
+                            }
+                        },
+                        PlayerCommand::Restart => {
+                            track_player.seek(Duration::from_micros(0));
+                            click_player.seek(Duration::from_micros(0));
+                            bleed_player.seek(Duration::from_micros(0));
                         }
                     },
                     Err(_err) => {}
@@ -322,19 +386,10 @@ impl Player {
                     current_stub = None;
                     track_player.stop();
                     click_player.stop();
+                    bleed_player.stop();
                 }
             }
         });
-    }
-
-    fn get_beep_file() -> String {
-        let mut path = env::current_dir().expect("Failed to get current exe path");
-
-        // Append the relative path to your asset
-        path.push("assets");
-        path.push("beep.wav");
-
-        path.display().to_string()
     }
 
     // Helper that returns the full paths for the main and click files
