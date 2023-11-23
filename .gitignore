@@ -12,5 +12,5 @@ Cargo.lock
 
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
-rust-edrum-waver/log/my.log
+*.log
 drum-weaver.code-workspace

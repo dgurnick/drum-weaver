@@ -68,6 +68,19 @@ impl UiEventTrait for App {
                             },
 
                             // Commands for the device view
+                            InputEvent::Key(event) if self.active_menu_item == MenuItem::Help => match event.code {
+                                KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
+                                KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
+                                KeyCode::Char('q') => self.do_exit(),
+                                KeyCode::Char(' ') => self.do_pause(),
+                                KeyCode::Down => self.do_next_device(),
+                                KeyCode::Up => self.do_previous_device(),
+                                KeyCode::Char('t') => self.do_set_device(DeviceType::Track),
+                                KeyCode::Char('c') => self.do_set_device(DeviceType::Click),
+                                _ => {}
+                            },
+
+                            // Commands for the device view
                             InputEvent::Key(event) if self.active_menu_item == MenuItem::Devices => match event.code {
                                 KeyCode::Char('s') => self.active_menu_item = MenuItem::Library,
                                 KeyCode::Char('d') => self.active_menu_item = MenuItem::Devices,
