@@ -64,6 +64,11 @@ impl UiEventTrait for App {
                                     self.is_searching = false;
                                     self.do_complete_search();
                                 }
+                                KeyCode::Tab => {
+                                    self.is_searching = false;
+                                    self.do_empty_queue();
+                                    self.do_complete_search();
+                                }
                                 _ => {}
                             },
 

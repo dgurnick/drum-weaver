@@ -475,7 +475,7 @@ impl UiRenderTrait for App {
                 Span::raw(": start filtering for a specific song or artist."),
             ]),
             Line::from("\n"),
-            Line::from("When searching, hit ESC to cancel the search. Enter confirms."),
+            Line::from("When searching, hit ESC to cancel the search. Enter adds all matches to the queue. TAB replaces the queue."),
             Line::from("\n"),
             Line::from(Span::styled("Queue Commands", header_style)),
             Line::from(vec![Span::styled("INSERT", Style::default().fg(Color::LightCyan)), Span::raw(": Adds the selected song to the queue")]),
