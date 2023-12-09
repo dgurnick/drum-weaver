@@ -5,6 +5,7 @@ use std::{
 };
 
 use crossterm::event::{self, Event as CrosstermEvent, KeyEventKind, MouseButton, MouseEventKind};
+use log::info;
 
 use crate::app::library::Library;
 
@@ -40,9 +41,12 @@ impl UiSetupTrait for App {
                 if event::poll(timeout).expect("Polling works") {
                     match event::read().expect("can read events") {
                         CrosstermEvent::Key(key) => {
-                            if key.kind == KeyEventKind::Release {
+                            //if key.kind == KeyEventKind::Release {
+                                info!("Key released: {:?}", key);
                                 ui_command_sender.send(UiEvent::Input(InputEvent::Key(key))).expect("can send events");
-                            }
+                            //} else {
+                            //    info!("Key not released: {:?}", key);
+                            //}
                         }
                         CrosstermEvent::Mouse(me) => {
                             if me.kind == MouseEventKind::Up(MouseButton::Left) {
@@ -69,6 +73,7 @@ impl UiSetupTrait for App {
         match path {
             Ok(path) => {
                 if let Some(p) = path {
+                    info!("Selected folder: {}", p.display());
                     self.init_library(p.display().to_string());
                 } else {
                     std::process::exit(0);

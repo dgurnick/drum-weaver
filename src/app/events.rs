@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyModifiers};
-use log::error;
+use log::{error, info};
 
 use crate::app::{player::PlayerCommand, PlayerStatus};
 
@@ -27,6 +27,9 @@ impl UiEventTrait for App {
                 }
                 match event {
                     UiEvent::Input(input_event) => {
+
+                        info!("Input event");
+
                         match input_event {
                             // Commands for the help view
                             InputEvent::Key(event) if event.modifiers.contains(KeyModifiers::ALT) && self.active_menu_item == MenuItem::Library && self.is_searching => {

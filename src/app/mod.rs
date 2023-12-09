@@ -27,7 +27,7 @@ use crossterm::{
     ExecutableCommand,
 };
 
-use log::error;
+use log::{info, error};
 use ratatui::{backend::CrosstermBackend, widgets::TableState, Terminal};
 
 use self::{
@@ -183,6 +183,8 @@ impl App {
         // set up the signals for ui commands
         let (ui_command_sender, ui_command_receiver) = unbounded();
 
+        info!("App initialized");
+
         App {
             player_command_sender,
             player_event_receiver,
@@ -211,6 +213,7 @@ impl App {
             is_repeating: false,
             page_size: 10,
         }
+
     }
 
     pub fn run(&mut self) {
@@ -253,6 +256,8 @@ impl App {
             player_command_sender_clone.send(PlayerCommand::GetStatus).unwrap();
             thread::sleep(Duration::from_millis(500));
         });
+
+        info!("App is running");
 
         while self.is_running {
             // Wait for the user to pick a folder
