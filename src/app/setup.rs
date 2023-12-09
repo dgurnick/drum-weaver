@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crossterm::event::{self, Event as CrosstermEvent, KeyEventKind, MouseButton, MouseEventKind};
+use crossterm::event::{self, Event as CrosstermEvent, MouseButton, MouseEventKind};
 use log::info;
 
 use crate::app::library::Library;
