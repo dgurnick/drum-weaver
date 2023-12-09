@@ -458,6 +458,8 @@ impl UiRenderTrait for App {
                 Span::raw(": Speed up or slow down the playback."),
             ]),
             Line::from(vec![Span::styled("r", Style::default().fg(Color::LightCyan)), Span::raw(": Reset the playback speed.")]),
+            Line::from(vec![Span::styled("a", Style::default().fg(Color::LightCyan)), Span::raw(": Enable or disable repeat.")]),
+            Line::from(vec![Span::styled("z", Style::default().fg(Color::LightCyan)), Span::raw(": Restart the current song.")]),
             Line::from(vec![
                 Span::styled("SPACE", Style::default().fg(Color::LightCyan)),
                 Span::raw(": Pause or continue the song that is playing"),
